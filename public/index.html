@@ -1348,6 +1348,10 @@ const modals = {};
 window.showModal = function (id, data) {
   modals[id] = { open: true, data: data };
   render();
+  requestAnimationFrame(() => {
+    const el = document.querySelector('.modal-overlay');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 };
 
 window.closeModal = function (id) {
