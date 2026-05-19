@@ -1360,7 +1360,100 @@ window.closeModal = function (id) {
   render();
 };
 
-// ============ ORIGEN OT / PRESUPUESTO ============
+// ============ NUEVO PRESUPUESTO INLINE ============
+window.toggleNuevoPresupuesto = function () {
+  const form = document.getElementById('ot-nuevo-presupuesto-form');
+  const btn = document.getElementById('btn-nuevo-presupuesto');
+  const isHidden = form.classList.contains('hidden');
+  form.classList.toggle('hidden');
+  btn.textContent = isHidden ? '✕ Cancelar' : '+ Nuevo';
+  if (isHidden) {
+    document.getElementById('np-cliente-id').value = '';
+    document.getElementById('np-cliente-search').value = '';
+    document.getElementById('np-proyecto').value = '';
+    document.getElementById('np-pdf').value = '';
+  }
+};
+
+let _clientesNP = [];
+async function buscarClienteNP(q) {
+  const list = document.getElementById('np-cliente-list');
+  if (q.length < 1) { list.classList.add('hidden'); return; }
+  try {
+    const d = await api('GET', '/api/clientes');
+    _clientesNP = d.clientes || [];
+    const filtrados = _clientesNP.filter(c =>
+      c.nombre.toLowerCase().includes(q.toLowerCase()) ||
+      (c.telefono && c.telefono.includes(q))
+    );
+    if (filtrados.length === 0) { list.classList.add('hidden'); return; }
+    list.innerHTML = filtrados.map(c =>
+      '<div onclick="seleccionarClienteNP(' + c.id + ',\'' + escHtml(c.nombre) + '\')" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-100 last:border-0">'
+      + '<strong>' + escHtml(c.nombre) + '</strong> <span class="text-gray-400">' + escHtml(c.telefono || '') + '</span></div>'
+    ).join('');
+    list.classList.remove('hidden');
+  } catch (e) { /* ignore */ }
+}
+
+window.seleccionarClienteNP = function (id, nombre) {
+  document.getElementById('np-cliente-id').value = id;
+  document.getElementById('np-cliente-search').value = nombre;
+  document.getElementById('np-cliente-list').classList.add('hidden');
+};
+
+window.crearPresupuestoYSeleccionar = async function () {
+  const cid = document.getElementById('np-cliente-id').value;
+  const proyecto = document.getElementById('np-proyecto').value;
+  if (!cid) { toast('Selecciona un cliente para el presupuesto', 'error'); return; }
+  if (!proyecto) { toast('Escribe el nombre del proyecto', 'error'); return; }
+
+  const btn = event.target;
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-1"></span> Creando...';
+
+  try {
+    const result = await api('POST', '/api/presupuestos', {
+      cliente_id: Number(cid),
+      nombre_proyecto: proyecto,
+      aprobado: 1,
+    });
+
+    // Upload PDF if provided
+    const pdfInput = document.getElementById('np-pdf');
+    if (pdfInput && pdfInput.files.length > 0) {
+      const presupuestos = await api('GET', '/api/presupuestos');
+      const nuevo = presupuestos.presupuestos?.find(p => p.nombre_proyecto === proyecto && p.cliente_id === Number(cid));
+      if (nuevo) {
+        const fd = new FormData();
+        fd.append('presupuesto_id', nuevo.id);
+        fd.append('archivo', pdfInput.files[0]);
+        await fetch('/api/presupuestos/upload', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + state.token },
+          body: fd,
+        });
+      }
+    }
+
+    // Reload presupuestos and select the new one
+    await cargarPresupuestosSelect();
+    await new Promise(r => setTimeout(r, 100));
+
+    // Select the last presupuesto (ours)
+    const sel = document.getElementById('ot-presupuesto');
+    if (sel && sel.options.length > 1) {
+      sel.selectedIndex = sel.options.length - 1;
+      await cargarPresupuestoOT();
+    }
+
+    toggleNuevoPresupuesto();
+    toast('Presupuesto creado: ' + proyecto);
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Crear y Seleccionar';
+  }
+};
+
+// ============ ORIGEN OT / PRESUPUESTO (continuación) ============
 let _presupuestosData = [];
 
 async function cargarPresupuestosSelect() {
@@ -1663,15 +1756,45 @@ function renderModalNuevaOT() {
           <!-- Selector de presupuesto (visible solo para Presupuesto Aprobado) -->
           <div id="ot-presupuesto-section">
             <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto Aprobado *</label>
-            <select id="ot-presupuesto" class="select-field" onchange="cargarPresupuestoOT()">
-              <option value="">Seleccionar presupuesto...</option>
-            </select>
+            <div class="flex gap-2 items-start">
+              <div class="flex-1">
+                <select id="ot-presupuesto" class="select-field" onchange="cargarPresupuestoOT()">
+                  <option value="">Seleccionar presupuesto existente...</option>
+                </select>
+              </div>
+              <button type="button" onclick="toggleNuevoPresupuesto()" id="btn-nuevo-presupuesto" class="btn-primary text-sm px-3 py-2.5 whitespace-nowrap">+ Nuevo</button>
+            </div>
+            <!-- Info del presupuesto seleccionado -->
             <div id="ot-presupuesto-info" class="hidden mt-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
               <p id="ot-presupuesto-cliente"></p>
               <p id="ot-presupuesto-monto"></p>
             </div>
+            <!-- Formulario para nuevo presupuesto (oculto por defecto) -->
+            <div id="ot-nuevo-presupuesto-form" class="hidden mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+              <p class="text-sm font-semibold text-gray-700">Nuevo Presupuesto Aprobado</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Cliente *</label>
+                  <input type="text" id="np-cliente-search" class="input-field text-sm" placeholder="Buscar cliente..." oninput="buscarClienteNP(this.value)">
+                  <div id="np-cliente-list" class="hidden mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto absolute z-10 w-[calc(100%-1.5rem)]"></div>
+                  <input type="hidden" id="np-cliente-id">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del Proyecto *</label>
+                  <input type="text" id="np-proyecto" class="input-field text-sm" placeholder="Ej: Instalación Hotel Royal">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">PDF del Presupuesto</label>
+                <input type="file" id="np-pdf" accept=".pdf,image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+              </div>
+              <div class="flex justify-end gap-2">
+                <button type="button" onclick="toggleNuevoPresupuesto()" class="btn-secondary text-xs px-3 py-1.5">Cancelar</button>
+                <button type="button" onclick="crearPresupuestoYSeleccionar()" class="btn-primary text-xs px-3 py-1.5">Crear y Seleccionar</button>
+              </div>
+            </div>
             <div class="mt-2">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Adjuntar PDF del presupuesto</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Adjuntar PDF del presupuesto (si no lo subiste arriba)</label>
               <input type="file" id="ot-presupuesto-pdf" accept=".pdf,image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
             </div>
           </div>
