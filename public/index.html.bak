@@ -233,11 +233,14 @@ function renderLayout() {
               </div>
             </div>
           </div>
-          <!-- Info usuario en misma línea -->
-          <div class="px-4 py-2.5 bg-gray-900 border-b border-gray-800/80">
-            <div class="flex items-center gap-2">
-              <div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-[9px] font-bold text-white shadow-sm flex-shrink-0">${(state.user?.nombre || '?')[0].toUpperCase()}</div>
-              <span class="text-xs font-medium text-gray-200 truncate">${state.user?.nombre}</span>
+          <!-- Info usuario -->
+          <div class="px-4 py-3 bg-gray-900 border-b border-gray-800/80">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-[10px] font-bold text-white shadow-sm flex-shrink-0">${(state.user?.nombre || '?')[0].toUpperCase()}</div>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-gray-200 truncate leading-tight">${state.user?.nombre}</p>
+                <p class="text-[10px] text-gray-500 truncate leading-tight">${state.user?.email || ''}</p>
+              </div>
             </div>
           </div>
           <!-- Navegación principal -->
