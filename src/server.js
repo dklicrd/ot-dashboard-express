@@ -3,6 +3,18 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const { getDb, queryAll, queryFirst, run, transaction } = require('./db');
+const multer = require('multer');
+const upload = multer({
+  dest: path.join(__dirname, '..', 'public', 'uploads', 'presupuestos'),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf' || file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo PDFs e imágenes'), false);
+    }
+  }
+});
 const { initDatabase } = require('./init-db');
 const { authMiddleware, adminOnly, generarToken } = require('./auth');
 const { generarAvalPDF } = require('./pdf');

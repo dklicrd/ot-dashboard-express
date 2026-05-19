@@ -64,6 +64,11 @@ async function initDatabase() {
       run('ALTER TABLE ordenes_trabajo ADD COLUMN presupuesto_id INTEGER');
       console.log('🔧 Columna presupuesto_id agregada a ordenes_trabajo');
     }
+    const hasArchivoPresup = tableInfo.some(t => t.name === 'archivo_presupuesto');
+    if (!hasArchivoPresup) {
+      run("ALTER TABLE presupuestos ADD COLUMN archivo_presupuesto TEXT");
+      console.log('🔧 Columna archivo_presupuesto agregada a presupuestos');
+    }
 
     // Check if CHECK has aval_entregado
     const hasAvalEntregado = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%aval_entregado%'").length > 0;
