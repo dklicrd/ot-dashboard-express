@@ -10,14 +10,12 @@
   .sidebar-item { @apply flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors; }
   .sidebar-item.active { @apply bg-blue-600 text-white; }
   .sidebar-item:not(.active) { @apply text-gray-300 hover:bg-gray-800 hover:text-white; }
-  .card { @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6; }
-  .card-header { @apply text-lg font-semibold text-gray-900 mb-4; }
-  .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50; }
-  .btn-secondary { @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors; }
-  .btn-danger { @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors; }
-  .btn-success { @apply bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors; }
-  .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500; }
-  .select-field { @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white; }
+  .btn-primary { @apply bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-secondary { @apply bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 border border-gray-300 hover:border-gray-400 shadow-sm; }
+  .btn-danger { @apply bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg; }
+  .btn-success { @apply bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg; }
+  .card { @apply bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow duration-200; }
+  .card-header { @apply text-lg font-semibold text-gray-900 mb-4 pb-3 border-b border-gray-100; }
   .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
   .badge-pendiente { @apply badge bg-yellow-100 text-yellow-800; }
   .badge-aprobada { @apply badge bg-green-100 text-green-800; }
@@ -25,7 +23,7 @@
   .badge-completada { @apply badge bg-gray-100 text-gray-800; }
   .badge-cancelada { @apply badge bg-red-100 text-red-800; }
   .modal-overlay { @apply fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4; }
-  .modal-content { @apply bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto; }
+  .modal-content { @apply bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100; }
   .toast { @apply fixed bottom-6 right-6 z-[100] px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300; }
   .loading-spinner { @apply inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -34,6 +32,11 @@
   .slide-up { animation: slideUp 0.3s ease-out; }
   .star-rating button { transition: all 0.15s ease; }
   .star-rating button:hover { transform: scale(1.15); }
+  .input-field { @apply w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-150 bg-white; }
+  .select-field { @apply w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-150 bg-white; }
+  .btn-icon { @apply inline-flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 shadow-sm; }
+  .btn-edit { @apply btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200; }
+  .btn-delete { @apply btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200; }
 </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -157,6 +160,7 @@ const navItems = {
     { id: 'avales', label: 'Avales', icon: '✅' },
     { id: 'encuestas', label: 'Encuestas', icon: '⭐' },
     { id: 'reportes', label: 'Reportes', icon: '📈' },
+    { id: 'productos', label: 'Productos', icon: '📦' },
     { id: 'usuarios', label: 'Usuarios', icon: '👥' },
     { id: 'config', label: 'Configuración', icon: '⚙️' },
   ],
@@ -189,7 +193,8 @@ function renderLayout() {
           <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             ${items.map(i => `<a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item ${state.view === i.id ? 'active' : ''}"><span class="mr-3">${i.icon}</span>${i.label}</a>`).join('')}
           </nav>
-          <div class="px-3 py-4 border-t border-gray-700">
+          <div class="px-3 py-4 border-t border-gray-700 space-y-1">
+            <a href="#" onclick="setState({view:'perfil'});closeSidebar()" class="sidebar-item text-gray-300 hover:bg-gray-800 hover:text-white"><span class="mr-3">👤</span>Perfil</a>
             <a href="#" onclick="handleLogout()" class="sidebar-item text-gray-300 hover:bg-gray-800 hover:text-white"><span class="mr-3">🚪</span>Cerrar Sesión</a>
           </div>
         </div>
@@ -296,17 +301,22 @@ async function renderOrdenes() {
   try { const d = await api('GET', '/api/ordenes'); ordenes = d.ordenes || []; } catch (e) { /* ignore */ }
   const estadoLabel = { pendiente: 'Pendiente', aprobada: 'Aprobada', en_curso: 'En Curso', completada: 'Completada', cancelada: 'Cancelada' };
 
-  const rows = ordenes.map(ot => `
+  const rows = ordenes.map(ot => {
+    const prodHtml = ot.productos && ot.productos.length > 0
+      ? ot.productos.map(p => `${escHtml(p.nombre)} x${p.cantidad}`).join(', ')
+      : '<span class="text-gray-400">—</span>';
+    return `
     <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <td class="py-3 px-4 font-medium text-blue-600 whitespace-nowrap">${ot.numero_ot}</td>
       <td class="py-3 px-4">${escHtml(ot.cliente_nombre)}</td>
       <td class="py-3 px-4"><span class="badge capitalize bg-gray-100 text-gray-700">${ot.tipo_servicio}</span></td>
+      <td class="py-3 px-4 text-sm text-gray-600 max-w-[200px] truncate" title="${escHtml(prodHtml.replace(/<[^>]+>/g, ''))}">${prodHtml}</td>
       <td class="py-3 px-4">${ot.tecnico_nombre || '<span class="text-gray-400">—</span>'}</td>
       <td class="py-3 px-4"><span class="badge-${ot.estado}">${estadoLabel[ot.estado]}</span></td>
       <td class="py-3 px-4 text-right font-medium">RD$ ${(ot.monto_total || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}</td>
       <td class="py-3 px-4 text-right text-gray-500 text-sm">${formatFecha(ot.fecha_programada || ot.creado_en)}</td>
     </tr>
-  `).join('');
+  `}).join('');
 
   return `
     <div class="fade-in">
@@ -321,12 +331,13 @@ async function renderOrdenes() {
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Tipo</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Productos</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Técnico</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
               <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Monto</th>
               <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Fecha</th>
             </tr></thead>
-            <tbody>${ordenes.length === 0 ? '<tr><td colspan="7" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">📋</span>No hay órdenes de trabajo</td></tr>' : rows}</tbody>
+            <tbody>${ordenes.length === 0 ? '<tr><td colspan="8" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">📋</span>No hay órdenes de trabajo</td></tr>' : rows}</tbody>
           </table>
         </div>
         <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">Mostrando ${ordenes.length} órdenes</div>
@@ -334,8 +345,6 @@ async function renderOrdenes() {
     </div>
   `;
 }
-
-// ============ AVALES ============
 async function renderAvales() {
   let avales = [];
   try { const d = await api('GET', '/api/avales'); avales = d.avales || []; } catch (e) { /* ignore */ }
@@ -617,6 +626,11 @@ async function renderUsuarios() {
       <td class="py-3 px-4"><span class="badge ${rolBadge[u.rol]}">${rolLabel[u.rol]}</span></td>
       <td class="py-3 px-4">${u.telefono || '<span class="text-gray-400">—</span>'}</td>
       <td class="py-3 px-4 text-center">${u.activo ? '<span class="text-green-600 text-lg">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
+      <td class="py-3 px-4 text-center">
+        ${u.id !== state.user.id
+          ? `<button onclick="confirmarEliminarUsuario(${u.id},'${escHtml(u.nombre).replace(/'/g, "\\'")}')" class="btn-delete" title="Eliminar"><span>🗑️</span></button>`
+          : '<span class="text-gray-400 text-xs">—</span>'}
+      </td>
     </tr>
   `).join('');
 
@@ -635,14 +649,31 @@ async function renderUsuarios() {
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Rol</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Teléfono</th>
               <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Acciones</th>
             </tr></thead>
-            <tbody>${usuarios.length === 0 ? '<tr><td colspan="5" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">👥</span>No hay usuarios</td></tr>' : rows}</tbody>
+            <tbody>${usuarios.length === 0 ? '<tr><td colspan="6" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">👥</span>No hay usuarios</td></tr>' : rows}</tbody>
           </table>
         </div>
         <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">${usuarios.length} usuario(s) registrados</div>
       </div>
     </div>
   `;
+}
+
+window.confirmarEliminarUsuario = function (id, nombre) {
+  if (confirm(`¿Estás seguro de eliminar a "${nombre}"?\n\nEl usuario será desactivado y no podrá iniciar sesión.`)) {
+    eliminarUsuario(id);
+  }
+};
+
+async function eliminarUsuario(id) {
+  try {
+    await api('DELETE', '/api/usuarios/' + id);
+    toast('Usuario desactivado correctamente');
+    render();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
 }
 
 // ============ CONFIGURACIÓN ============
@@ -832,6 +863,8 @@ async function render() {
       case 'avales': content = await renderAvales(); break;
       case 'encuestas': content = await renderEncuestas(); break;
       case 'reportes': content = await renderReportes(); break;
+      case 'productos': content = await renderProductos(); break;
+      case 'perfil': content = renderPerfil(); break;
       case 'usuarios': content = await renderUsuarios(); break;
       case 'config': content = await renderConfig(); break;
       default: content = await renderInicio();
@@ -856,8 +889,144 @@ async function render() {
   }
 }
 
-// ============ MODAL: NUEVA OT ============
+// ============ PRODUCTOS ============
+let _productos = [];
+let _productosSeleccionados = []; // Array of {producto_id, nombre, cantidad}
+
+async function renderProductos() {
+  let productos = [];
+  try { const d = await api('GET', '/api/productos?todos=1'); productos = d.productos || []; } catch (e) { /* ignore */ }
+
+  const catLabel = { cerradura: 'Cerradura', puerta: 'Puerta', control_acceso: 'Control Acceso', caja_fuerte: 'Caja Fuerte', ahorro_energia: 'Ahorro Energía', otro: 'Otro' };
+
+  const rows = productos.map(p => `
+    <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td class="py-3 px-4 font-medium">${escHtml(p.nombre)}</td>
+      <td class="py-3 px-4"><span class="badge bg-gray-100 text-gray-700">${catLabel[p.categoria] || p.categoria}</span></td>
+      <td class="py-3 px-4 text-sm text-gray-500">${escHtml(p.descripcion || '')}</td>
+      <td class="py-3 px-4 text-center">${p.activo ? '<span class="badge bg-green-100 text-green-700">Activo</span>' : '<span class="badge bg-red-100 text-red-700">Inactivo</span>'}</td>
+      <td class="py-3 px-4 text-center">
+        <button onclick="editarProducto(${p.id})" class="btn-edit" title="Editar"><span>✏️</span></button>
+        ${p.activo ? `<button onclick="eliminarProducto(${p.id})" class="btn-delete" title="Desactivar"><span>🗑️</span></button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="fade-in">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Productos</h1>
+        <button onclick="mostrarFormProducto()" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nuevo Producto</button>
+      </div>
+      <div id="producto-form-container"></div>
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Nombre</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Categoría</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Descripción</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Acciones</th>
+            </tr></thead>
+            <tbody>${productos.length === 0 ? '<tr><td colspan="5" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">📦</span>No hay productos</td></tr>' : rows}</tbody>
+          </table>
+        </div>
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">${productos.length} producto(s)</div>
+      </div>
+    </div>
+  `;
+}
+
+window.mostrarFormProducto = function (editData) {
+  const d = editData || { id: '', nombre: '', categoria: 'cerradura', descripcion: '' };
+  const isEdit = !!editData;
+  const container = document.getElementById('producto-form-container');
+  container.innerHTML = `
+    <div class="card mb-6 border-2 border-blue-200 bg-blue-50 slide-up">
+      <h3 class="card-header">${isEdit ? 'Editar Producto' : 'Nuevo Producto'}</h3>
+      <form onsubmit="guardarProducto(event)" class="space-y-4">
+        <div id="prod-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+        <input type="hidden" id="prod-id" value="${d.id}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+            <input type="text" id="prod-nombre" class="input-field" value="${escHtml(d.nombre)}" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
+            <select id="prod-categoria" class="select-field">
+              <option value="cerradura" ${d.categoria === 'cerradura' ? 'selected' : ''}>Cerradura</option>
+              <option value="puerta" ${d.categoria === 'puerta' ? 'selected' : ''}>Puerta</option>
+              <option value="control_acceso" ${d.categoria === 'control_acceso' ? 'selected' : ''}>Control Acceso</option>
+              <option value="caja_fuerte" ${d.categoria === 'caja_fuerte' ? 'selected' : ''}>Caja Fuerte</option>
+              <option value="ahorro_energia" ${d.categoria === 'ahorro_energia' ? 'selected' : ''}>Ahorro Energía</option>
+              <option value="otro" ${d.categoria === 'otro' ? 'selected' : ''}>Otro</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+          <textarea id="prod-desc" class="input-field" rows="2">${escHtml(d.descripcion || '')}</textarea>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button type="button" onclick="document.getElementById('producto-form-container').innerHTML=''" class="btn-secondary">Cancelar</button>
+          <button type="submit" class="btn-success">${isEdit ? 'Actualizar' : 'Crear'} Producto</button>
+        </div>
+      </form>
+    </div>
+  `;
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+window.guardarProducto = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('prod-error');
+  err.classList.add('hidden');
+  const id = document.getElementById('prod-id').value;
+  const body = {
+    nombre: document.getElementById('prod-nombre').value.trim(),
+    categoria: document.getElementById('prod-categoria').value,
+    descripcion: document.getElementById('prod-desc').value.trim(),
+  };
+
+  try {
+    if (id) {
+      await api('PUT', '/api/productos/' + id, body);
+    } else {
+      await api('POST', '/api/productos', body);
+    }
+    document.getElementById('producto-form-container').innerHTML = '';
+    toast('Producto ' + (id ? 'actualizado' : 'creado') + ' correctamente');
+    render();
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  }
+};
+
+window.editarProducto = async function (id) {
+  try {
+    const d = await api('GET', '/api/productos?todos=1');
+    const p = (d.productos || []).find(x => x.id === id);
+    if (p) mostrarFormProducto(p);
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+};
+
+window.eliminarProducto = async function (id) {
+  if (!confirm('¿Desactivar este producto?')) return;
+  try {
+    await api('DELETE', '/api/productos/' + id);
+    toast('Producto desactivado');
+    render();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+};
 function renderModalNuevaOT() {
+  // Load tecnicos and productos
+  loadTecnicos();
+  cargarProductosSelect();
+  _productosSeleccionados = [];
+
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-ot')">
       <div class="modal-content">
@@ -887,6 +1056,22 @@ function renderModalNuevaOT() {
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto (RD$)</label><input type="number" id="ot-monto" class="input-field" placeholder="0.00" min="0"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha Programada</label><input type="date" id="ot-fecha" class="input-field"></div>
           </div>
+          <!-- Productos -->
+          <div class="border-t border-gray-200 pt-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Productos</label>
+            <div id="ot-productos-list" class="space-y-2 mb-3"></div>
+            <div class="flex gap-2 items-end">
+              <div class="flex-1">
+                <select id="ot-prod-select" class="select-field">
+                  <option value="">Seleccionar producto...</option>
+                </select>
+              </div>
+              <div class="w-24">
+                <input type="number" id="ot-prod-cant" class="input-field" placeholder="Cant." min="1" value="1">
+              </div>
+              <button type="button" onclick="agregarProductoOT()" class="btn-success text-sm px-3 py-2.5">+</button>
+            </div>
+          </div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" onclick="closeModal('nueva-ot')" class="btn-secondary">Cancelar</button>
             <button type="submit" class="btn-primary">Crear OT</button>
@@ -895,6 +1080,58 @@ function renderModalNuevaOT() {
       </div>
     </div>`;
 }
+
+async function cargarProductosSelect() {
+  try {
+    const d = await api('GET', '/api/productos');
+    _productos = d.productos || [];
+    const sel = document.getElementById('ot-prod-select');
+    if (sel) {
+      sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
+        _productos.map(p => `<option value="${p.id}">${escHtml(p.nombre)}</option>`).join('');
+    }
+  } catch (e) { /* ignore */ }
+}
+
+window.agregarProductoOT = function () {
+  const sel = document.getElementById('ot-prod-select');
+  const cant = document.getElementById('ot-prod-cant');
+  const pid = parseInt(sel.value);
+  const qty = parseInt(cant.value) || 1;
+  if (!pid) return;
+  const prod = _productos.find(p => p.id === pid);
+  if (!prod) return;
+
+  const existing = _productosSeleccionados.findIndex(p => p.producto_id === pid);
+  if (existing >= 0) {
+    _productosSeleccionados[existing].cantidad += qty;
+  } else {
+    _productosSeleccionados.push({ producto_id: pid, nombre: prod.nombre, cantidad: qty });
+  }
+  actualizarListaProductosOT();
+  sel.value = '';
+  cant.value = '1';
+};
+
+function actualizarListaProductosOT() {
+  const div = document.getElementById('ot-productos-list');
+  if (!div) return;
+  if (_productosSeleccionados.length === 0) {
+    div.innerHTML = '<p class="text-xs text-gray-400 italic">No hay productos agregados</p>';
+    return;
+  }
+  div.innerHTML = _productosSeleccionados.map((p, i) =>
+    `<div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+      <div><span class="text-sm font-medium">${escHtml(p.nombre)}</span> <span class="text-sm text-gray-500">x${p.cantidad}</span></div>
+      <button type="button" onclick="quitarProductoOT(${i})" class="text-red-500 hover:text-red-700 text-sm font-semibold">✕</button>
+    </div>`
+  ).join('');
+}
+
+window.quitarProductoOT = function (idx) {
+  _productosSeleccionados.splice(idx, 1);
+  actualizarListaProductosOT();
+};
 
 // Preload tecnicos for OT and Encuesta modals
 let _tecnicos = [];
@@ -945,6 +1182,7 @@ window.submitNuevaOT = async function (e) {
     fecha_programada: document.getElementById('ot-fecha').value || null,
     presupuesto_aprobado: 1,
     estado: 'pendiente',
+    productos: _productosSeleccionados,
   };
 
   const btn = e.target.querySelector('button[type="submit"]');
@@ -1154,7 +1392,93 @@ window.submitNuevaEncuesta = async function (e) {
   }
 };
 
-// ============ MODAL: NUEVO USUARIO ============
+// ============ PERFIL ============
+function renderPerfil() {
+  const u = state.user;
+  const rolLabel = { admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[u?.rol] || '';
+  return `
+    <div class="fade-in max-w-2xl mx-auto">
+      <h1 class="text-2xl font-bold text-gray-900 mb-6">Mi Perfil</h1>
+
+      <div class="card mb-6">
+        <h3 class="card-header">Información del Usuario</h3>
+        <div class="space-y-4">
+          <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+            <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-600">
+              ${(u?.nombre || 'U')[0].toUpperCase()}
+            </div>
+            <div>
+              <p class="text-lg font-semibold text-gray-900">${escHtml(u?.nombre)}</p>
+              <p class="text-sm text-gray-500">${escHtml(u?.email)}</p>
+              <span class="badge bg-blue-100 text-blue-800 mt-1 inline-block">${rolLabel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-header">Cambiar Contraseña</h3>
+        <form onsubmit="submitCambiarPassword(event)" class="space-y-4">
+          <div id="pw-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <div id="pw-success" class="hidden bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm border border-green-200"></div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña Actual</label>
+            <input type="password" id="pw-current" class="input-field" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña</label>
+            <input type="password" id="pw-new" class="input-field" required minlength="6">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Nueva Contraseña</label>
+            <input type="password" id="pw-confirm" class="input-field" required minlength="6">
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" id="pw-btn" class="btn-primary">Actualizar Contraseña</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+window.submitCambiarPassword = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('pw-error');
+  const success = document.getElementById('pw-success');
+  err.classList.add('hidden');
+  success.classList.add('hidden');
+
+  const currentPassword = document.getElementById('pw-current').value;
+  const newPassword = document.getElementById('pw-new').value;
+  const confirmPassword = document.getElementById('pw-confirm').value;
+
+  if (newPassword !== confirmPassword) {
+    err.textContent = 'Las contraseñas nuevas no coinciden';
+    err.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('pw-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Actualizando...';
+
+  try {
+    await api('PUT', '/api/auth/password', { currentPassword, newPassword });
+    success.textContent = 'Contraseña actualizada correctamente';
+    success.classList.remove('hidden');
+    document.getElementById('pw-current').value = '';
+    document.getElementById('pw-new').value = '';
+    document.getElementById('pw-confirm').value = '';
+    toast('Contraseña actualizada');
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Actualizar Contraseña';
+  }
+};
 function renderModalNuevoUsuario() {
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nuevo-usuario')">

@@ -115,6 +115,52 @@ app.post('/api/usuarios', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
+app.delete('/api/usuarios/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (id === req.user.userId) {
+      return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+    }
+    run('UPDATE usuarios SET activo = 0 WHERE id = ?', [id]);
+    res.json({ message: 'Usuario desactivado' });
+  } catch (e) {
+    console.error('Error deleting user:', e);
+    res.status(500).json({ error: 'Error al eliminar usuario' });
+  }
+});
+
+// ==================== API: AUTH / PASSWORD ====================
+app.put('/api/auth/password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Contraseña actual y nueva requeridas' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
+    const user = queryFirst('SELECT * FROM usuarios WHERE id = ?', [req.user.userId]);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    let valid = false;
+    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$')) {
+      valid = await bcrypt.compare(currentPassword, user.password);
+    } else {
+      valid = currentPassword === user.password;
+    }
+    if (!valid) return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, req.user.userId]);
+
+    res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (e) {
+    console.error('Error changing password:', e);
+    res.status(500).json({ error: 'Error al cambiar contraseña' });
+  }
+});
+
 // ==================== API: CLIENTES ====================
 app.get('/api/clientes', authMiddleware, (req, res) => {
   const search = req.query.search;
@@ -142,6 +188,68 @@ app.post('/api/clientes', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
+// ==================== API: PRODUCTOS ====================
+app.get('/api/productos', authMiddleware, (req, res) => {
+  const incluirInactivos = req.query.todos === '1';
+  let productos;
+  if (incluirInactivos) {
+    productos = queryAll('SELECT * FROM productos ORDER BY activo DESC, nombre');
+  } else {
+    productos = queryAll('SELECT * FROM productos WHERE activo = 1 ORDER BY nombre');
+  }
+  res.json({ productos });
+});
+
+app.post('/api/productos', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const { nombre, categoria, descripcion } = req.body;
+    if (!nombre || !categoria) {
+      return res.status(400).json({ error: 'Nombre y categoría requeridos' });
+    }
+    const validCategories = ['cerradura', 'puerta', 'control_acceso', 'caja_fuerte', 'ahorro_energia', 'otro'];
+    if (!validCategories.includes(categoria)) {
+      return res.status(400).json({ error: 'Categoría inválida' });
+    }
+    run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)',
+      [nombre.trim(), categoria, descripcion || null]);
+    res.status(201).json({ message: 'Producto creado' });
+  } catch (e) {
+    console.error('Error creating producto:', e);
+    res.status(500).json({ error: 'Error al crear producto' });
+  }
+});
+
+app.put('/api/productos/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { nombre, categoria, descripcion, activo } = req.body;
+    if (!nombre || !categoria) {
+      return res.status(400).json({ error: 'Nombre y categoría requeridos' });
+    }
+    const validCategories = ['cerradura', 'puerta', 'control_acceso', 'caja_fuerte', 'ahorro_energia', 'otro'];
+    if (!validCategories.includes(categoria)) {
+      return res.status(400).json({ error: 'Categoría inválida' });
+    }
+    run('UPDATE productos SET nombre=?, categoria=?, descripcion=?, activo=? WHERE id=?',
+      [nombre.trim(), categoria, descripcion || null, activo !== undefined ? (activo ? 1 : 0) : 1, id]);
+    res.json({ message: 'Producto actualizado' });
+  } catch (e) {
+    console.error('Error updating producto:', e);
+    res.status(500).json({ error: 'Error al actualizar producto' });
+  }
+});
+
+app.delete('/api/productos/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    run('UPDATE productos SET activo = 0 WHERE id = ?', [id]);
+    res.json({ message: 'Producto desactivado' });
+  } catch (e) {
+    console.error('Error deleting producto:', e);
+    res.status(500).json({ error: 'Error al desactivar producto' });
+  }
+});
+
 // ==================== API: ÓRDENES DE TRABAJO ====================
 app.get('/api/ordenes', authMiddleware, (req, res) => {
   const estado = req.query.estado;
@@ -161,6 +269,18 @@ app.get('/api/ordenes', authMiddleware, (req, res) => {
   sql += ' ORDER BY ot.creado_en DESC LIMIT 100';
 
   const ordenes = queryAll(sql, params);
+
+  // Attach productos to each order
+  for (const ot of ordenes) {
+    const prods = queryAll(`
+      SELECT p.id, p.nombre, p.categoria, otp.cantidad
+      FROM orden_trabajo_productos otp
+      JOIN productos p ON otp.producto_id = p.id
+      WHERE otp.orden_trabajo_id = ?
+    `, [ot.id]);
+    ot.productos = prods;
+  }
+
   res.json({ ordenes });
 });
 
@@ -175,6 +295,20 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
        body.presupuesto_aprobado ? 1 : 0, body.monto_total || 0, body.tecnico_id || null,
        body.estado || 'pendiente', body.fuente || 'manual', body.notas || null,
        req.user.userId, body.fecha_programada || null]);
+
+    // Get the inserted OT id
+    const otRow = queryFirst('SELECT id FROM ordenes_trabajo WHERE numero_ot = ?', [num]);
+
+    // Insert productos if provided
+    if (body.productos && Array.isArray(body.productos) && otRow) {
+      for (const p of body.productos) {
+        if (p.producto_id && p.cantidad > 0) {
+          run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (?, ?, ?)',
+            [otRow.id, p.producto_id, p.cantidad]);
+        }
+      }
+    }
+
     res.status(201).json({ numero_ot: num, message: 'OT creada' });
   } catch (e) {
     console.error('Error creating OT:', e);
@@ -189,6 +323,18 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
       estado=?, notas=?, fecha_programada=?, actualizado_en=datetime('now', '-04:00') WHERE id=?`,
       [b.cliente_id, b.tipo_servicio, b.descripcion, b.monto_total, b.tecnico_id,
        b.estado, b.notas, b.fecha_programada, b.id]);
+
+    // Update productos if provided (remove old, insert new)
+    if (b.productos && Array.isArray(b.productos)) {
+      run('DELETE FROM orden_trabajo_productos WHERE orden_trabajo_id = ?', [b.id]);
+      for (const p of b.productos) {
+        if (p.producto_id && p.cantidad > 0) {
+          run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (?, ?, ?)',
+            [b.id, p.producto_id, p.cantidad]);
+        }
+      }
+    }
+
     res.json({ success: true });
   } catch (e) {
     console.error('Error updating OT:', e);

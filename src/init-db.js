@@ -28,24 +28,105 @@ async function initDatabase() {
       creado_en TEXT DEFAULT (datetime('now', '-04:00'))
     );
   `);
+
+  // Migrate ordenes_trabajo: remove CHECK constraint on tipo_servicio
+  const tableInfo = queryAll("PRAGMA table_info('ordenes_trabajo')");
+  const otExists = tableInfo.length > 0;
+  if (!otExists) {
+    // Create fresh with no CHECK on tipo_servicio
+    run(`
+      CREATE TABLE ordenes_trabajo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero_ot TEXT UNIQUE NOT NULL,
+        cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+        tipo_servicio TEXT NOT NULL,
+        descripcion TEXT,
+        presupuesto_aprobado INTEGER DEFAULT 0,
+        monto_total REAL DEFAULT 0,
+        tecnico_id INTEGER REFERENCES usuarios(id),
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'completada', 'cancelada')),
+        fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube')),
+        archivo_presupuesto TEXT,
+        notas TEXT,
+        creada_por INTEGER REFERENCES usuarios(id),
+        fecha_programada TEXT,
+        fecha_inicio TEXT,
+        fecha_fin TEXT,
+        creado_en TEXT DEFAULT (datetime('now', '-04:00')),
+        actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+      );
+    `);
+  } else {
+    // Check if the CHECK on tipo_servicio exists by trying to insert a test value
+    // A simpler approach: recreate the table without the CHECK if needed
+    const hasTipoCheck = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%CHECK(tipo_servicio IN%'").length > 0;
+    if (hasTipoCheck) {
+      console.log('🔧 Migrando tabla ordenes_trabajo (eliminando CHECK en tipo_servicio)...');
+      run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_old');
+      run(`
+        CREATE TABLE ordenes_trabajo (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          numero_ot TEXT UNIQUE NOT NULL,
+          cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+          tipo_servicio TEXT NOT NULL,
+          descripcion TEXT,
+          presupuesto_aprobado INTEGER DEFAULT 0,
+          monto_total REAL DEFAULT 0,
+          tecnico_id INTEGER REFERENCES usuarios(id),
+          estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'completada', 'cancelada')),
+          fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube')),
+          archivo_presupuesto TEXT,
+          notas TEXT,
+          creada_por INTEGER REFERENCES usuarios(id),
+          fecha_programada TEXT,
+          fecha_inicio TEXT,
+          fecha_fin TEXT,
+          creado_en TEXT DEFAULT (datetime('now', '-04:00')),
+          actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+        );
+      `);
+      run('INSERT INTO ordenes_trabajo SELECT * FROM ordenes_trabajo_old');
+      run('DROP TABLE ordenes_trabajo_old');
+      console.log('✅ Migración completada');
+    }
+  }
+
   run(`
-    CREATE TABLE IF NOT EXISTS ordenes_trabajo (
+    CREATE TABLE IF NOT EXISTS productos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      numero_ot TEXT UNIQUE NOT NULL,
-      cliente_id INTEGER NOT NULL REFERENCES clientes(id),
-      tipo_servicio TEXT NOT NULL CHECK(tipo_servicio IN ('instalacion', 'mantenimiento', 'reparacion', 'garantia', 'levantamiento')),
+      nombre TEXT NOT NULL,
+      categoria TEXT NOT NULL CHECK(categoria IN ('cerradura', 'puerta', 'control_acceso', 'caja_fuerte', 'ahorro_energia', 'otro')),
       descripcion TEXT,
-      presupuesto_aprobado INTEGER DEFAULT 0,
-      monto_total REAL DEFAULT 0,
-      tecnico_id INTEGER REFERENCES usuarios(id),
-      estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'completada', 'cancelada')),
-      fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube')),
-      archivo_presupuesto TEXT,
-      notas TEXT,
-      creada_por INTEGER REFERENCES usuarios(id),
-      fecha_programada TEXT,
-      fecha_inicio TEXT,
-      fecha_fin TEXT,
+      activo INTEGER DEFAULT 1,
+      creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+    );
+  `);
+  run(`
+    CREATE TABLE IF NOT EXISTS orden_trabajo_productos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+      producto_id INTEGER NOT NULL REFERENCES productos(id),
+      cantidad INTEGER DEFAULT 1
+    );
+  `);
+  run(`
+    CREATE TABLE IF NOT EXISTS avales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+      numero_aval TEXT UNIQUE NOT NULL,
+      descripcion_trabajo TEXT,
+      materiales TEXT,
+      costo_total REAL DEFAULT 0,
+      forma_pago TEXT,
+      garantia TEXT,
+      observaciones TEXT,
+      estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'enviado', 'firmado', 'completado')),
+      archivo_pdf_generado TEXT,
+      archivo_pdf_firmado TEXT,
+      respuestas_digitales TEXT,
+      fecha_envio_tecnico TEXT,
+      fecha_firma_cliente TEXT,
+      fecha_completado TEXT,
       creado_en TEXT DEFAULT (datetime('now', '-04:00')),
       actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
     );
@@ -139,11 +220,46 @@ async function initDatabase() {
       ['Administrador', 'admin@sistema.com', hashed, 'admin']);
   }
 
+  // Productos por defecto si están vacíos
+  const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
+  if (numProductos === 0) {
+    const productosDemo = [
+      ['Cerradura Eléctrica', 'cerradura', 'Cerradura eléctrica estándar para puertas'],
+      ['Cerradura Electrónica', 'cerradura', 'Cerradura con teclado electrónico'],
+      ['Cerradura Biométrica', 'cerradura', 'Cerradura con lector de huella'],
+      ['Puerta de Metal', 'puerta', 'Puerta de metal reforzado'],
+      ['Puerta de Vidrio Templado', 'puerta', 'Puerta de vidrio templado de seguridad'],
+      ['Control de Acceso Pro', 'control_acceso', 'Sistema de control de acceso profesional'],
+      ['Control de Acceso Básico', 'control_acceso', 'Control de acceso básico con tarjeta'],
+      ['Caja Fuerte Digital', 'caja_fuerte', 'Caja fuerte digital electrónica'],
+      ['Caja Fuerte Mecánica', 'caja_fuerte', 'Caja fuerte con combinación mecánica'],
+      ['Sistema Ahorro Energía', 'ahorro_energia', 'Sistema inteligente de ahorro de energía'],
+      ['Sensor de Movimiento', 'ahorro_energia', 'Sensor de movimiento para ahorro energético'],
+    ];
+    for (const p of productosDemo) {
+      run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)', p);
+    }
+    console.log('✅ Productos demo insertados');
+  }
+
   // Datos demo si no hay clientes
   const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
 
   if (numClientes === 0) {
     seedDemo();
+  }
+
+  // Seed orden_trabajo_productos if empty
+  const numOTProductos = queryFirst('SELECT COUNT(*) as cnt FROM orden_trabajo_productos')?.cnt || 0;
+  if (numOTProductos === 0) {
+    // Link first few OTs with some products
+    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (1, 1, 1230)');
+    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (2, 1, 24)');
+    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (3, 3, 50)');
+    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (4, 1, 943)');
+    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (5, 1, 46)');
+    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (6, 4, 30)');
+    console.log('✅ Productos-OT demo insertados');
   }
 
   console.log('✅ Base de datos lista');
