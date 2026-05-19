@@ -7,11 +7,42 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; }
-  .sidebar-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer; }
-  .sidebar-item.active { @apply bg-blue-600 text-white shadow-sm shadow-blue-600/30; }
+  .sidebar { width: 260px; min-width: 260px; }
+  .sidebar-header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); }
+  .sidebar-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer relative; }
+  .sidebar-item.active { @apply bg-blue-600 text-white; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
   .sidebar-item:not(.active) { @apply text-gray-300 hover:bg-gray-800 hover:text-white; }
-  .sidebar-icon { @apply w-6 h-6 flex items-center justify-center text-base flex-shrink-0; }
-  .sidebar-label { @apply truncate; }
+  .sidebar-item-icon { @apply w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 transition-all duration-150; }
+  .sidebar-item.active .sidebar-item-icon { @apply bg-blue-500/30; }
+  .sidebar-item:not(.active) .sidebar-item-icon { @apply bg-gray-800 text-gray-500; }
+  .sidebar-item:not(.active):hover .sidebar-item-icon { @apply bg-gray-700 text-gray-200; }
+  .sidebar-item-text { @apply truncate font-medium; }
+  .sidebar-item-badge { @apply ml-auto text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full; }
+  .sidebar-divider { @apply border-t border-gray-700/50 mx-3 my-2; }
+  .sidebar-footer-text { @apply text-[10px] text-gray-600 px-3 pb-1 select-none; }
+  .scrollbar-thin::-webkit-scrollbar { width: 3px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+  .sidebar-item::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 0;
+    border-radius: 0 3px 3px 0;
+    transition: height 0.2s ease;
+  }
+  .sidebar-item.active::after {
+    height: 60%;
+    background: #60a5fa;
+  }
+  .sidebar-item:not(.active):hover::after {
+    height: 40%;
+    background: rgba(255,255,255,0.08);
+  }
   .btn-primary { @apply bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed; }
   .btn-secondary { @apply bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 border border-gray-300 hover:border-gray-400 shadow-sm; }
   .btn-danger { @apply bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg; }
@@ -189,43 +220,47 @@ function renderLayout() {
   return `
     <div class="min-h-screen flex">
       <!-- Sidebar -->
-      <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white transform transition-transform duration-300 lg:translate-x-0 -translate-x-full shadow-2xl" id="sidebar">
+      <aside class="fixed inset-y-0 left-0 z-50 w-[260px] bg-gray-900 text-white transform transition-transform duration-300 lg:translate-x-0 -translate-x-full shadow-2xl shadow-black/30" id="sidebar">
         <div class="h-full flex flex-col">
-          <!-- Header con gradiente y logo -->
-          <div class="px-5 py-5 bg-gradient-to-r from-blue-600 to-blue-700">
+          <!-- Header premium -->
+          <div class="sidebar-header px-5 pt-5 pb-4">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-xl shadow-inner">🔧</div>
-              <div class="min-w-0">
-                <h2 class="text-base font-bold leading-tight text-white">OT Dashboard</h2>
-                <p class="text-xs text-blue-200 mt-0.5 capitalize font-medium">${rolLabel}</p>
+              <div class="w-11 h-11 bg-white/15 backdrop-blur-sm rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/10">🔧</div>
+              <div class="min-w-0 flex-1">
+                <h2 class="text-[15px] font-bold leading-tight text-white tracking-tight">OT Dashboard</h2>
+                <p class="text-[11px] text-blue-200/80 mt-0.5 capitalize font-medium tracking-wide">${rolLabel}</p>
               </div>
             </div>
           </div>
           <!-- Info usuario -->
-          <div class="px-5 py-3 bg-gray-800/50 border-b border-gray-700/50">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-300 uppercase">${(state.user?.nombre || '?')[0]}</div>
-              <p class="text-xs text-gray-400 truncate font-medium">${state.user?.nombre}</p>
+          <div class="px-4 py-3 bg-gray-900 border-b border-gray-800/80">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0">${(state.user?.nombre || '?')[0].toUpperCase()}</div>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-gray-200 truncate leading-tight">${state.user?.nombre}</p>
+                <p class="text-[10px] text-gray-500 truncate leading-tight">${state.user?.email || ''}</p>
+              </div>
             </div>
           </div>
-          <!-- Navegación -->
-          <nav class="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
+          <!-- Navegación principal -->
+          <div class="flex-1 overflow-y-auto scrollbar-thin py-2 px-2.5 space-y-0.5">
             ${items.map((i, idx) => `
               <a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item group ${state.view === i.id ? 'active' : ''}">
-                <div class="sidebar-icon ${state.view === i.id ? '' : 'text-gray-500 group-hover:text-gray-300'}">${i.icon}</div>
-                <span class="sidebar-label">${i.label}</span>
+                <div class="sidebar-item-icon">${i.icon}</div>
+                <span class="sidebar-item-text">${i.label}</span>
+                ${i.badge ? `<span class="sidebar-item-badge">${i.badge}</span>` : ''}
               </a>
             `).join('')}
-          </nav>
+          </div>
           <!-- Footer -->
-          <div class="px-2.5 py-3 border-t border-gray-700/50 bg-gray-800/30 space-y-0.5">
+          <div class="border-t border-gray-800/80 bg-gray-900/50 px-2.5 py-2 space-y-0.5">
             <a href="#" onclick="setState({view:'perfil'});closeSidebar()" class="sidebar-item group ${state.view === 'perfil' ? 'active' : ''}">
-              <div class="sidebar-icon text-gray-500 group-hover:text-gray-300">👤</div>
-              <span class="sidebar-label">Perfil</span>
+              <div class="sidebar-item-icon">👤</div>
+              <span class="sidebar-item-text">Perfil</span>
             </a>
-            <a href="#" onclick="handleLogout()" class="sidebar-item text-gray-400 hover:bg-red-900/30 hover:text-red-300 group">
-              <div class="sidebar-icon text-gray-500 group-hover:text-red-300">🚪</div>
-              <span class="sidebar-label">Cerrar Sesión</span>
+            <a href="#" onclick="handleLogout()" class="sidebar-item group hover:!bg-red-900/20 hover:!text-red-300">
+              <div class="sidebar-item-icon !bg-gray-800 group-hover:!bg-red-900/30 group-hover:!text-red-300">🚪</div>
+              <span class="sidebar-item-text group-hover:text-red-300">Cerrar Sesión</span>
             </a>
           </div>
         </div>
@@ -233,7 +268,7 @@ function renderLayout() {
       <div class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden hidden" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
       <!-- Main -->
-      <div class="flex-1 min-w-0 lg:ml-64">
+      <div class="flex-1 min-w-0 lg:ml-[260px]">
         <header class="bg-white shadow-sm border-b border-gray-200 lg:hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <button onclick="toggleSidebar()" class="text-gray-600 text-2xl p-1">☰</button>
           <h2 class="text-lg font-semibold">OT Dashboard</h2>

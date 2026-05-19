@@ -44,7 +44,7 @@ async function initDatabase() {
         presupuesto_aprobado INTEGER DEFAULT 0,
         monto_total REAL DEFAULT 0,
         tecnico_id INTEGER REFERENCES usuarios(id),
-        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'completada', 'cancelada')),
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'aval_entregado', 'completada', 'cancelada')),
         fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube')),
         archivo_presupuesto TEXT,
         notas TEXT,
@@ -52,16 +52,23 @@ async function initDatabase() {
         fecha_programada TEXT,
         fecha_inicio TEXT,
         fecha_fin TEXT,
+        presupuesto_id INTEGER,
         creado_en TEXT DEFAULT (datetime('now', '-04:00')),
         actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
       );
     `);
   } else {
-    // Check if the CHECK on tipo_servicio exists by trying to insert a test value
-    // A simpler approach: recreate the table without the CHECK if needed
-    const hasTipoCheck = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%CHECK(tipo_servicio IN%'").length > 0;
-    if (hasTipoCheck) {
-      console.log('🔧 Migrando tabla ordenes_trabajo (eliminando CHECK en tipo_servicio)...');
+    // Check if presupuesto_id column exists
+    const hasPresupuestoCol = tableInfo.some(t => t.name === 'presupuesto_id');
+    if (!hasPresupuestoCol) {
+      run('ALTER TABLE ordenes_trabajo ADD COLUMN presupuesto_id INTEGER');
+      console.log('🔧 Columna presupuesto_id agregada a ordenes_trabajo');
+    }
+
+    // Check if CHECK has aval_entregado
+    const hasAvalEntregado = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%aval_entregado%'").length > 0;
+    if (!hasAvalEntregado) {
+      console.log('🔧 Migrando tabla ordenes_trabajo (agregando estado aval_entregado)...');
       run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_old');
       run(`
         CREATE TABLE ordenes_trabajo (
@@ -73,7 +80,7 @@ async function initDatabase() {
           presupuesto_aprobado INTEGER DEFAULT 0,
           monto_total REAL DEFAULT 0,
           tecnico_id INTEGER REFERENCES usuarios(id),
-          estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'completada', 'cancelada')),
+          estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'aval_entregado', 'completada', 'cancelada')),
           fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube')),
           archivo_presupuesto TEXT,
           notas TEXT,
@@ -81,12 +88,46 @@ async function initDatabase() {
           fecha_programada TEXT,
           fecha_inicio TEXT,
           fecha_fin TEXT,
+          presupuesto_id INTEGER,
           creado_en TEXT DEFAULT (datetime('now', '-04:00')),
           actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
         );
       `);
-      run('INSERT INTO ordenes_trabajo SELECT * FROM ordenes_trabajo_old');
+      run('INSERT INTO ordenes_trabajo (id, numero_ot, cliente_id, tipo_servicio, descripcion, presupuesto_aprobado, monto_total, tecnico_id, estado, fuente, archivo_presupuesto, notas, creada_por, fecha_programada, fecha_inicio, fecha_fin, creado_en, actualizado_en) SELECT id, numero_ot, cliente_id, tipo_servicio, descripcion, presupuesto_aprobado, monto_total, tecnico_id, estado, fuente, archivo_presupuesto, notas, creada_por, fecha_programada, fecha_inicio, fecha_fin, creado_en, actualizado_en FROM ordenes_trabajo_old');
       run('DROP TABLE ordenes_trabajo_old');
+      console.log('✅ Migración de estados completada');
+    }
+
+    // Check if CHECK on tipo_servicio exists by trying to find it
+    const hasTipoCheck = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%CHECK(tipo_servicio IN%'").length > 0;
+    if (hasTipoCheck) {
+      console.log('🔧 Migrando tabla ordenes_trabajo (eliminando CHECK en tipo_servicio)...');
+      run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_old2');
+      run(`
+        CREATE TABLE ordenes_trabajo (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          numero_ot TEXT UNIQUE NOT NULL,
+          cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+          tipo_servicio TEXT NOT NULL,
+          descripcion TEXT,
+          presupuesto_aprobado INTEGER DEFAULT 0,
+          monto_total REAL DEFAULT 0,
+          tecnico_id INTEGER REFERENCES usuarios(id),
+          estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'aval_entregado', 'completada', 'cancelada')),
+          fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube')),
+          archivo_presupuesto TEXT,
+          notas TEXT,
+          creada_por INTEGER REFERENCES usuarios(id),
+          fecha_programada TEXT,
+          fecha_inicio TEXT,
+          fecha_fin TEXT,
+          presupuesto_id INTEGER,
+          creado_en TEXT DEFAULT (datetime('now', '-04:00')),
+          actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+        );
+      `);
+      run('INSERT INTO ordenes_trabajo SELECT * FROM ordenes_trabajo_old2');
+      run('DROP TABLE ordenes_trabajo_old2');
       console.log('✅ Migración completada');
     }
   }
@@ -109,71 +150,160 @@ async function initDatabase() {
       cantidad INTEGER DEFAULT 1
     );
   `);
+
+  // ============ AVALES LEGACY (preserve existing data) ============
+  const legacyExists = queryAll("SELECT name FROM sqlite_master WHERE type='table' AND name='avales_legacy'").length > 0;
+  const avalesExists = queryAll("SELECT name FROM sqlite_master WHERE type='table' AND name='avales' AND sql LIKE '%numero_aval%'").length > 0;
+  
+  if (avalesExists && !legacyExists) {
+    console.log('🔧 Renombrando avales legacy a avales_legacy');
+    run('ALTER TABLE avales RENAME TO avales_legacy');
+  }
+
+  if (!legacyExists) {
+    run(`
+      CREATE TABLE IF NOT EXISTS avales_legacy (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+        numero_aval TEXT UNIQUE NOT NULL,
+        descripcion_trabajo TEXT,
+        materiales TEXT,
+        costo_total REAL DEFAULT 0,
+        forma_pago TEXT,
+        garantia TEXT,
+        observaciones TEXT,
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'enviado', 'firmado', 'completado')),
+        archivo_pdf_generado TEXT,
+        archivo_pdf_firmado TEXT,
+        respuestas_digitales TEXT,
+        fecha_envio_tecnico TEXT,
+        fecha_firma_cliente TEXT,
+        fecha_completado TEXT,
+        creado_en TEXT DEFAULT (datetime('now', '-04:00')),
+        actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+      );
+    `);
+  }
+
+  // ============ TABLA: presupuestos ============
   run(`
-    CREATE TABLE IF NOT EXISTS avales (
+    CREATE TABLE IF NOT EXISTS presupuestos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
-      numero_aval TEXT UNIQUE NOT NULL,
-      descripcion_trabajo TEXT,
-      materiales TEXT,
-      costo_total REAL DEFAULT 0,
-      forma_pago TEXT,
-      garantia TEXT,
-      observaciones TEXT,
-      estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'enviado', 'firmado', 'completado')),
-      archivo_pdf_generado TEXT,
-      archivo_pdf_firmado TEXT,
-      respuestas_digitales TEXT,
-      fecha_envio_tecnico TEXT,
-      fecha_firma_cliente TEXT,
-      fecha_completado TEXT,
-      creado_en TEXT DEFAULT (datetime('now', '-04:00')),
-      actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
-    );
-  `);
-  run(`
-    CREATE TABLE IF NOT EXISTS avales (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
-      numero_aval TEXT UNIQUE NOT NULL,
-      descripcion_trabajo TEXT,
-      materiales TEXT,
-      costo_total REAL DEFAULT 0,
-      forma_pago TEXT,
-      garantia TEXT,
-      observaciones TEXT,
-      estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'enviado', 'firmado', 'completado')),
-      archivo_pdf_generado TEXT,
-      archivo_pdf_firmado TEXT,
-      respuestas_digitales TEXT,
-      fecha_envio_tecnico TEXT,
-      fecha_firma_cliente TEXT,
-      fecha_completado TEXT,
-      creado_en TEXT DEFAULT (datetime('now', '-04:00')),
-      actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
-    );
-  `);
-  run(`
-    CREATE TABLE IF NOT EXISTS encuestas_satisfaccion (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
-      aval_id INTEGER REFERENCES avales(id),
-      satisfaccion_general INTEGER CHECK(satisfaccion_general BETWEEN 1 AND 5),
-      tiempo_entrega INTEGER CHECK(tiempo_entrega BETWEEN 1 AND 5),
-      desempeno_equipo INTEGER CHECK(desempeno_equipo BETWEEN 1 AND 5),
-      presentacion_equipo INTEGER CHECK(presentacion_equipo BETWEEN 1 AND 5),
-      calidad_productos INTEGER CHECK(calidad_productos BETWEEN 1 AND 5),
-      conocimientos_tecnicos INTEGER CHECK(conocimientos_tecnicos BETWEEN 1 AND 5),
-      calidad_entrenamientos INTEGER CHECK(calidad_entrenamientos BETWEEN 1 AND 5),
-      recomendaria INTEGER CHECK(recomendaria IN (0, 1)),
-      observaciones TEXT,
-      porcentaje_final REAL,
-      realizada_por INTEGER REFERENCES usuarios(id),
-      fecha_encuesta TEXT,
-      email_enviado INTEGER DEFAULT 0,
+      cliente_id INTEGER REFERENCES clientes(id),
+      nombre_proyecto TEXT NOT NULL,
+      aprobado INTEGER DEFAULT 0,
       creado_en TEXT DEFAULT (datetime('now', '-04:00'))
     );
   `);
+
+  // ============ TABLA: avales (NUEVO FLUJO - entrega técnica) ============
+  const newAvalExists = queryAll("SELECT name FROM sqlite_master WHERE type='table' AND name='avales'").length > 0;
+  if (!newAvalExists) {
+    run(`
+      CREATE TABLE avales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+        tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
+
+        -- Datos del cliente (quien recibe/firma)
+        cliente_nombre TEXT NOT NULL,
+        cliente_contacto TEXT,
+        cliente_cedula TEXT,
+        cliente_telefono TEXT,
+        cliente_email TEXT,
+
+        -- Observaciones generales
+        observaciones TEXT,
+
+        -- Fechas
+        fecha_entrega_tecnico TEXT DEFAULT (datetime('now', '-04:00')),
+        fecha_confirmacion_admin TEXT,
+
+        -- Estado del aval
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'confirmado', 'rechazado')),
+
+        -- Quién confirma
+        confirmado_por INTEGER REFERENCES usuarios(id),
+
+        -- Auditoría: guardar el JSON que reportó el técnico vs lo que confirmó admin
+        productos_tecnico TEXT, -- JSON array de {producto_id, nombre, cantidad_reportada}
+        productos_admin TEXT,   -- JSON array de {producto_id, nombre, cantidad_confirmada} (se llena al confirmar)
+
+        creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+      );
+    `);
+  }
+
+  // ============ TABLA: aval_productos ============
+  run(`
+    CREATE TABLE IF NOT EXISTS aval_productos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      aval_id INTEGER NOT NULL REFERENCES avales(id),
+      producto_id INTEGER NOT NULL REFERENCES productos(id),
+      cantidad_reportada INTEGER NOT NULL DEFAULT 0,
+      cantidad_confirmada INTEGER,
+      comentario TEXT,
+      creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+    );
+  `);
+
+  // ============ ENCUESTAS ============
+  const encTableInfo = queryAll("PRAGMA table_info('encuestas_satisfaccion')");
+  if (encTableInfo.length > 0) {
+    // Migrate to reference avales_legacy if it references avales
+    const hasAvalRef = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='encuestas_satisfaccion' AND sql LIKE '%REFERENCES avales%'").length > 0;
+    if (hasAvalRef) {
+      console.log('🔧 Migrando referencia aval_id en encuestas...');
+      run('ALTER TABLE encuestas_satisfaccion RENAME TO encuestas_satisfaccion_old');
+      run(`
+        CREATE TABLE encuestas_satisfaccion (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+          aval_legacy_id INTEGER REFERENCES avales_legacy(id),
+          satisfaccion_general INTEGER CHECK(satisfaccion_general BETWEEN 1 AND 5),
+          tiempo_entrega INTEGER CHECK(tiempo_entrega BETWEEN 1 AND 5),
+          desempeno_equipo INTEGER CHECK(desempeno_equipo BETWEEN 1 AND 5),
+          presentacion_equipo INTEGER CHECK(presentacion_equipo BETWEEN 1 AND 5),
+          calidad_productos INTEGER CHECK(calidad_productos BETWEEN 1 AND 5),
+          conocimientos_tecnicos INTEGER CHECK(conocimientos_tecnicos BETWEEN 1 AND 5),
+          calidad_entrenamientos INTEGER CHECK(calidad_entrenamientos BETWEEN 1 AND 5),
+          recomendaria INTEGER CHECK(recomendaria IN (0, 1)),
+          observaciones TEXT,
+          porcentaje_final REAL,
+          realizada_por INTEGER REFERENCES usuarios(id),
+          fecha_encuesta TEXT,
+          email_enviado INTEGER DEFAULT 0,
+          creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+        );
+      `);
+      run('INSERT INTO encuestas_satisfaccion SELECT id, orden_trabajo_id, aval_id as aval_legacy_id, satisfaccion_general, tiempo_entrega, desempeno_equipo, presentacion_equipo, calidad_productos, conocimientos_tecnicos, calidad_entrenamientos, recomendaria, observaciones, porcentaje_final, realizada_por, fecha_encuesta, email_enviado, creado_en FROM encuestas_satisfaccion_old');
+      run('DROP TABLE encuestas_satisfaccion_old');
+      console.log('✅ Referencia migrada');
+    }
+  } else {
+    run(`
+      CREATE TABLE IF NOT EXISTS encuestas_satisfaccion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+        aval_legacy_id INTEGER REFERENCES avales_legacy(id),
+        satisfaccion_general INTEGER CHECK(satisfaccion_general BETWEEN 1 AND 5),
+        tiempo_entrega INTEGER CHECK(tiempo_entrega BETWEEN 1 AND 5),
+        desempeno_equipo INTEGER CHECK(desempeno_equipo BETWEEN 1 AND 5),
+        presentacion_equipo INTEGER CHECK(presentacion_equipo BETWEEN 1 AND 5),
+        calidad_productos INTEGER CHECK(calidad_productos BETWEEN 1 AND 5),
+        conocimientos_tecnicos INTEGER CHECK(conocimientos_tecnicos BETWEEN 1 AND 5),
+        calidad_entrenamientos INTEGER CHECK(calidad_entrenamientos BETWEEN 1 AND 5),
+        recomendaria INTEGER CHECK(recomendaria IN (0, 1)),
+        observaciones TEXT,
+        porcentaje_final REAL,
+        realizada_por INTEGER REFERENCES usuarios(id),
+        fecha_encuesta TEXT,
+        email_enviado INTEGER DEFAULT 0,
+        creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+      );
+    `);
+  }
+
   run(`
     CREATE TABLE IF NOT EXISTS reportes_incentivos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -242,9 +372,8 @@ async function initDatabase() {
     console.log('✅ Productos demo insertados');
   }
 
-  // Datos demo si no hay clientes
+  // Seeds demo
   const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
-
   if (numClientes === 0) {
     seedDemo();
   }
@@ -252,7 +381,6 @@ async function initDatabase() {
   // Seed orden_trabajo_productos if empty
   const numOTProductos = queryFirst('SELECT COUNT(*) as cnt FROM orden_trabajo_productos')?.cnt || 0;
   if (numOTProductos === 0) {
-    // Link first few OTs with some products
     run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (1, 1, 1230)');
     run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (2, 1, 24)');
     run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (3, 3, 50)');
@@ -260,6 +388,24 @@ async function initDatabase() {
     run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (5, 1, 46)');
     run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (6, 4, 30)');
     console.log('✅ Productos-OT demo insertados');
+  }
+
+  // Seed presupuestos if empty
+  const numPresupuestos = queryFirst('SELECT COUNT(*) as cnt FROM presupuestos')?.cnt || 0;
+  if (numPresupuestos === 0) {
+    run("INSERT INTO presupuestos (cliente_id, nombre_proyecto, aprobado) VALUES (1, 'SECRETS AND DREAMS MICHES', 1)");
+    run("INSERT INTO presupuestos (cliente_id, nombre_proyecto, aprobado) VALUES (2, 'CASA MARINA REEF - FASE 2', 1)");
+    run("INSERT INTO presupuestos (cliente_id, nombre_proyecto, aprobado) VALUES (3, 'HYATT VIVID - MANTENIMIENTO Q1', 1)");
+    console.log('✅ Presupuestos demo insertados');
+  }
+
+  // Link OTs to presupuestos if not yet linked
+  const otSinPresupuesto = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo WHERE presupuesto_id IS NULL')?.cnt || 0;
+  if (otSinPresupuesto > 0) {
+    run('UPDATE ordenes_trabajo SET presupuesto_id = 1 WHERE id IN (1, 4)');
+    run('UPDATE ordenes_trabajo SET presupuesto_id = 2 WHERE id IN (2)');
+    run('UPDATE ordenes_trabajo SET presupuesto_id = 3 WHERE id IN (3, 5)');
+    console.log('✅ OTs vinculadas a presupuestos');
   }
 
   console.log('✅ Base de datos lista');
@@ -301,7 +447,7 @@ async function seedDemo() {
     run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
       ['María Santos', 'maria@sistema.com', hashSc, 'servicio_cliente']);
 
-    // Órdenes de trabajo + avales + encuestas
+    // Órdenes de trabajo + avales legacy + encuestas
     const ots = [
       { c: 1, t: 'instalacion', m: 101475, tec: 2, sg: 5, te: 5, de: 5, pr: 5, cp: 5, ct: 5, ce: 5, desc: 'Instalación 1230 cerraduras electrónicas - Secrets Royal Beach' },
       { c: 2, t: 'instalacion', m: 3600, tec: 3, sg: 4, te: 4, de: 4, pr: 4, cp: 5, ct: 4, ce: 4, desc: 'Instalación 24 cerraduras - Casa Marina Reef' },
@@ -324,7 +470,7 @@ async function seedDemo() {
 
       if (ot.sg > 0) {
         const avalNum = `AV-${anio}-${String(i + 1).padStart(4, '0')}`;
-        run(`INSERT INTO avales (orden_trabajo_id, numero_aval, descripcion_trabajo, costo_total, estado, fecha_completado) VALUES (?, ?, ?, ?, 'completado', ?)`,
+        run(`INSERT INTO avales_legacy (orden_trabajo_id, numero_aval, descripcion_trabajo, costo_total, estado, fecha_completado) VALUES (?, ?, ?, ?, 'completado', ?)`,
           [i + 1, avalNum, ot.desc, ot.m, fecha]);
 
         const pesos = { te: 1.5, de: 1.5, ct: 1.5, pr: 1.0, cp: 1.0, ce: 1.0 };
@@ -332,8 +478,8 @@ async function seedDemo() {
         const sumaPesos = 1.0 + 1.5 + 1.5 + 1.0 + 1.0 + 1.5 + 1.0;
         const pct = Math.round((sumaPond / sumaPesos / 5) * 100);
 
-        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, satisfaccion_general, tiempo_entrega, desempeno_equipo, presentacion_equipo, calidad_productos, conocimientos_tecnicos, calidad_entrenamientos, recomendaria, porcentaje_final, realizada_por, fecha_encuesta, email_enviado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 8, datetime('now', '-04:00'), 1)`,
-          [i + 1, ot.sg, ot.te, ot.de, ot.pr, ot.cp, ot.ct, ot.ce, pct]);
+        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, satisfaccion_general, tiempo_entrega, desempeno_equipo, presentacion_equipo, calidad_productos, conocimientos_tecnicos, calidad_entrenamientos, recomendaria, porcentaje_final, realizada_por, fecha_encuesta, email_enviado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 8, datetime('now', '-04:00'), 1)`,
+          [i + 1, i + 1, ot.sg, ot.te, ot.de, ot.pr, ot.cp, ot.ct, ot.ce, pct]);
       }
     }
   });
