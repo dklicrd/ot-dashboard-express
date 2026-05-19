@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <title>OT Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
@@ -218,7 +219,7 @@ function renderLayout() {
   return `
     <div class="min-h-screen flex">
       <!-- Sidebar -->
-      <aside class="fixed inset-y-0 left-0 z-50 w-[260px] bg-gray-900 text-white shadow-2xl shadow-black/30" id="sidebar">
+      <aside class="sticky top-0 h-screen w-[260px] bg-gray-900 text-white shadow-2xl shadow-black/30 flex-shrink-0" id="sidebar" style="min-height:100vh">
         <div class="h-full flex flex-col">
           <!-- Header premium -->
           <div class="sidebar-header px-4 pt-4 pb-3">
@@ -263,7 +264,7 @@ function renderLayout() {
       <div class="hidden" id="sidebar-overlay"></div>
 
       <!-- Main -->
-      <div class="flex-1 min-w-0 ml-[260px]">
+      <div class="flex-1 min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <button onclick="toggleSidebar()" class="text-gray-600 text-2xl p-1">☰</button>
           <h2 class="text-lg font-semibold">OT Dashboard</h2>
