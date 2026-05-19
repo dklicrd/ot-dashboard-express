@@ -7,9 +7,11 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; }
-  .sidebar-item { @apply flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors; }
-  .sidebar-item.active { @apply bg-blue-600 text-white; }
+  .sidebar-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer; }
+  .sidebar-item.active { @apply bg-blue-600 text-white shadow-sm shadow-blue-600/30; }
   .sidebar-item:not(.active) { @apply text-gray-300 hover:bg-gray-800 hover:text-white; }
+  .sidebar-icon { @apply w-6 h-6 flex items-center justify-center text-base flex-shrink-0; }
+  .sidebar-label { @apply truncate; }
   .btn-primary { @apply bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed; }
   .btn-secondary { @apply bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 border border-gray-300 hover:border-gray-400 shadow-sm; }
   .btn-danger { @apply bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-150 shadow-md hover:shadow-lg; }
@@ -32,6 +34,10 @@
   .slide-up { animation: slideUp 0.3s ease-out; }
   .star-rating button { transition: all 0.15s ease; }
   .star-rating button:hover { transform: scale(1.15); }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
   .input-field { @apply w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-150 bg-white; }
   .select-field { @apply w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-150 bg-white; }
   .btn-icon { @apply inline-flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 shadow-sm; }
@@ -183,19 +189,44 @@ function renderLayout() {
   return `
     <div class="min-h-screen flex">
       <!-- Sidebar -->
-      <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white transform transition-transform duration-300 lg:translate-x-0 -translate-x-full" id="sidebar">
+      <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white transform transition-transform duration-300 lg:translate-x-0 -translate-x-full shadow-2xl" id="sidebar">
         <div class="h-full flex flex-col">
-          <div class="px-6 py-6 border-b border-gray-700">
-            <h2 class="text-xl font-bold flex items-center gap-2"><span>🔧</span> OT Dashboard</h2>
-            <p class="text-sm text-gray-400 mt-1 capitalize">${rolLabel}</p>
-            <p class="text-xs text-gray-500 truncate">${state.user?.nombre}</p>
+          <!-- Header con gradiente y logo -->
+          <div class="px-5 py-5 bg-gradient-to-r from-blue-600 to-blue-700">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-xl shadow-inner">🔧</div>
+              <div class="min-w-0">
+                <h2 class="text-base font-bold leading-tight text-white">OT Dashboard</h2>
+                <p class="text-xs text-blue-200 mt-0.5 capitalize font-medium">${rolLabel}</p>
+              </div>
+            </div>
           </div>
-          <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            ${items.map(i => `<a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item ${state.view === i.id ? 'active' : ''}"><span class="mr-3">${i.icon}</span>${i.label}</a>`).join('')}
+          <!-- Info usuario -->
+          <div class="px-5 py-3 bg-gray-800/50 border-b border-gray-700/50">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-300 uppercase">${(state.user?.nombre || '?')[0]}</div>
+              <p class="text-xs text-gray-400 truncate font-medium">${state.user?.nombre}</p>
+            </div>
+          </div>
+          <!-- Navegación -->
+          <nav class="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
+            ${items.map((i, idx) => `
+              <a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item group ${state.view === i.id ? 'active' : ''}">
+                <div class="sidebar-icon ${state.view === i.id ? '' : 'text-gray-500 group-hover:text-gray-300'}">${i.icon}</div>
+                <span class="sidebar-label">${i.label}</span>
+              </a>
+            `).join('')}
           </nav>
-          <div class="px-3 py-4 border-t border-gray-700 space-y-1">
-            <a href="#" onclick="setState({view:'perfil'});closeSidebar()" class="sidebar-item text-gray-300 hover:bg-gray-800 hover:text-white"><span class="mr-3">👤</span>Perfil</a>
-            <a href="#" onclick="handleLogout()" class="sidebar-item text-gray-300 hover:bg-gray-800 hover:text-white"><span class="mr-3">🚪</span>Cerrar Sesión</a>
+          <!-- Footer -->
+          <div class="px-2.5 py-3 border-t border-gray-700/50 bg-gray-800/30 space-y-0.5">
+            <a href="#" onclick="setState({view:'perfil'});closeSidebar()" class="sidebar-item group ${state.view === 'perfil' ? 'active' : ''}">
+              <div class="sidebar-icon text-gray-500 group-hover:text-gray-300">👤</div>
+              <span class="sidebar-label">Perfil</span>
+            </a>
+            <a href="#" onclick="handleLogout()" class="sidebar-item text-gray-400 hover:bg-red-900/30 hover:text-red-300 group">
+              <div class="sidebar-icon text-gray-500 group-hover:text-red-300">🚪</div>
+              <span class="sidebar-label">Cerrar Sesión</span>
+            </a>
           </div>
         </div>
       </aside>
