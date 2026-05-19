@@ -1352,6 +1352,7 @@ window.showModal = function (id, data) {
 
 window.closeModal = function (id) {
   delete modals[id];
+  if (id === 'nueva-ot') window._prodOT = [];
   render();
 };
 
@@ -1553,7 +1554,8 @@ function renderModalNuevaOT() {
   // Load tecnicos and productos
   loadTecnicos();
   cargarProductosSelect();
-  _productosSeleccionados = [];
+  window._prodOT = window._prodOT || [];
+  _productosSeleccionados = window._prodOT;
 
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-ot')">
