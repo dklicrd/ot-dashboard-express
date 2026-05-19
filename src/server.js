@@ -41,8 +41,21 @@ function generarNumeroAval() {
   const year = new Date().getFullYear();
   const row = queryFirst("SELECT COUNT(*) as cnt FROM avales WHERE strftime('%Y', creado_en) = ?", [String(year)]);
   const count = row?.cnt || 0;
-  return `AV-${year}-${String(count + 1).padStart(4, '0')}`;
+  return `AV-NUEVO-${year}-${String(count + 1).padStart(4, '0')}`;
 }
+
+// ============ PRECIOS ============
+const PRECIOS_PROYECTO_NUEVO = {
+  cerradura: 150,
+  caja_fuerte: 60,
+  control_acceso: 300,
+  ahorro_energia: 105
+};
+const PRECIOS_MANTENIMIENTO = {
+  cerradura: 82.50,
+  caja_fuerte: 30,
+  ahorro_energia: 37.50
+};
 
 // ==================== API: AUTH ====================
 app.post('/api/auth', async (req, res) => {
@@ -250,15 +263,43 @@ app.delete('/api/productos/:id', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
+// ==================== API: PRESUPUESTOS ====================
+app.get('/api/presupuestos', authMiddleware, (req, res) => {
+  const presupuestos = queryAll(`
+    SELECT p.*, c.nombre as cliente_nombre
+    FROM presupuestos p
+    LEFT JOIN clientes c ON p.cliente_id = c.id
+    ORDER BY p.creado_en DESC
+  `);
+  res.json({ presupuestos });
+});
+
+app.post('/api/presupuestos', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const { cliente_id, nombre_proyecto, aprobado } = req.body;
+    if (!nombre_proyecto) return res.status(400).json({ error: 'Nombre del proyecto requerido' });
+    run('INSERT INTO presupuestos (cliente_id, nombre_proyecto, aprobado) VALUES (?, ?, ?)',
+      [cliente_id || null, nombre_proyecto, aprobado ? 1 : 0]);
+    res.status(201).json({ message: 'Presupuesto creado' });
+  } catch (e) {
+    console.error('Error creating presupuesto:', e);
+    res.status(500).json({ error: 'Error al crear presupuesto' });
+  }
+});
+
 // ==================== API: ÓRDENES DE TRABAJO ====================
 app.get('/api/ordenes', authMiddleware, (req, res) => {
   const estado = req.query.estado;
   let sql = `
     SELECT ot.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email,
-           u.nombre as tecnico_nombre
+           u.nombre as tecnico_nombre, p.nombre_proyecto,
+           (SELECT a.id FROM avales a WHERE a.orden_trabajo_id = ot.id LIMIT 1) as aval_id,
+           (SELECT a.estado FROM avales a WHERE a.orden_trabajo_id = ot.id LIMIT 1) as aval_estado,
+           (SELECT e.id FROM encuestas_satisfaccion e WHERE e.orden_trabajo_id = ot.id LIMIT 1) as encuesta_id
     FROM ordenes_trabajo ot
     JOIN clientes c ON ot.cliente_id = c.id
     LEFT JOIN usuarios u ON ot.tecnico_id = u.id
+    LEFT JOIN presupuestos p ON ot.presupuesto_id = p.id
     WHERE 1=1
   `;
   const params = [];
@@ -279,6 +320,18 @@ app.get('/api/ordenes', authMiddleware, (req, res) => {
       WHERE otp.orden_trabajo_id = ?
     `, [ot.id]);
     ot.productos = prods;
+
+    // Get average evaluation if encuesta exists
+    if (ot.encuesta_id) {
+      const encuesta = queryFirst(`
+        SELECT tiempo_entrega, desempeno_equipo, presentacion_equipo, calidad_productos, calidad_entrenamientos
+        FROM encuestas_satisfaccion WHERE id = ?
+      `, [ot.encuesta_id]);
+      if (encuesta) {
+        const avg = (encuesta.tiempo_entrega + encuesta.desempeno_equipo + encuesta.presentacion_equipo + encuesta.calidad_productos + encuesta.calidad_entrenamientos) / 5;
+        ot.evaluacion_promedio = avg;
+      }
+    }
   }
 
   res.json({ ordenes });
@@ -289,12 +342,12 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     const num = generarNumeroOT();
     const body = req.body;
     run(`INSERT INTO ordenes_trabajo (numero_ot, cliente_id, tipo_servicio, descripcion, presupuesto_aprobado,
-      monto_total, tecnico_id, estado, fuente, notas, creada_por, fecha_programada)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      monto_total, tecnico_id, estado, fuente, notas, creada_por, fecha_programada, presupuesto_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [num, body.cliente_id, body.tipo_servicio, body.descripcion || null,
        body.presupuesto_aprobado ? 1 : 0, body.monto_total || 0, body.tecnico_id || null,
        body.estado || 'pendiente', body.fuente || 'manual', body.notas || null,
-       req.user.userId, body.fecha_programada || null]);
+       req.user.userId, body.fecha_programada || null, body.presupuesto_id || null]);
 
     // Get the inserted OT id
     const otRow = queryFirst('SELECT id FROM ordenes_trabajo WHERE numero_ot = ?', [num]);
@@ -320,9 +373,9 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
   try {
     const b = req.body;
     run(`UPDATE ordenes_trabajo SET cliente_id=?, tipo_servicio=?, descripcion=?, monto_total=?, tecnico_id=?,
-      estado=?, notas=?, fecha_programada=?, actualizado_en=datetime('now', '-04:00') WHERE id=?`,
+      estado=?, notas=?, fecha_programada=?, presupuesto_id=?, actualizado_en=datetime('now', '-04:00') WHERE id=?`,
       [b.cliente_id, b.tipo_servicio, b.descripcion, b.monto_total, b.tecnico_id,
-       b.estado, b.notas, b.fecha_programada, b.id]);
+       b.estado, b.notas, b.fecha_programada, b.presupuesto_id || null, b.id]);
 
     // Update productos if provided (remove old, insert new)
     if (b.productos && Array.isArray(b.productos)) {
@@ -342,12 +395,327 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-// ==================== API: AVALES ====================
+// ============ ESTADO DE OT - TRANSICIONES ============
+const TRANSICIONES_ESTADO = {
+  'pendiente': ['en_curso', 'cancelada'],
+  'en_curso': ['cancelada'], // 'aval_entregado' se maneja desde flujo de avales
+};
+
+app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { estado: nuevoEstado } = req.body;
+
+    const ot = queryFirst('SELECT * FROM ordenes_trabajo WHERE id = ?', [id]);
+    if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
+
+    const transicionesPermitidas = TRANSICIONES_ESTADO[ot.estado] || [];
+    if (!transicionesPermitidas.includes(nuevoEstado)) {
+      return res.status(400).json({
+        error: `Transición no permitida: ${ot.estado} → ${nuevoEstado}. Permitidas: ${transicionesPermitidas.join(', ') || 'ninguna'}`
+      });
+    }
+
+    // Validaciones adicionales
+    if (nuevoEstado === 'en_curso') {
+      if (ot.tecnico_id === null) {
+        return res.status(400).json({ error: 'La OT debe tener un técnico asignado para iniciarse' });
+      }
+      run("UPDATE ordenes_trabajo SET estado=?, fecha_inicio=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+    } else {
+      run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+    }
+
+    res.json({ success: true, nuevoEstado });
+  } catch (e) {
+    console.error('Error actualizando estado OT:', e);
+    res.status(500).json({ error: 'Error al actualizar estado' });
+  }
+});
+
+// ==================== API: AVALES (NUEVO FLUJO - entrega técnica) ====================
+
+// GET /api/avales — listar (nuevo flujo)
 app.get('/api/avales', authMiddleware, (req, res) => {
+  const otId = req.query.orden_trabajo_id;
+  const listarNuevos = req.query.nuevo === '1';
+
+  if (!listarNuevos) {
+    // Por defecto respondemos con el nuevo flujo
+  }
+
+  let sql;
+  const params = [];
+
+  if (listarNuevos || !req.query.orden_trabajo_id) {
+    sql = `
+      SELECT a.*, ot.numero_ot, c.nombre as cliente_nombre, c.telefono as cliente_telefono,
+             u.nombre as tecnico_nombre
+      FROM avales a
+      JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
+      JOIN clientes c ON ot.cliente_id = c.id
+      LEFT JOIN usuarios u ON a.tecnico_id = u.id
+      WHERE 1=1
+    `;
+  } else {
+    // Legacy query (used by existing views)
+    sql = `
+      SELECT a.*, ot.numero_ot, c.nombre as cliente_nombre, c.telefono as cliente_telefono
+      FROM avales_legacy a
+      JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
+      JOIN clientes c ON ot.cliente_id = c.id
+      WHERE 1=1
+    `;
+  }
+
+  if (otId) { sql += ' AND a.orden_trabajo_id = ?'; params.push(Number(otId)); }
+  if (req.user.rol === 'tecnico' && listarNuevos) { sql += ' AND a.tecnico_id = ?'; params.push(req.user.userId); }
+
+  sql += ' ORDER BY a.creado_en DESC';
+
+  res.json({ avales: queryAll(sql, params) });
+});
+
+// GET /api/avales/:id — detalle con productos
+app.get('/api/avales/:id', authMiddleware, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    const productos = queryAll(`
+      SELECT ap.*, p.nombre as producto_nombre, p.categoria
+      FROM aval_productos ap
+      JOIN productos p ON ap.producto_id = p.id
+      WHERE ap.aval_id = ?
+    `, [id]);
+
+    const ot = queryFirst(`
+      SELECT ot.*, c.nombre as cliente_nombre
+      FROM ordenes_trabajo ot
+      JOIN clientes c ON ot.cliente_id = c.id
+      WHERE ot.id = ?
+    `, [aval.orden_trabajo_id]);
+
+    const tecnico = queryFirst('SELECT id, nombre FROM usuarios WHERE id = ?', [aval.tecnico_id]);
+
+    res.json({ aval, productos, ot, tecnico });
+  } catch (e) {
+    console.error('Error getting aval:', e);
+    res.status(500).json({ error: 'Error al obtener aval' });
+  }
+});
+
+// POST /api/avales — técnico entrega aval
+app.post('/api/avales', authMiddleware, async (req, res) => {
+  try {
+    const body = req.body;
+
+    // Validate
+    if (!body.orden_trabajo_id) {
+      return res.status(400).json({ error: 'orden_trabajo_id requerido' });
+    }
+    if (!body.cliente_nombre) {
+      return res.status(400).json({ error: 'cliente_nombre requerido' });
+    }
+
+    const ot = queryFirst('SELECT * FROM ordenes_trabajo WHERE id = ?', [body.orden_trabajo_id]);
+    if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
+
+    // Solo técnico asignado puede entregar aval
+    if (req.user.rol === 'tecnico' && ot.tecnico_id !== req.user.userId) {
+      return res.status(403).json({ error: 'No eres el técnico asignado a esta OT' });
+    }
+
+    if (ot.rol === 'admin' && ot.tecnico_id !== req.user.userId && req.user.rol === 'tecnico') {
+      return res.status(403).json({ error: 'No eres el técnico asignado a esta OT' });
+    }
+
+    // OT must be en_curso
+    if (ot.estado !== 'en_curso') {
+      return res.status(400).json({ error: 'La OT debe estar en curso para entregar aval' });
+    }
+
+    // Check no existing aval
+    const existingAval = queryFirst('SELECT id FROM avales WHERE orden_trabajo_id = ?', [body.orden_trabajo_id]);
+    if (existingAval) {
+      return res.status(400).json({ error: 'Esta OT ya tiene un aval registrado' });
+    }
+
+    const tecnicoId = body.tecnico_id || req.user.userId;
+
+    // Guardar productos como JSON para auditoría
+    const productosTecnico = JSON.stringify(body.productos || []);
+
+    transaction(() => {
+      const avalId = queryFirst(`
+        INSERT INTO avales (orden_trabajo_id, tecnico_id, cliente_nombre, cliente_contacto, cliente_cedula,
+          cliente_telefono, cliente_email, observaciones, productos_tecnico, estado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+        RETURNING id
+      `, [
+        body.orden_trabajo_id, tecnicoId, body.cliente_nombre, body.cliente_contacto || null,
+        body.cliente_cedula || null, body.cliente_telefono || null, body.cliente_email || null,
+        body.observaciones || null, productosTecnico
+      ]);
+
+      // Insert individual product records
+      if (body.productos && Array.isArray(body.productos)) {
+        for (const p of body.productos) {
+          run('INSERT INTO aval_productos (aval_id, producto_id, cantidad_reportada, comentario) VALUES (?, ?, ?, ?)',
+            [avalId.id, p.producto_id, p.cantidad || 0, p.comentario || null]);
+        }
+      }
+
+      // Cambiar estado de OT a aval_entregado
+      run("UPDATE ordenes_trabajo SET estado='aval_entregado', actualizado_en=datetime('now', '-04:00') WHERE id=?",
+        [body.orden_trabajo_id]);
+    });
+
+    res.status(201).json({ message: 'Aval entregado correctamente', aval_id: queryFirst(`SELECT id FROM avales WHERE orden_trabajo_id = ?`, [body.orden_trabajo_id]).id });
+  } catch (e) {
+    console.error('Error creating aval de entrega:', e);
+    res.status(500).json({ error: 'Error al registrar aval' });
+  }
+});
+
+// PUT /api/avales/:id/confirmar — admin confirma aval
+app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const body = req.body;
+
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (aval.estado !== 'pendiente') {
+      return res.status(400).json({ error: 'El aval ya fue confirmado o rechazado' });
+    }
+
+    const productosAdmin = JSON.stringify(body.productos || []);
+
+    transaction(() => {
+      // Update aval_productos with confirmed quantities
+      if (body.productos && Array.isArray(body.productos)) {
+        for (const p of body.productos) {
+          if (p.producto_id) {
+            run('UPDATE aval_productos SET cantidad_confirmada = ?, comentario = COALESCE(?, comentario) WHERE aval_id = ? AND producto_id = ?',
+              [p.cantidad_confirmada !== undefined ? p.cantidad_confirmada : null, p.comentario || null, id, p.producto_id]);
+          }
+        }
+      }
+
+      // Update aval
+      run(`UPDATE avales SET estado='confirmado', fecha_confirmacion_admin=datetime('now', '-04:00'),
+        confirmado_por=?, productos_admin=? WHERE id=?`,
+        [req.user.userId, productosAdmin, id]);
+
+      // Change OT to completada
+      run("UPDATE ordenes_trabajo SET estado='completada', fecha_fin=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?",
+        [aval.orden_trabajo_id]);
+    });
+
+    res.json({ message: 'Aval confirmado. OT marcada como completada.' });
+  } catch (e) {
+    console.error('Error confirmando aval:', e);
+    res.status(500).json({ error: 'Error al confirmar aval' });
+  }
+});
+
+// GET /api/avales/:id/pdf — genera HTML del aval para imprimir
+app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst(`
+      SELECT a.*, ot.numero_ot, u.nombre as tecnico_nombre
+      FROM avales a
+      JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
+      LEFT JOIN usuarios u ON a.tecnico_id = u.id
+      WHERE a.id = ?
+    `, [id]);
+
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    const productos = queryAll(`
+      SELECT ap.*, p.nombre as producto_nombre
+      FROM aval_productos ap
+      JOIN productos p ON ap.producto_id = p.id
+      WHERE ap.aval_id = ?
+    `, [id]);
+
+    const prodRows = productos.map(p => `
+      <tr>
+        <td style="border:1px solid #ddd;padding:8px">${p.producto_nombre}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center">${p.cantidad_reportada}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center">${p.cantidad_confirmada !== null ? p.cantidad_confirmada : '-'}</td>
+        <td style="border:1px solid #ddd;padding:8px">${p.comentario || ''}</td>
+      </tr>
+    `).join('');
+
+    const estadoLabel = aval.estado === 'confirmado' ? '✅ CONFIRMADO' : aval.estado === 'rechazado' ? '❌ RECHAZADO' : '⏳ PENDIENTE';
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Aval #${id}</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
+  .header h1 { color: #2563eb; margin: 0; font-size: 24px; }
+  .header h2 { color: #666; margin: 5px 0 0; font-size: 16px; font-weight: normal; }
+  .section { margin-bottom: 20px; }
+  .section h3 { background: #f3f4f6; padding: 8px 12px; margin: 0 0 10px; font-size: 14px; color: #374151; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #2563eb; color: white; padding: 10px; text-align: left; font-size: 13px; }
+  td { padding: 8px; border-bottom: 1px solid #eee; }
+  .label { font-weight: bold; color: #374151; width: 200px; }
+  .status { font-size: 18px; font-weight: bold; text-align: center; padding: 15px; border: 2px solid #2563eb; border-radius: 8px; margin: 20px 0; }
+  .footer { text-align: center; color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+<div class="header">
+  <h1>AVAL DE INSTALACIÓN</h1>
+  <h2>OT: ${aval.numero_ot}</h2>
+</div>
+<div class="status">${estadoLabel}</div>
+<div class="section">
+  <h3>DATOS DEL CLIENTE</h3>
+  <table><tr><td class="label">Nombre:</td><td>${aval.cliente_nombre}</td></tr>
+  <tr><td class="label">Contacto:</td><td>${aval.cliente_contacto || '-'}</td></tr>
+  <tr><td class="label">Cédula:</td><td>${aval.cliente_cedula || '-'}</td></tr>
+  <tr><td class="label">Teléfono:</td><td>${aval.cliente_telefono || '-'}</td></tr>
+  <tr><td class="label">Email:</td><td>${aval.cliente_email || '-'}</td></tr></table>
+</div>
+<div class="section">
+  <h3>TÉCNICO ASIGNADO</h3>
+  <p>${aval.tecnico_nombre}</p>
+</div>
+<div class="section">
+  <h3>PRODUCTOS INSTALADOS</h3>
+  <table><thead><tr><th>Producto</th><th>Cant. Reportada</th><th>Cant. Confirmada</th><th>Comentario</th></tr></thead>
+  <tbody>${prodRows}</tbody></table>
+</div>
+${aval.observaciones ? `<div class="section"><h3>OBSERVACIONES</h3><p>${aval.observaciones}</p></div>` : ''}
+<div class="section">
+  <h3>FECHAS</h3>
+  <table><tr><td class="label">Fecha Entrega Técnico:</td><td>${aval.fecha_entrega_tecnico}</td></tr>
+  ${aval.fecha_confirmacion_admin ? `<tr><td class="label">Fecha Confirmación Admin:</td><td>${aval.fecha_confirmacion_admin}</td></tr>` : ''}</table>
+</div>
+<div class="footer">Documento generado por OT Dashboard - ${new Date().toLocaleDateString('es-DO')}</div>
+<script>window.print()</script>
+</body></html>`;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (e) {
+    console.error('Error generating aval PDF:', e);
+    res.status(500).json({ error: 'Error al generar PDF' });
+  }
+});
+
+// ==================== API: AVALES (legacy - existing flow) ====================
+app.get('/api/avales-legacy', authMiddleware, (req, res) => {
   const otId = req.query.orden_trabajo_id;
   let sql = `
     SELECT a.*, ot.numero_ot, c.nombre as cliente_nombre
-    FROM avales a
+    FROM avales_legacy a
     JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
     JOIN clientes c ON ot.cliente_id = c.id
     WHERE 1=1
@@ -360,7 +728,7 @@ app.get('/api/avales', authMiddleware, (req, res) => {
   res.json({ avales: queryAll(sql, params) });
 });
 
-app.post('/api/avales', authMiddleware, adminOnly, async (req, res) => {
+app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
   try {
     const body = req.body;
     const ot = queryFirst(
@@ -369,7 +737,12 @@ app.post('/api/avales', authMiddleware, adminOnly, async (req, res) => {
       [body.orden_trabajo_id]);
     if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
 
-    const numAval = generarNumeroAval();
+    const numAval = (() => {
+      const year = new Date().getFullYear();
+      const row = queryFirst("SELECT COUNT(*) as cnt FROM avales_legacy WHERE strftime('%Y', creado_en) = ?", [String(year)]);
+      const count = row?.cnt || 0;
+      return `AV-${year}-${String(count + 1).padStart(4, '0')}`;
+    })();
 
     const pdfBuffer = await generarAvalPDF({
       numero_aval: numAval, numero_ot: ot.numero_ot, cliente: ot.cliente_nombre,
@@ -385,7 +758,7 @@ app.post('/api/avales', authMiddleware, adminOnly, async (req, res) => {
     const pdfFilename = `${numAval}.pdf`;
     fs.writeFileSync(path.join(pdfDir, pdfFilename), pdfBuffer);
 
-    run(`INSERT INTO avales (orden_trabajo_id, numero_aval, descripcion_trabajo, materiales, costo_total,
+    run(`INSERT INTO avales_legacy (orden_trabajo_id, numero_aval, descripcion_trabajo, materiales, costo_total,
       forma_pago, garantia, observaciones, estado, archivo_pdf_generado)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?)`,
       [body.orden_trabajo_id, numAval, body.descripcion_trabajo || ot.descripcion, body.materiales || null,
@@ -408,19 +781,18 @@ app.post('/api/avales', authMiddleware, adminOnly, async (req, res) => {
       });
 
       if (emailResult.success) {
-        run("UPDATE avales SET estado='enviado', fecha_envio_tecnico=datetime('now', '-04:00') WHERE numero_aval=?", [numAval]);
+        run("UPDATE avales_legacy SET estado='enviado', fecha_envio_tecnico=datetime('now', '-04:00') WHERE numero_aval=?", [numAval]);
       }
     }
 
     res.status(201).json({ numero_aval: numAval, pdf_url: `/uploads/avales/${pdfFilename}`, message: 'Aval creado' });
   } catch (e) {
-    console.error('Error creating aval:', e);
+    console.error('Error creating aval legacy:', e);
     res.status(500).json({ error: 'Error al crear aval' });
   }
 });
 
-// Subir aval firmado
-app.put('/api/avales', authMiddleware, adminOnly, async (req, res) => {
+app.put('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { id, archivo_firmado, respuestas_digitales } = req.body;
     if (!id) return res.status(400).json({ error: 'ID requerido' });
@@ -438,14 +810,14 @@ app.put('/api/avales', authMiddleware, adminOnly, async (req, res) => {
       }
     }
 
-    run(`UPDATE avales SET archivo_pdf_firmado=COALESCE(?, archivo_pdf_firmado), respuestas_digitales=?,
+    run(`UPDATE avales_legacy SET archivo_pdf_firmado=COALESCE(?, archivo_pdf_firmado), respuestas_digitales=?,
       estado='completado', fecha_firma_cliente=datetime('now', '-04:00'),
       fecha_completado=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?`,
       [pdfPath, respuestas_digitales || '{}', id]);
 
     res.json({ success: true });
   } catch (e) {
-    console.error('Error updating aval:', e);
+    console.error('Error updating aval legacy:', e);
     res.status(500).json({ error: 'Error al actualizar aval' });
   }
 });
@@ -500,12 +872,12 @@ app.post('/api/encuestas', authMiddleware, async (req, res) => {
     };
     const pct = calcPorcentaje(respuestas);
 
-    run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, satisfaccion_general,
+    run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, satisfaccion_general,
       tiempo_entrega, desempeno_equipo, presentacion_equipo, calidad_productos,
       conocimientos_tecnicos, calidad_entrenamientos, recomendaria, observaciones,
       porcentaje_final, realizada_por, fecha_encuesta)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-04:00'))`,
-      [b.orden_trabajo_id, b.aval_id || null, respuestas.satisfaccion_general,
+      [b.orden_trabajo_id, b.aval_legacy_id || null, respuestas.satisfaccion_general,
        respuestas.tiempo_entrega, respuestas.desempeno_equipo, respuestas.presentacion_equipo,
        respuestas.calidad_productos, respuestas.conocimientos_tecnicos, respuestas.calidad_entrenamientos,
        b.recomendaria ? 1 : 0, b.observaciones || null, pct, req.user.userId]);
@@ -597,7 +969,219 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-// ==================== API: REPORTES ====================
+// ==================== API: REPORTE DE BONO (NUEVO) ====================
+app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const inicio = req.query.inicio;
+    const fin = req.query.fin;
+
+    // Default to current quarter if no dates provided
+    let fInicio, fFin;
+    if (inicio && fin) {
+      fInicio = inicio;
+      fFin = fin;
+    } else {
+      const now = new Date();
+      const trim = Math.ceil((now.getMonth() + 1) / 3);
+      const mesesInicio = (trim - 1) * 3 + 1;
+      fInicio = `${now.getFullYear()}-${String(mesesInicio).padStart(2, '0')}-01`;
+      fFin = `${now.getFullYear()}-${String(mesesInicio + 2).padStart(2, '0')}-31`;
+    }
+
+    // Get all completed OTs (aval confirmado) in range
+    const proyectos = queryAll(`
+      SELECT ot.*, c.nombre as cliente_nombre, p.nombre_proyecto,
+             a.id as aval_id,
+             e.tiempo_entrega, e.desempeno_equipo, e.presentacion_equipo,
+             e.calidad_productos, e.calidad_entrenamientos
+      FROM ordenes_trabajo ot
+      JOIN clientes c ON ot.cliente_id = c.id
+      LEFT JOIN avales a ON a.orden_trabajo_id = ot.id AND a.estado = 'confirmado'
+      LEFT JOIN presupuestos p ON ot.presupuesto_id = p.id
+      LEFT JOIN encuestas_satisfaccion e ON e.orden_trabajo_id = ot.id
+      WHERE ot.estado = 'completada'
+        AND (ot.fecha_fin >= ? AND ot.fecha_fin <= ?)
+    `, [fInicio, fFin]);
+
+    // Calculate per-project
+    const proyectosData = proyectos.map(ot => {
+      // Get confirmed products from aval
+      let cerradurasNuevas = 0, cajasNuevas = 0, controlAccesoNuevo = 0, ahorroEnergiaNuevo = 0;
+      let cerradurasMant = 0, cajasMant = 0, ahorroEnergiaMant = 0;
+
+      if (ot.aval_id) {
+        const productosConfirmados = queryAll(`
+          SELECT ap.cantidad_confirmada, p.nombre, p.categoria
+          FROM aval_productos ap
+          JOIN productos p ON ap.producto_id = p.id
+          WHERE ap.aval_id = ? AND ap.cantidad_confirmada IS NOT NULL
+        `, [ot.aval_id]);
+
+        for (const p of productosConfirmados) {
+          if (ot.tipo_servicio === 'instalacion') {
+            if (p.categoria === 'cerradura') cerradurasNuevas += p.cantidad_confirmada;
+            else if (p.categoria === 'caja_fuerte') cajasNuevas += p.cantidad_confirmada;
+            else if (p.categoria === 'control_acceso') controlAccesoNuevo += p.cantidad_confirmada;
+            else if (p.categoria === 'ahorro_energia') ahorroEnergiaNuevo += p.cantidad_confirmada;
+          } else if (ot.tipo_servicio === 'mantenimiento') {
+            if (p.categoria === 'cerradura') cerradurasMant += p.cantidad_confirmada;
+            else if (p.categoria === 'caja_fuerte') cajasMant += p.cantidad_confirmada;
+            else if (p.categoria === 'ahorro_energia') ahorroEnergiaMant += p.cantidad_confirmada;
+          }
+        }
+      } else {
+        // Fallback: use OT productos with cantidad
+        const prods = queryAll(`
+          SELECT p.categoria, otp.cantidad
+          FROM orden_trabajo_productos otp
+          JOIN productos p ON otp.producto_id = p.id
+          WHERE otp.orden_trabajo_id = ?
+        `, [ot.id]);
+        for (const p of prods) {
+          if (ot.tipo_servicio === 'instalacion') {
+            if (p.categoria === 'cerradura') cerradurasNuevas += p.cantidad;
+            else if (p.categoria === 'caja_fuerte') cajasNuevas += p.cantidad;
+            else if (p.categoria === 'control_acceso') controlAccesoNuevo += p.cantidad;
+            else if (p.categoria === 'ahorro_energia') ahorroEnergiaNuevo += p.cantidad;
+          } else if (ot.tipo_servicio === 'mantenimiento') {
+            if (p.categoria === 'cerradura') cerradurasMant += p.cantidad;
+            else if (p.categoria === 'caja_fuerte') cajasMant += p.cantidad;
+            else if (p.categoria === 'ahorro_energia') ahorroEnergiaMant += p.cantidad;
+          }
+        }
+      }
+
+      // Calculate values
+      const valCerNuevo = cerradurasNuevas * PRECIOS_PROYECTO_NUEVO.cerradura;
+      const valCajaNuevo = cajasNuevas * PRECIOS_PROYECTO_NUEVO.caja_fuerte;
+      const valCtrlNuevo = controlAccesoNuevo * PRECIOS_PROYECTO_NUEVO.control_acceso;
+      const valAhorroNuevo = ahorroEnergiaNuevo * PRECIOS_PROYECTO_NUEVO.ahorro_energia;
+      const valCerMant = cerradurasMant * PRECIOS_MANTENIMIENTO.cerradura;
+      const valCajaMant = cajasMant * PRECIOS_MANTENIMIENTO.caja_fuerte;
+      const valAhorroMant = ahorroEnergiaMant * PRECIOS_MANTENIMIENTO.ahorro_energia;
+
+      const subtotal = valCerNuevo + valCajaNuevo + valCtrlNuevo + valAhorroNuevo +
+                       valCerMant + valCajaMant + valAhorroMant;
+
+      // Evaluation
+      let evaluacion = null;
+      if (ot.tiempo_entrega !== null) {
+        const prom = (ot.tiempo_entrega + ot.desempeno_equipo + ot.presentacion_equipo +
+                      ot.calidad_productos + ot.calidad_entrenamientos) / 5;
+        evaluacion = {
+          tiempo_entrega: ot.tiempo_entrega,
+          desempeno: ot.desempeno_equipo,
+          presentacion: ot.presentacion_equipo,
+          calidad_productos: ot.calidad_productos,
+          calidad_entrenamientos: ot.calidad_entrenamientos,
+          promedio: prom
+        };
+      }
+
+      // Deducción
+      let deduccionPorcentaje = 0;
+      let total = subtotal;
+      if (evaluacion && evaluacion.promedio < 1.0) {
+        deduccionPorcentaje = 1 - evaluacion.promedio;
+        total = subtotal * (1 - deduccionPorcentaje);
+      }
+
+      return {
+        id: ot.id,
+        nombre: ot.nombre_proyecto || ot.cliente_nombre,
+        habitaciones: 1,
+        fecha_inicio: ot.fecha_inicio,
+        fecha_fin: ot.fecha_fin,
+        proyecto_nuevo: {
+          cerraduras: cerradurasNuevas,
+          cajas_fuertes: cajasNuevas,
+          control_acceso: controlAccesoNuevo,
+          ahorro_energia: ahorroEnergiaNuevo
+        },
+        mantenimiento: {
+          cerraduras: cerradurasMant,
+          cajas_fuertes: cajasMant,
+          ahorradores: ahorroEnergiaMant
+        },
+        valores: {
+          cerraduras: valCerNuevo + valCerMant,
+          cajas_fuertes: valCajaNuevo + valCajaMant,
+          control_acceso: valCtrlNuevo,
+          ahorro_energia: valAhorroNuevo + valAhorroMant,
+          subtotal: Math.round(subtotal * 100) / 100
+        },
+        evaluacion: evaluacion,
+        deduccion_porcentaje: Math.round(deduccionPorcentaje * 10000) / 10000,
+        total: Math.round(total * 100) / 100
+      };
+    });
+
+    // Sum totals
+    let totalCerraduras = 0, totalCajas = 0, totalControlAcceso = 0, totalAhorroEnergia = 0;
+    let totalBruto = 0, totalDeduccion = 0;
+    let sumEval = 0, countEval = 0;
+
+    for (const p of proyectosData) {
+      totalCerraduras += p.valores.cerraduras;
+      totalCajas += p.valores.cajas_fuertes;
+      totalControlAcceso += p.valores.control_acceso;
+      totalAhorroEnergia += p.valores.ahorro_energia;
+      totalBruto += p.valores.subtotal;
+      totalDeduccion += (p.valores.subtotal - p.total);
+      if (p.evaluacion) {
+        sumEval += p.evaluacion.promedio;
+        countEval++;
+      }
+    }
+
+    const evalPromedioGeneral = countEval > 0 ? Math.round((sumEval / countEval) * 100) / 100 : null;
+    const porcDeduccionGeneral = totalBruto > 0 ? Math.round((totalDeduccion / totalBruto) * 10000) / 10000 : 0;
+    const totalADistribuir = Math.round((totalBruto - totalDeduccion) * 100) / 100;
+
+    // Distribución por técnico
+    const distTecnicos = [
+      { nombre: 'Máximo Vallejo', porcentaje: 0.30 },
+      { nombre: 'Víctor De La Rosa', porcentaje: 0.28 },
+      { nombre: 'Alexander De Dios', porcentaje: 0.12 },
+      { nombre: 'Ángel Pérez', porcentaje: 0.12 },
+      { nombre: 'Juan Samuel Encarnación', porcentaje: 0.08 },
+      { nombre: 'Rosaura Nivar', porcentaje: 0.10 },
+    ];
+
+    const distribucion = distTecnicos.map(t => ({
+      tecnico: t.nombre,
+      porcentaje: t.porcentaje,
+      valor_bruto: Math.round(t.porcentaje * totalADistribuir * 100) / 100,
+      adicionales: 0,
+      total: Math.round(t.porcentaje * totalADistribuir * 100) / 100
+    }));
+
+    const resultado = {
+      periodo: { inicio: fInicio, fin: fFin },
+      proyectos: proyectosData,
+      resumen: {
+        total_proyectos: proyectosData.length,
+        total_cerraduras: Math.round(totalCerraduras * 100) / 100,
+        total_cajas_fuertes: Math.round(totalCajas * 100) / 100,
+        total_control_acceso: Math.round(totalControlAcceso * 100) / 100,
+        total_ahorro_energia: Math.round(totalAhorroEnergia * 100) / 100,
+        evaluacion_promedio_general: evalPromedioGeneral,
+        total_bruto: Math.round(totalBruto * 100) / 100,
+        porcentaje_deduccion: porcDeduccionGeneral,
+        total_deduccion: Math.round(totalDeduccion * 100) / 100,
+        total_a_distribuir: totalADistribuir
+      },
+      distribucion
+    };
+
+    res.json(resultado);
+  } catch (e) {
+    console.error('Error generating bono report:', e);
+    res.status(500).json({ error: 'Error al generar reporte de bono' });
+  }
+});
+
+// ==================== API: REPORTES (legacy / existing) ====================
 app.get('/api/reportes', authMiddleware, adminOnly, (req, res) => {
   const action = req.query.action;
   if (!action) {
