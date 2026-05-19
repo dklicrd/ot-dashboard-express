@@ -218,7 +218,7 @@ function renderLayout() {
   return `
     <div class="min-h-screen flex">
       <!-- Sidebar -->
-      <aside class="fixed inset-y-0 left-0 z-50 w-[260px] bg-gray-900 text-white transform transition-transform duration-300 lg:translate-x-0 -translate-x-full shadow-2xl shadow-black/30" id="sidebar">
+      <aside class="fixed inset-y-0 left-0 z-50 w-[260px] bg-gray-900 text-white shadow-2xl shadow-black/30" id="sidebar">
         <div class="h-full flex flex-col">
           <!-- Header premium -->
           <div class="sidebar-header px-4 pt-4 pb-3">
@@ -260,11 +260,11 @@ function renderLayout() {
           </div>
         </div>
       </aside>
-      <div class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden hidden" id="sidebar-overlay" onclick="closeSidebar()"></div>
+      <div class="hidden" id="sidebar-overlay"></div>
 
       <!-- Main -->
-      <div class="flex-1 min-w-0 lg:ml-[260px]">
-        <header class="bg-white shadow-sm border-b border-gray-200 lg:hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+      <div class="flex-1 min-w-0 ml-[260px]">
+        <header class="bg-white shadow-sm border-b border-gray-200 hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <button onclick="toggleSidebar()" class="text-gray-600 text-2xl p-1">☰</button>
           <h2 class="text-lg font-semibold">OT Dashboard</h2>
           <div class="w-8"></div>
@@ -279,14 +279,8 @@ function renderLayout() {
   `;
 }
 
-function toggleSidebar() {
-  document.getElementById('sidebar')?.classList.toggle('-translate-x-full');
-  document.getElementById('sidebar-overlay')?.classList.toggle('hidden');
-}
-function closeSidebar() {
-  document.getElementById('sidebar')?.classList.add('-translate-x-full');
-  document.getElementById('sidebar-overlay')?.classList.add('hidden');
-}
+function toggleSidebar() { /* sidebar always visible */ }
+function closeSidebar() { /* sidebar always visible */ }
 
 function handleLogout() {
   localStorage.removeItem('token');
