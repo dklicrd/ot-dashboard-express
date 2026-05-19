@@ -1,0 +1,35 @@
+# Render Blueprint — Deploy OT Dashboard Express
+# Conecta tu repositorio a Render y automáticamente crea el servicio.
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: ot-dashboard
+    env: node
+    region: ohio
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DASHBOARD_URL
+        value: https://ot-dashboard.onrender.com
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: "false"
+      # SMTP_USER y SMTP_PASS deben configurarse manualmente en Render Dashboard
+      # si se desea enviar emails (usar contraseña de aplicación de Google)
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        value: noreply@ot-dashboard.com

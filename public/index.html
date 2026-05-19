@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OT Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .sidebar-item { @apply flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors; }
+  .sidebar-item.active { @apply bg-blue-600 text-white; }
+  .sidebar-item:not(.active) { @apply text-gray-300 hover:bg-gray-800 hover:text-white; }
+  .card { @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6; }
+  .card-header { @apply text-lg font-semibold text-gray-900 mb-4; }
+  .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50; }
+  .btn-secondary { @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors; }
+  .btn-danger { @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors; }
+  .btn-success { @apply bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors; }
+  .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500; }
+  .select-field { @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white; }
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+  .badge-pendiente { @apply badge bg-yellow-100 text-yellow-800; }
+  .badge-aprobada { @apply badge bg-green-100 text-green-800; }
+  .badge-en_curso { @apply badge bg-blue-100 text-blue-800; }
+  .badge-completada { @apply badge bg-gray-100 text-gray-800; }
+  .badge-cancelada { @apply badge bg-red-100 text-red-800; }
+  .modal-overlay { @apply fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4; }
+  .modal-content { @apply bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto; }
+  .toast { @apply fixed bottom-6 right-6 z-[100] px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300; }
+  .loading-spinner { @apply inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.2s ease-out; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .slide-up { animation: slideUp 0.3s ease-out; }
+  .star-rating button { transition: all 0.15s ease; }
+  .star-rating button:hover { transform: scale(1.15); }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<div id="app">
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+      <div class="loading-spinner border-blue-600 border-4 w-10 h-10 mx-auto mb-4"></div>
+      <p class="text-gray-500">Cargando...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+const state = {
+  token: localStorage.getItem('token') || null,
+  user: JSON.parse(localStorage.getItem('user') || 'null'),
+  view: 'login',
+  _toastTimer: null,
+};
+
+function setState(partial) {
+  Object.assign(state, partial);
+  render();
+}
+
+function toast(message, type = 'success') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  if (state._toastTimer) clearTimeout(state._toastTimer);
+
+  const bg = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+  const el = document.createElement('div');
+  el.className = `toast slide-up ${bg}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  state._toastTimer = setTimeout(() => { el.remove(); }, 3500);
+}
+
+// ============ API HELPER ============
+async function api(method, path, body) {
+  const opts = { method, headers: { Authorization: `Bearer ${state.token}` } };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  return data;
+}
+
+// ============ LOGIN ============
+function renderLogin() {
+  return `
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-900">
+      <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+        <div class="text-center mb-8">
+          <div class="text-5xl mb-4">🔐</div>
+          <h1 class="text-3xl font-bold text-gray-900">OT Dashboard</h1>
+          <p class="text-gray-500 mt-2">Gestión de Órdenes de Trabajo</p>
+        </div>
+        <form onsubmit="handleLogin(event)" class="space-y-4">
+          <div id="login-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
+            <input type="email" id="login-email" class="input-field" placeholder="admin@sistema.com" required autocomplete="email">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <input type="password" id="login-pass" class="input-field" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn-primary w-full py-3 text-lg" id="login-btn">Iniciar Sesión</button>
+        </form>
+        <div class="mt-6 p-4 bg-gray-50 rounded-lg text-xs text-gray-500 text-center">
+          <strong>🔑 Acceso de prueba:</strong><br>
+          Admin: <code>admin@sistema.com</code> / <code>admin123</code><br>
+          Técnico: <code>maximo@sistema.com</code> / <code>tecnico123</code>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const btn = document.getElementById('login-btn');
+  const errDiv = document.getElementById('login-error');
+
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Iniciando...';
+  errDiv.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setState({ token: data.token, user: data.user, view: 'inicio' });
+    toast('Sesión iniciada correctamente');
+  } catch (err) {
+    errDiv.textContent = err.message;
+    errDiv.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Iniciar Sesión';
+  }
+}
+
+// ============ LAYOUT ============
+const navItems = {
+  admin: [
+    { id: 'inicio', label: 'Inicio', icon: '📊' },
+    { id: 'ordenes', label: 'Órdenes de Trabajo', icon: '📋' },
+    { id: 'avales', label: 'Avales', icon: '✅' },
+    { id: 'encuestas', label: 'Encuestas', icon: '⭐' },
+    { id: 'reportes', label: 'Reportes', icon: '📈' },
+    { id: 'usuarios', label: 'Usuarios', icon: '👥' },
+    { id: 'config', label: 'Configuración', icon: '⚙️' },
+  ],
+  tecnico: [
+    { id: 'inicio', label: 'Inicio', icon: '📊' },
+    { id: 'ordenes', label: 'Mis Órdenes', icon: '📋' },
+    { id: 'avales', label: 'Mis Avales', icon: '✅' },
+  ],
+  servicio_cliente: [
+    { id: 'inicio', label: 'Inicio', icon: '📊' },
+    { id: 'encuestas', label: 'Encuestas', icon: '⭐' },
+    { id: 'reportes', label: 'Reportes', icon: '📈' },
+  ],
+};
+
+function renderLayout() {
+  const items = navItems[state.user?.rol] || navItems.admin;
+  const rolLabel = { admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[state.user?.rol] || '';
+
+  return `
+    <div class="min-h-screen flex">
+      <!-- Sidebar -->
+      <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white transform transition-transform duration-300 lg:translate-x-0 -translate-x-full" id="sidebar">
+        <div class="h-full flex flex-col">
+          <div class="px-6 py-6 border-b border-gray-700">
+            <h2 class="text-xl font-bold flex items-center gap-2"><span>🔧</span> OT Dashboard</h2>
+            <p class="text-sm text-gray-400 mt-1 capitalize">${rolLabel}</p>
+            <p class="text-xs text-gray-500 truncate">${state.user?.nombre}</p>
+          </div>
+          <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            ${items.map(i => `<a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item ${state.view === i.id ? 'active' : ''}"><span class="mr-3">${i.icon}</span>${i.label}</a>`).join('')}
+          </nav>
+          <div class="px-3 py-4 border-t border-gray-700">
+            <a href="#" onclick="handleLogout()" class="sidebar-item text-gray-300 hover:bg-gray-800 hover:text-white"><span class="mr-3">🚪</span>Cerrar Sesión</a>
+          </div>
+        </div>
+      </aside>
+      <div class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden hidden" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+      <!-- Main -->
+      <div class="flex-1 min-w-0 lg:ml-64">
+        <header class="bg-white shadow-sm border-b border-gray-200 lg:hidden px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+          <button onclick="toggleSidebar()" class="text-gray-600 text-2xl p-1">☰</button>
+          <h2 class="text-lg font-semibold">OT Dashboard</h2>
+          <div class="w-8"></div>
+        </header>
+        <main class="p-4 lg:p-8" id="main-content">
+          <div class="flex items-center justify-center py-20">
+            <div class="loading-spinner border-blue-600 border-4 w-8 h-8"></div>
+          </div>
+        </main>
+      </div>
+    </div>
+  `;
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar')?.classList.toggle('-translate-x-full');
+  document.getElementById('sidebar-overlay')?.classList.toggle('hidden');
+}
+function closeSidebar() {
+  document.getElementById('sidebar')?.classList.add('-translate-x-full');
+  document.getElementById('sidebar-overlay')?.classList.add('hidden');
+}
+
+function handleLogout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  setState({ token: null, user: null, view: 'login' });
+  toast('Sesión cerrada');
+}
+
+// ============ INICIO ============
+async function renderInicio() {
+  let total = 0, pend = 0, curso = 0, comp = 0;
+  try {
+    const d = await api('GET', '/api/ordenes');
+    total = d.ordenes?.length || 0;
+    pend = d.ordenes?.filter(o => o.estado === 'pendiente').length || 0;
+    curso = d.ordenes?.filter(o => o.estado === 'en_curso').length || 0;
+    comp = d.ordenes?.filter(o => o.estado === 'completada').length || 0;
+  } catch (e) { /* ignore */ }
+  const tasa = total ? Math.round((comp / total) * 100) : 0;
+
+  return `
+    <div class="fade-in">
+      <h1 class="text-2xl font-bold text-gray-900 mb-1">Bienvenido, ${state.user?.nombre}</h1>
+      <p class="text-gray-500 mb-8">Panel de control · ${new Date().toLocaleDateString('es-DO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="card slide-up" style="animation-delay:0s"><div class="flex items-start justify-between"><div><p class="text-sm text-gray-500 font-medium">Total Órdenes</p><p class="text-3xl font-bold text-gray-900 mt-1">${total}</p><p class="text-xs text-gray-400 mt-1"><span class="text-yellow-600 font-medium">${pend}</span> pendientes</p></div><div class="bg-blue-50 p-3 rounded-lg"><span class="text-2xl">📋</span></div></div></div>
+        <div class="card slide-up" style="animation-delay:0.1s"><div class="flex items-start justify-between"><div><p class="text-sm text-gray-500 font-medium">Completadas</p><p class="text-3xl font-bold text-gray-900 mt-1">${comp}</p><p class="text-xs text-gray-400 mt-1">Últimos 100 registros</p></div><div class="bg-green-50 p-3 rounded-lg"><span class="text-2xl">✅</span></div></div></div>
+        <div class="card slide-up" style="animation-delay:0.2s"><div class="flex items-start justify-between"><div><p class="text-sm text-gray-500 font-medium">En Curso</p><p class="text-3xl font-bold text-gray-900 mt-1">${curso}</p><p class="text-xs text-gray-400 mt-1">Activas ahora</p></div><div class="bg-yellow-50 p-3 rounded-lg"><span class="text-2xl">🔧</span></div></div></div>
+        <div class="card slide-up" style="animation-delay:0.3s"><div class="flex items-start justify-between"><div><p class="text-sm text-gray-500 font-medium">Tasa de Finalización</p><p class="text-3xl font-bold text-gray-900 mt-1">${tasa}%</p><p class="text-xs text-gray-400 mt-1">${pend} pendientes por resolver</p></div><div class="bg-purple-50 p-3 rounded-lg"><span class="text-2xl">📊</span></div></div></div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card">
+          <h3 class="card-header">Acciones Rápidas</h3>
+          <div class="space-y-3">
+            <a href="#" onclick="setState({view:'ordenes'})" class="flex items-center gap-4 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group">
+              <span class="text-2xl group-hover:scale-110 transition-transform">📋</span>
+              <div><p class="font-medium text-blue-800">Nueva Orden de Trabajo</p><p class="text-sm text-blue-600">Crear OT desde presupuesto aprobado</p></div>
+            </a>
+            <a href="#" onclick="setState({view:'avales'})" class="flex items-center gap-4 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group">
+              <span class="text-2xl group-hover:scale-110 transition-transform">✅</span>
+              <div><p class="font-medium text-green-800">Generar Aval de Servicio</p><p class="text-sm text-green-600">Crear y enviar aval al técnico</p></div>
+            </a>
+            <a href="#" onclick="setState({view:'encuestas'})" class="flex items-center gap-4 p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group">
+              <span class="text-2xl group-hover:scale-110 transition-transform">⭐</span>
+              <div><p class="font-medium text-purple-800">Registrar Encuesta</p><p class="text-sm text-purple-600">Completar encuesta de satisfacción</p></div>
+            </a>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="card-header">Estado del Sistema</h3>
+          ${barraProgreso('Órdenes Pendientes', pend, total || 1, 'bg-yellow-500')}
+          ${barraProgreso('Órdenes en Curso', curso, total || 1, 'bg-blue-500')}
+          ${barraProgreso('Completadas', comp, total || 1, 'bg-green-500')}
+          <div class="mt-6 pt-4 border-t border-gray-100">
+            <p class="text-sm text-gray-500 text-center">Total: <strong>${total}</strong> órdenes registradas</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function barraProgreso(label, val, total, color) {
+  const pct = Math.round((val / total) * 100);
+  return `<div class="mb-4"><div class="flex justify-between text-sm mb-1"><span class="text-gray-600">${label}</span><span class="font-semibold">${val}</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div class="${color} h-2.5 rounded-full transition-all duration-500" style="width:${pct}%"></div></div></div>`;
+}
+
+// ============ ÓRDENES ============
+async function renderOrdenes() {
+  let ordenes = [];
+  try { const d = await api('GET', '/api/ordenes'); ordenes = d.ordenes || []; } catch (e) { /* ignore */ }
+  const estadoLabel = { pendiente: 'Pendiente', aprobada: 'Aprobada', en_curso: 'En Curso', completada: 'Completada', cancelada: 'Cancelada' };
+
+  const rows = ordenes.map(ot => `
+    <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td class="py-3 px-4 font-medium text-blue-600 whitespace-nowrap">${ot.numero_ot}</td>
+      <td class="py-3 px-4">${escHtml(ot.cliente_nombre)}</td>
+      <td class="py-3 px-4"><span class="badge capitalize bg-gray-100 text-gray-700">${ot.tipo_servicio}</span></td>
+      <td class="py-3 px-4">${ot.tecnico_nombre || '<span class="text-gray-400">—</span>'}</td>
+      <td class="py-3 px-4"><span class="badge-${ot.estado}">${estadoLabel[ot.estado]}</span></td>
+      <td class="py-3 px-4 text-right font-medium">RD$ ${(ot.monto_total || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}</td>
+      <td class="py-3 px-4 text-right text-gray-500 text-sm">${formatFecha(ot.fecha_programada || ot.creado_en)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="fade-in">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Órdenes de Trabajo</h1>
+        ${state.user?.rol === 'admin' ? `<button onclick="showModal('nueva-ot')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nueva OT</button>` : ''}
+      </div>
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Tipo</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Técnico</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
+              <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Monto</th>
+              <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Fecha</th>
+            </tr></thead>
+            <tbody>${ordenes.length === 0 ? '<tr><td colspan="7" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">📋</span>No hay órdenes de trabajo</td></tr>' : rows}</tbody>
+          </table>
+        </div>
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">Mostrando ${ordenes.length} órdenes</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ AVALES ============
+async function renderAvales() {
+  let avales = [];
+  try { const d = await api('GET', '/api/avales'); avales = d.avales || []; } catch (e) { /* ignore */ }
+  const estadoLabel = { pendiente: 'Pendiente', enviado: 'Enviado', firmado: 'Firmado', completado: 'Completado' };
+  const estadoColor = { pendiente: 'badge-pendiente', enviado: 'badge-aprobada', firmado: 'badge-en_curso', completado: 'badge-completada' };
+
+  const rows = avales.map(a => `
+    <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td class="py-3 px-4 font-medium text-blue-600">${a.numero_aval}</td>
+      <td class="py-3 px-4">${a.numero_ot}</td>
+      <td class="py-3 px-4">${escHtml(a.cliente_nombre)}</td>
+      <td class="py-3 px-4"><span class="${estadoColor[a.estado]}">${estadoLabel[a.estado]}</span></td>
+      <td class="py-3 px-4 text-right font-medium">RD$ ${(a.costo_total || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}</td>
+      <td class="py-3 px-4 text-center">
+        ${a.archivo_pdf_generado
+          ? `<a href="${a.archivo_pdf_generado}" target="_blank" class="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-sm" title="Ver PDF"><span>📄</span> PDF</a>`
+          : '<span class="text-gray-400">—</span>'}
+      </td>
+      <td class="py-3 px-4 text-center">
+        ${state.user?.rol === 'admin' && a.estado !== 'completado'
+          ? `<button onclick="uploadFirmado(${a.id})" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto"><span>📤</span> Subir Firmado</button>`
+          : ''}
+        ${a.archivo_pdf_firmado
+          ? `<a href="${a.archivo_pdf_firmado}" target="_blank" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto mt-1"><span>📄</span> Ver Firmado</a>`
+          : ''}
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="fade-in">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Avales de Servicio</h1>
+        ${state.user?.rol === 'admin' ? `<button onclick="showModal('nuevo-aval')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nuevo Aval</button>` : ''}
+      </div>
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Aval</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
+              <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Monto</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">PDF</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Acción</th>
+            </tr></thead>
+            <tbody>${avales.length === 0 ? '<tr><td colspan="7" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">✅</span>No hay avales registrados</td></tr>' : rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function uploadFirmado(id) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pdf,.jpg,.jpeg,.png';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast('El archivo es muy grande (máx 10MB)', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        await api('PUT', '/api/avales', { id, archivo_firmado: ev.target.result, respuestas_digitales: JSON.stringify({ firmado: true, fecha: new Date().toISOString() }) });
+        toast('Aval firmado subido correctamente');
+        render();
+      } catch (err) { toast('Error: ' + err.message, 'error'); }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+// ============ ENCUESTAS ============
+async function renderEncuestas() {
+  let encuestas = [];
+  try { const d = await api('GET', '/api/encuestas'); encuestas = d.encuestas || []; } catch (e) { /* ignore */ }
+
+  const rows = encuestas.map(e => {
+    const pctColor = e.porcentaje_final >= 80 ? 'text-green-600' : e.porcentaje_final >= 60 ? 'text-yellow-600' : 'text-red-600';
+    return `<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td class="py-3 px-4 font-medium text-blue-600">${e.numero_ot}</td>
+      <td class="py-3 px-4">${escHtml(e.cliente_nombre)}</td>
+      <td class="py-3 px-4 text-center font-semibold">${e.satisfaccion_general}/5</td>
+      <td class="py-3 px-4 text-center">${e.tiempo_entrega}/5</td>
+      <td class="py-3 px-4 text-center">${e.desempeno_equipo}/5</td>
+      <td class="py-3 px-4 text-center font-bold ${pctColor}">${e.porcentaje_final}%</td>
+      <td class="py-3 px-4 text-center text-gray-500 text-sm">${formatFecha(e.fecha_encuesta)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="fade-in">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Encuestas de Satisfacción</h1>
+        ${state.user?.rol !== 'tecnico' ? `<button onclick="showModal('nueva-encuesta')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nueva Encuesta</button>` : ''}
+      </div>
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">General</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">T. Entrega</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Desempeño</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">% Final</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Fecha</th>
+            </tr></thead>
+            <tbody>${encuestas.length === 0 ? '<tr><td colspan="7" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">⭐</span>No hay encuestas registradas</td></tr>' : rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ REPORTES ============
+async function renderReportes() {
+  const anio = new Date().getFullYear();
+  const trim = Math.ceil((new Date().getMonth() + 1) / 3);
+
+  return `
+    <div class="fade-in">
+      <h1 class="text-2xl font-bold text-gray-900 mb-6">Reporte de Incentivo Trimestral</h1>
+      <div class="card mb-6">
+        <div class="flex flex-wrap gap-4 items-end">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Año</label>
+            <select id="rep-anio" class="select-field w-32">${[2024, 2025, 2026, 2027].map(a => `<option value="${a}" ${a === anio ? 'selected' : ''}>${a}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Trimestre</label>
+            <select id="rep-trim" class="select-field w-40">
+              ${[{ v: 1, l: 'T1 — Ene a Mar' }, { v: 2, l: 'T2 — Abr a Jun' }, { v: 3, l: 'T3 — Jul a Sep' }, { v: 4, l: 'T4 — Oct a Dic' }].map(t =>
+                `<option value="${t.v}" ${trim === t.v ? 'selected' : ''}>${t.l}</option>`).join('')}
+            </select>
+          </div>
+          <button onclick="calcularReporte(false)" class="btn-secondary flex items-center gap-2"><span>📊</span> Calcular</button>
+          <button onclick="calcularReporte(true)" class="btn-primary flex items-center gap-2"><span>💾</span> Generar Reporte</button>
+        </div>
+        <div id="rep-error" class="text-red-500 text-sm mt-3 hidden"></div>
+        <div id="rep-success" class="text-green-600 text-sm mt-3 hidden"></div>
+      </div>
+      <div id="rep-resultado"></div>
+      <div id="rep-empty" class="card text-center py-16">
+        <span class="text-6xl mb-4 inline-block">📈</span>
+        <p class="text-gray-500 text-lg">Selecciona un período y haz clic en <strong>"Calcular"</strong></p>
+        <p class="text-gray-400 text-sm mt-2">El reporte se genera con las OT completadas del trimestre</p>
+      </div>
+    </div>
+  `;
+}
+
+window.calcularReporte = async function (generar) {
+  const anio = document.getElementById('rep-anio').value;
+  const trim = document.getElementById('rep-trim').value;
+  const err = document.getElementById('rep-error');
+  const success = document.getElementById('rep-success');
+  const loading = document.getElementById('rep-resultado');
+  err.classList.add('hidden');
+  success.classList.add('hidden');
+
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Calculando...'; }
+
+  try {
+    const d = await api('GET', `/api/reportes?action=${generar ? 'generar' : 'calcular'}&anio=${anio}&trimestre=${trim}`);
+    if (d.saved) { success.textContent = '✓ Reporte guardado exitosamente'; success.classList.remove('hidden'); }
+    document.getElementById('rep-resultado').innerHTML = renderResultadoReporte(d);
+    document.getElementById('rep-empty').innerHTML = '';
+    document.getElementById('rep-resultado').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = `<span>${generar ? '💾' : '📊'}</span> ${generar ? 'Generar Reporte' : 'Calcular'}`; }
+  }
+};
+
+function renderResultadoReporte(r) {
+  const fm = n => `RD$ ${(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+
+  const evalItems = [
+    { label: 'Tiempo de Entrega', val: r.evaluaciones.tiempo_entrega / 5 * 100 },
+    { label: 'Desempeño del Equipo', val: r.evaluaciones.desempeno / 5 * 100 },
+    { label: 'Presentación del Equipo', val: r.evaluaciones.presentacion / 5 * 100 },
+    { label: 'Calidad de Productos', val: r.evaluaciones.calidad_productos / 5 * 100 },
+    { label: 'Calidad de Entrenamientos', val: r.evaluaciones.calidad_entrenamientos / 5 * 100 },
+  ];
+
+  return `
+    <div class="space-y-6 fade-in">
+      <div class="card">
+        <h3 class="card-header">Resumen — ${r.periodo}</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="p-4 bg-blue-50 rounded-xl text-center"><p class="text-3xl font-bold text-blue-700">${r.resumen.instalaciones}</p><p class="text-xs text-blue-600 mt-1 uppercase tracking-wider font-medium">Instalaciones</p></div>
+          <div class="p-4 bg-green-50 rounded-xl text-center"><p class="text-3xl font-bold text-green-700">${r.resumen.mantenimientos}</p><p class="text-xs text-green-600 mt-1 uppercase tracking-wider font-medium">Mantenimientos</p></div>
+          <div class="p-4 bg-purple-50 rounded-xl text-center"><p class="text-3xl font-bold text-purple-700">${r.proyectos_count}</p><p class="text-xs text-purple-600 mt-1 uppercase tracking-wider font-medium">Total Servicios</p></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-header">Evaluaciones Promedio</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          ${evalItems.map(e => `
+            <div><div class="flex justify-between text-sm mb-1"><span class="text-gray-600">${e.label}</span><span class="font-semibold">${Math.round(e.val)}%</span></div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-500 h-2.5 rounded-full transition-all duration-500" style="width:${e.val}%"></div></div></div>
+          `).join('')}
+        </div>
+        <div class="mt-6 pt-4 border-t border-gray-200">
+          <div class="flex justify-between text-sm mb-1"><span class="text-gray-700 font-semibold">Evaluación General</span><span class="font-bold text-lg">${Math.round(r.evaluaciones.evaluacion_general * 100)}%</span></div>
+          <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-blue-600 h-3 rounded-full transition-all duration-500" style="width:${r.evaluaciones.evaluacion_general * 100}%"></div></div>
+        </div>
+      </div>
+
+      <div class="card bg-gradient-to-r from-blue-50 via-blue-50 to-green-50 border-blue-200">
+        <h3 class="card-header">Totales Financieros</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div><p class="text-sm text-gray-500">Total Bruto</p><p class="text-xl font-bold text-gray-900">${fm(r.totales.bruto)}</p></div>
+          <div><p class="text-sm text-gray-500">Deducción</p><p class="text-xl font-bold text-red-600">${r.totales.deduccion_porc.toFixed(2)}%</p><p class="text-xs text-red-500">${fm(r.totales.deduccion_monto)}</p></div>
+          <div class="col-span-2"><p class="text-sm text-gray-500">Total a Pagar</p><p class="text-3xl font-bold text-green-700">${fm(r.totales.a_pagar)}</p></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-header">Distribución del Bono por Técnico</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Técnico</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OTs</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Prom. Eval.</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Puntos</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">%</th>
+              <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Valor</th>
+            </tr></thead>
+            <tbody>
+              ${r.distribucion.map(t => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                  <td class="py-3 px-4 font-medium">${escHtml(t.nombre)}</td>
+                  <td class="py-3 px-4 text-center">${t.ots_completadas}</td>
+                  <td class="py-3 px-4 text-center">${t.promedio_eval}%</td>
+                  <td class="py-3 px-4 text-center font-medium">${t.puntos.toFixed(2)}</td>
+                  <td class="py-3 px-4 text-center font-medium">${(t.porcentaje).toFixed(1)}%</td>
+                  <td class="py-3 px-4 text-right font-semibold text-green-700">${fm(t.valor_bruto)}</td>
+                </tr>
+              `).join('')}
+              <tr class="bg-gray-50 font-bold border-t-2 border-gray-300">
+                <td class="py-3 px-4">Total</td>
+                <td class="py-3 px-4 text-center">${r.distribucion.reduce((s, t) => s + t.ots_completadas, 0)}</td>
+                <td class="py-3 px-4 text-center">—</td>
+                <td class="py-3 px-4 text-center">${r.distribucion.reduce((s, t) => s + t.puntos, 0).toFixed(2)}</td>
+                <td class="py-3 px-4 text-center">100%</td>
+                <td class="py-3 px-4 text-right">${fm(r.totales.a_pagar)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ USUARIOS ============
+async function renderUsuarios() {
+  let usuarios = [];
+  try { const d = await api('GET', '/api/usuarios'); usuarios = d.usuarios || []; } catch (e) { /* ignore */ }
+  const rolBadge = { admin: 'bg-purple-100 text-purple-800', tecnico: 'bg-blue-100 text-blue-800', servicio_cliente: 'bg-green-100 text-green-800' };
+  const rolLabel = { admin: 'Admin', tecnico: 'Técnico', servicio_cliente: 'Serv. Cliente' };
+
+  const rows = usuarios.map(u => `
+    <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td class="py-3 px-4 font-medium">${escHtml(u.nombre)}</td>
+      <td class="py-3 px-4 text-gray-600">${escHtml(u.email)}</td>
+      <td class="py-3 px-4"><span class="badge ${rolBadge[u.rol]}">${rolLabel[u.rol]}</span></td>
+      <td class="py-3 px-4">${u.telefono || '<span class="text-gray-400">—</span>'}</td>
+      <td class="py-3 px-4 text-center">${u.activo ? '<span class="text-green-600 text-lg">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="fade-in">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Usuarios del Sistema</h1>
+        <button onclick="showModal('nuevo-usuario')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nuevo Usuario</button>
+      </div>
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Nombre</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Email</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Rol</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Teléfono</th>
+              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
+            </tr></thead>
+            <tbody>${usuarios.length === 0 ? '<tr><td colspan="5" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">👥</span>No hay usuarios</td></tr>' : rows}</tbody>
+          </table>
+        </div>
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">${usuarios.length} usuario(s) registrados</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ CONFIGURACIÓN ============
+async function renderConfig() {
+  let config = null;
+  try {
+    const d = await api('GET', '/api/config');
+    config = d.config;
+  } catch (e) { /* ignore */ }
+
+  const pondHeader = `
+    <h3 class="card-header">Ponderaciones de Evaluación</h3>
+    <p class="text-sm text-gray-500 mb-4">Estos pesos determinan cuánto influye cada criterio en la evaluación general y el cálculo de incentivos.</p>
+  `;
+
+  const pondFields = [
+    { key: 'ponderacion_tiempo_entrega', label: 'Tiempo de Entrega', desc: '¿Qué tan rápido se completó el servicio?', icon: '⏱️' },
+    { key: 'ponderacion_desempeno', label: 'Desempeño del Equipo', desc: 'Calidad del trabajo del equipo técnico', icon: '👷' },
+    { key: 'ponderacion_conocimientos', label: 'Conocimientos Técnicos', desc: 'Nivel técnico demostrado en el servicio', icon: '📚' },
+    { key: 'ponderacion_presentacion', label: 'Presentación del Equipo', desc: 'Uniforme, puntualidad y trato al cliente', icon: '👔' },
+    { key: 'ponderacion_calidad_productos', label: 'Calidad de Productos', desc: 'Calidad de materiales y equipos instalados', icon: '🏆' },
+    { key: 'ponderacion_calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Capacitación al cliente sobre el uso', icon: '🎓' },
+  ];
+
+  const valorHeader = `
+    <h3 class="card-header">Valores por Tipo de Servicio (RD$)</h3>
+    <p class="text-sm text-gray-500 mb-4">Monto bruto que se paga por cada tipo de servicio completado en el trimestre.</p>
+  `;
+
+  const valorFields = [
+    { key: 'valor_cerradura', label: 'Cerradura Electrónica', icon: '🔒' },
+    { key: 'valor_control_acceso', label: 'Control de Acceso', icon: '🛡️' },
+    { key: 'valor_caja_fuerte', label: 'Caja Fuerte', icon: '🔐' },
+    { key: 'valor_ahorro_energia', label: 'Ahorro de Energía', icon: '💡' },
+    { key: 'mant_cerradura', label: 'Mant. Cerradura Elect.', icon: '🔧' },
+    { key: 'mant_caja_fuerte', label: 'Mant. Caja Fuerte', icon: '🔩' },
+    { key: 'mant_ahorro_energia', label: 'Mant. Ahorro de Energía', icon: '⚡' },
+  ];
+
+  const defaultVals = {
+    ponderacion_tiempo_entrega: 1.5, ponderacion_desempeno: 1.5, ponderacion_conocimientos: 1.5,
+    ponderacion_presentacion: 1.0, ponderacion_calidad_productos: 1.0, ponderacion_calidad_entrenamientos: 1.0,
+    valor_cerradura: 150, valor_control_acceso: 300, valor_caja_fuerte: 150, valor_ahorro_energia: 105,
+    mant_cerradura: 82.5, mant_caja_fuerte: 30, mant_ahorro_energia: 37.5,
+  };
+  const vals = config || defaultVals;
+
+  return `
+    <div class="fade-in">
+      <h1 class="text-2xl font-bold text-gray-900 mb-6">Configuración del Sistema</h1>
+
+      <div class="space-y-6">
+        <!-- Ponderaciones -->
+        <div class="card">
+          ${pondHeader}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            ${pondFields.map(f => `
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                  <span class="text-xl mt-1">${f.icon}</span>
+                  <div class="flex-1">
+                    <label class="block text-sm font-semibold text-gray-700">${f.label}</label>
+                    <p class="text-xs text-gray-400 mb-2">${f.desc}</p>
+                    <div class="flex items-center gap-2">
+                      <input type="range" min="0.5" max="3.0" step="0.1" value="${vals[f.key]}"
+                        oninput="document.getElementById('cfg-val-${f.key}').textContent = this.value"
+                        class="flex-1 accent-blue-600 h-2 rounded-full">
+                      <span id="cfg-val-${f.key}" class="text-sm font-bold text-blue-600 w-10 text-right">${vals[f.key]}</span>
+                      <span class="text-xs text-gray-400">x</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Valores -->
+        <div class="card">
+          ${valorHeader}
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            ${valorFields.map(f => `
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="text-lg">${f.icon}</span>
+                  <span class="text-sm font-semibold text-gray-700">${f.label}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm text-gray-500">RD$</span>
+                  <input type="number" min="0" max="99999" step="0.01" value="${vals[f.key]}"
+                    id="cfg-valnum-${f.key}"
+                    class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Save button -->
+        <div class="flex justify-end gap-3">
+          <button onclick="reloadConfig()" class="btn-secondary flex items-center gap-2"><span>🔄</span> Restaurar</button>
+          <button onclick="saveConfig()" class="btn-primary flex items-center gap-2" id="cfg-save-btn"><span>💾</span> Guardar Configuración</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.saveConfig = async function () {
+  const btn = document.getElementById('cfg-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Guardando...';
+
+  const pondKeys = ['ponderacion_tiempo_entrega', 'ponderacion_desempeno', 'ponderacion_conocimientos', 'ponderacion_presentacion', 'ponderacion_calidad_productos', 'ponderacion_calidad_entrenamientos'];
+  const valKeys = ['valor_cerradura', 'valor_control_acceso', 'valor_caja_fuerte', 'valor_ahorro_energia', 'mant_cerradura', 'mant_caja_fuerte', 'mant_ahorro_energia'];
+
+  const body = {};
+
+  for (const k of pondKeys) {
+    const el = document.getElementById(`cfg-val-${k}`);
+    body[k] = parseFloat(el?.textContent || 1.5);
+  }
+
+  for (const k of valKeys) {
+    const el = document.getElementById(`cfg-valnum-${k}`);
+    body[k] = parseFloat(el?.value || 0);
+  }
+
+  try {
+    await api('PUT', '/api/config', body);
+    toast('Configuración guardada correctamente');
+    render();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>💾</span> Guardar Configuración';
+  }
+};
+
+window.reloadConfig = function () {
+  render();
+};
+
+// ============ MODALS ============
+const modals = {};
+
+window.showModal = function (id) {
+  modals[id] = true;
+  render();
+};
+
+window.closeModal = function (id) {
+  delete modals[id];
+  render();
+};
+
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatFecha(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('es-DO', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// ============ RENDER ============
+async function render() {
+  if (!state.token || !state.user) {
+    document.getElementById('app').innerHTML = renderLogin();
+    return;
+  }
+
+  const layout = renderLayout();
+  document.getElementById('app').innerHTML = layout;
+
+  const main = document.getElementById('main-content');
+  let content = '';
+
+  try {
+    switch (state.view) {
+      case 'inicio': content = await renderInicio(); break;
+      case 'ordenes': content = await renderOrdenes(); break;
+      case 'avales': content = await renderAvales(); break;
+      case 'encuestas': content = await renderEncuestas(); break;
+      case 'reportes': content = await renderReportes(); break;
+      case 'usuarios': content = await renderUsuarios(); break;
+      case 'config': content = await renderConfig(); break;
+      default: content = await renderInicio();
+    }
+  } catch (e) {
+    if (e.message.includes('401') || e.message.includes('No autorizado')) {
+      handleLogout();
+      return;
+    }
+    content = `<div class="card text-center py-12 fade-in"><span class="text-5xl block mb-4">⚠️</span><p class="text-red-500 text-lg mb-2">Error al cargar</p><p class="text-gray-400 text-sm mb-4">${escHtml(e.message)}</p><button onclick="render()" class="btn-primary">Reintentar</button></div>`;
+  }
+
+  main.innerHTML = content;
+
+  // Modals after main content
+  const modalKeys = Object.keys(modals);
+  for (const key of modalKeys) {
+    if (key === 'nueva-ot') main.innerHTML += renderModalNuevaOT();
+    if (key === 'nuevo-aval') main.innerHTML += renderModalNuevoAval();
+    if (key === 'nueva-encuesta') main.innerHTML += renderModalNuevaEncuesta();
+    if (key === 'nuevo-usuario') main.innerHTML += renderModalNuevoUsuario();
+  }
+}
+
+// ============ MODAL: NUEVA OT ============
+function renderModalNuevaOT() {
+  return `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-ot')">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold">Nueva Orden de Trabajo</h2>
+          <button onclick="closeModal('nueva-ot')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <form onsubmit="submitNuevaOT(event)" class="p-6 space-y-4">
+          <div id="ot-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+            <input type="text" id="ot-cliente-search" class="input-field" placeholder="Buscar por nombre o teléfono..." autocomplete="off" oninput="buscarCliente(this.value)">
+            <div id="ot-cliente-list" class="hidden mt-1 bg-white border rounded-lg shadow-lg max-h-40 overflow-y-auto absolute z-10 w-[calc(100%-3rem)]"></div>
+            <input type="hidden" id="ot-cliente-id">
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Tipo Servicio</label>
+              <select id="ot-tipo" class="select-field">
+                <option value="instalacion">Instalación</option><option value="mantenimiento">Mantenimiento</option>
+                <option value="reparacion">Reparación</option><option value="garantia">Garantía</option><option value="levantamiento">Levantamiento</option>
+              </select></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Técnico Asignado</label>
+              <select id="ot-tecnico" class="select-field"><option value="">Sin asignar...</option></select></div>
+          </div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label><textarea id="ot-desc" class="input-field" rows="3" placeholder="Detalles del trabajo a realizar"></textarea></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto (RD$)</label><input type="number" id="ot-monto" class="input-field" placeholder="0.00" min="0"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha Programada</label><input type="date" id="ot-fecha" class="input-field"></div>
+          </div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="closeModal('nueva-ot')" class="btn-secondary">Cancelar</button>
+            <button type="submit" class="btn-primary">Crear OT</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+// Preload tecnicos for OT and Encuesta modals
+let _tecnicos = [];
+
+async function loadTecnicos() {
+  try {
+    const d = await api('GET', '/api/usuarios');
+    _tecnicos = (d.usuarios || []).filter(u => u.rol === 'tecnico');
+    // Update OT modal if open
+    const sel = document.getElementById('ot-tecnico');
+    if (sel) sel.innerHTML = '<option value="">Sin asignar...</option>' + _tecnicos.map(t => `<option value="${t.id}">${escHtml(t.nombre)}</option>`).join('');
+  } catch (e) { /* ignore */ }
+}
+
+window.buscarCliente = async function (q) {
+  if (q.length < 2) { document.getElementById('ot-cliente-list')?.classList.add('hidden'); return; }
+  const div = document.getElementById('ot-cliente-list');
+  if (!div) return;
+  try {
+    const d = await api('GET', `/api/clientes?search=${encodeURIComponent(q)}`);
+    div.innerHTML = (d.clientes || []).map(c =>
+      `<a href="#" onclick="seleccionarCliente(${c.id},'${escHtml(c.nombre).replace(/'/g, "\\'")}')" class="block px-4 py-2.5 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0">${escHtml(c.nombre)} ${c.telefono ? '<span class="text-gray-400">· ' + escHtml(c.telefono) + '</span>' : ''}</a>`
+    ).join('');
+    div.classList.remove('hidden');
+  } catch (e) { /* ignore */ }
+};
+
+window.seleccionarCliente = function (id, name) {
+  document.getElementById('ot-cliente-search').value = name;
+  document.getElementById('ot-cliente-id').value = id;
+  document.getElementById('ot-cliente-list').classList.add('hidden');
+};
+
+window.submitNuevaOT = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('ot-error');
+  err.classList.add('hidden');
+
+  const cid = document.getElementById('ot-cliente-id').value;
+  if (!cid) { err.textContent = 'Selecciona un cliente'; err.classList.remove('hidden'); return; }
+
+  const body = {
+    cliente_id: Number(cid),
+    tipo_servicio: document.getElementById('ot-tipo').value,
+    descripcion: document.getElementById('ot-desc').value,
+    monto_total: Number(document.getElementById('ot-monto').value) || 0,
+    tecnico_id: Number(document.getElementById('ot-tecnico').value) || null,
+    fecha_programada: document.getElementById('ot-fecha').value || null,
+    presupuesto_aprobado: 1,
+    estado: 'pendiente',
+  };
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Creando...';
+
+  try {
+    await api('POST', '/api/ordenes', body);
+    closeModal('nueva-ot');
+    toast('OT creada: ' + body.descripcion?.slice(0, 40) + '...');
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Crear OT';
+  }
+};
+
+// ============ MODAL: NUEVO AVAL ============
+function renderModalNuevoAval() {
+  return `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nuevo-aval')">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold">Nuevo Aval de Servicio</h2>
+          <button onclick="closeModal('nuevo-aval')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <form onsubmit="submitNuevoAval(event)" class="p-6 space-y-4">
+          <div id="av-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
+            <select id="av-ot" class="select-field" onchange="cargarDatosAval()"><option value="">Seleccionar OT aprobada...</option></select></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo</label><textarea id="av-desc" class="input-field" rows="3"></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Materiales / Repuestos</label><textarea id="av-mat" class="input-field" rows="3" placeholder="Lista de materiales utilizados"></textarea></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Costo Total (RD$)</label><input type="number" id="av-costo" class="input-field" min="0"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label><input type="text" id="av-pago" class="input-field" placeholder="Efectivo, Transferencia, etc."></div>
+          </div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Garantía</label><input type="text" id="av-garantia" class="input-field" placeholder="Ej: 1 año en instalación y materiales"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label><textarea id="av-obs" class="input-field" rows="2"></textarea></div>
+          <div class="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 flex items-center gap-2"><span>📌</span> Se generará un PDF profesional y se enviará al técnico por email</div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="closeModal('nuevo-aval')" class="btn-secondary">Cancelar</button>
+            <button type="submit" class="btn-primary">Generar Aval y Enviar</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+let _otsAprobadas = [];
+
+window.cargarDatosAval = async function () {
+  try {
+    const d = await api('GET', '/api/ordenes?estado=aprobada');
+    _otsAprobadas = d.ordenes || [];
+    const sel = document.getElementById('av-ot');
+    sel.innerHTML = '<option value="">Seleccionar OT aprobada...</option>' +
+      _otsAprobadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)} (${o.tipo_servicio})</option>`).join('');
+  } catch (e) { /* ignore */ }
+};
+
+window.submitNuevoAval = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('av-error');
+  err.classList.add('hidden');
+
+  const otId = document.getElementById('av-ot').value;
+  if (!otId) { err.textContent = 'Selecciona una OT'; err.classList.remove('hidden'); return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Generando...';
+
+  try {
+    await api('POST', '/api/avales', {
+      orden_trabajo_id: Number(otId),
+      descripcion_trabajo: document.getElementById('av-desc').value,
+      materiales: document.getElementById('av-mat').value,
+      costo_total: Number(document.getElementById('av-costo').value) || 0,
+      forma_pago: document.getElementById('av-pago').value,
+      garantia: document.getElementById('av-garantia').value,
+      observaciones: document.getElementById('av-obs').value,
+    });
+    closeModal('nuevo-aval');
+    toast('Aval generado y enviado al técnico');
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Generar Aval y Enviar';
+  }
+};
+
+// ============ MODAL: NUEVA ENCUESTA ============
+function renderModalNuevaEncuesta() {
+  const preguntas = [
+    { key: 'satisfaccion_general', label: 'Satisfacción General', peso: 1.0, desc: 'Evaluación global del servicio' },
+    { key: 'tiempo_entrega', label: 'Tiempo de Entrega', peso: 1.5, desc: 'Cumplimiento del plazo acordado' },
+    { key: 'desempeno_equipo', label: 'Desempeño del Equipo', peso: 1.5, desc: 'Calidad del trabajo realizado' },
+    { key: 'presentacion_equipo', label: 'Presentación del Equipo', peso: 1.0, desc: 'Uniforme, puntualidad, trato' },
+    { key: 'calidad_productos', label: 'Calidad de Productos', peso: 1.0, desc: 'Materiales y equipos instalados' },
+    { key: 'conocimientos_tecnicos', label: 'Conocimientos Técnicos', peso: 1.5, desc: 'Dominio técnico demostrado' },
+    { key: 'calidad_entrenamientos', label: 'Calidad de Entrenamientos', peso: 1.0, desc: 'Capacitación sobre el uso' },
+  ];
+
+  return `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-encuesta')">
+      <div class="modal-content">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold">Nueva Encuesta de Satisfacción</h2>
+          <button onclick="closeModal('nueva-encuesta')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <p class="px-6 pt-2 text-sm text-gray-500">Completar vía telefónica con el cliente</p>
+        <form onsubmit="submitNuevaEncuesta(event)" class="p-6 space-y-4">
+          <div id="enc-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
+            <select id="enc-ot" class="select-field"><option value="">Seleccionar OT completada...</option></select></div>
+
+          <div class="space-y-3">
+            <h3 class="text-sm font-semibold text-gray-700">Calificaciones (1 = Muy Malo · 5 = Excelente)</h3>
+            ${preguntas.map(p => `
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div><span class="text-sm font-medium text-gray-700">${p.label}</span>
+                    ${p.peso > 1 ? `<span class="text-xs text-blue-600 font-medium ml-1">(×${p.peso})</span>` : ''}
+                    <p class="text-xs text-gray-400">${p.desc}</p></div>
+                </div>
+                <div class="flex gap-1 star-rating">
+                  ${[1, 2, 3, 4, 5].map(v =>
+                    `<button type="button" onclick="setEncuestaVal('${p.key}',${v})" id="enc-${p.key}-${v}"
+                      class="w-10 h-10 rounded-full text-sm font-semibold bg-gray-200 text-gray-500 hover:bg-yellow-300 hover:text-yellow-800 transition-all">${v}</button>`
+                  ).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="card bg-blue-50 border-2 border-blue-200">
+            <div class="flex items-center justify-between">
+              <div><span class="text-sm font-medium text-blue-800">Resultado Estimado</span>
+                <p class="text-xs text-blue-600">Basado en las ponderaciones actuales</p></div>
+              <span class="text-3xl font-bold text-blue-600" id="enc-pct">0%</span>
+            </div>
+            <div class="mt-2 w-full bg-blue-200 rounded-full h-2">
+              <div id="enc-pct-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea id="enc-obs" class="input-field" rows="3" placeholder="Comentarios adicionales del cliente..."></textarea></div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="closeModal('nueva-encuesta')" class="btn-secondary">Cancelar</button>
+            <button type="submit" class="btn-primary">Guardar Encuesta</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+const _encValues = {};
+
+window.setEncuestaVal = function (key, val) {
+  _encValues[key] = val;
+  for (let v = 1; v <= 5; v++) {
+    const el = document.getElementById(`enc-${key}-${v}`);
+    if (el) {
+      el.className = `w-10 h-10 rounded-full text-sm font-semibold transition-all ${v <= val ? 'bg-yellow-400 text-yellow-900 shadow-sm' : 'bg-gray-200 text-gray-500 hover:bg-yellow-300 hover:text-yellow-800'}`;
+    }
+  }
+
+  // Calculate
+  const pesos = { tiempo_entrega: 1.5, desempeno_equipo: 1.5, conocimientos_tecnicos: 1.5, presentacion_equipo: 1.0, calidad_productos: 1.0, calidad_entrenamientos: 1.0 };
+  const keys = ['satisfaccion_general', 'tiempo_entrega', 'desempeno_equipo', 'presentacion_equipo', 'calidad_productos', 'conocimientos_tecnicos', 'calidad_entrenamientos'];
+  let sumP = 0, sumW = 0;
+  for (const k of keys) {
+    const v = _encValues[k] || 3;
+    const w = k === 'satisfaccion_general' ? 1.0 : (pesos[k] || 1.0);
+    sumP += v * w;
+    sumW += w;
+  }
+  const pct = Math.round((sumP / sumW / 5) * 100);
+  document.getElementById('enc-pct').textContent = pct + '%';
+  document.getElementById('enc-pct-bar').style.width = pct + '%';
+};
+
+window.submitNuevaEncuesta = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('enc-error');
+  err.classList.add('hidden');
+
+  const otId = document.getElementById('enc-ot').value;
+  if (!otId) { err.textContent = 'Selecciona una OT'; err.classList.remove('hidden'); return; }
+
+  const keys = ['satisfaccion_general', 'tiempo_entrega', 'desempeno_equipo', 'presentacion_equipo', 'calidad_productos', 'conocimientos_tecnicos', 'calidad_entrenamientos'];
+  const body = { orden_trabajo_id: Number(otId), recomendaria: 1 };
+  for (const k of keys) body[k] = _encValues[k] || 3;
+  body.observaciones = document.getElementById('enc-obs').value;
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Guardando...';
+
+  try {
+    await api('POST', '/api/encuestas', body);
+    closeModal('nueva-encuesta');
+    toast('Encuesta registrada correctamente');
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Guardar Encuesta';
+  }
+};
+
+// ============ MODAL: NUEVO USUARIO ============
+function renderModalNuevoUsuario() {
+  return `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nuevo-usuario')">
+      <div class="modal-content max-w-md">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold">Nuevo Usuario</h2>
+          <button onclick="closeModal('nuevo-usuario')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <form onsubmit="submitNuevoUsuario(event)" class="p-6 space-y-4">
+          <div id="us-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label><input type="text" id="us-nombre" class="input-field" required></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico *</label><input type="email" id="us-email" class="input-field" required></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label><input type="password" id="us-pass" class="input-field" required minlength="6"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Rol *</label>
+            <select id="us-rol" class="select-field">
+              <option value="tecnico" selected>Técnico</option>
+              <option value="admin">Administrador</option>
+              <option value="servicio_cliente">Servicio al Cliente</option>
+            </select></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input type="text" id="us-tel" class="input-field" placeholder="809-555-0100"></div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="closeModal('nuevo-usuario')" class="btn-secondary">Cancelar</button>
+            <button type="submit" class="btn-primary">Crear Usuario</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+window.submitNuevoUsuario = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('us-error');
+  err.classList.add('hidden');
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Creando...';
+
+  try {
+    await api('POST', '/api/usuarios', {
+      nombre: document.getElementById('us-nombre').value.trim(),
+      email: document.getElementById('us-email').value.trim(),
+      password: document.getElementById('us-pass').value,
+      rol: document.getElementById('us-rol').value,
+      telefono: document.getElementById('us-tel').value.trim() || null,
+    });
+    closeModal('nuevo-usuario');
+    toast('Usuario creado correctamente');
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Crear Usuario';
+  }
+};
+
+// ============ INIT ============
+// Preload OT completadas for encuestas modal on startup
+let _otsCompletadas = [];
+
+(async function init() {
+  if (state.token && state.user) {
+    state.view = 'inicio';
+    try {
+      const d = await api('GET', '/api/ordenes?estado=completada');
+      _otsCompletadas = d.ordenes || [];
+    } catch (e) { /* ignore */ }
+    // Preload tecnicos
+    loadTecnicos();
+  }
+  render();
+})();
+
+// Override render's enc-ot select population after modal opens
+const origRender = render;
+render = async function () {
+  await origRender();
+  // Populate enc-ot select if modal is open
+  if (modals['nueva-encuesta']) {
+    const sel = document.getElementById('enc-ot');
+    if (sel) {
+      sel.innerHTML = '<option value="">Seleccionar OT completada...</option>' +
+        _otsCompletadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)}</option>`).join('');
+    }
+  }
+};
+</script>
+</body>
+</html>

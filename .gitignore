@@ -1,0 +1,7 @@
+# OT Dashboard - .gitignore
+node_modules/
+data/
+public/uploads/avales/
+.env
+*.log
+.DS_Store
