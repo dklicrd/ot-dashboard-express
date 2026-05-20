@@ -1368,75 +1368,61 @@ window.toggleNuevoPresupuesto = function () {
   btn.textContent = form.classList.contains('hidden') ? '+ Nuevo' : '✕ Cancelar';
 };
 
-// ============ MODAL NUEVO PRESUPUESTO (independiente) ============
-window.abrirModalNuevoPresupuesto = function () {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay fade-in';
-  overlay.id = 'modal-nuevo-presupuesto';
-  overlay.onclick = function(e) { if (e.target === this) cerrarModalNuevoPresupuesto(); };
-  overlay.innerHTML = `
-    <div class="modal-content max-w-lg">
-      <div class="p-5 border-b border-gray-200 flex items-center justify-between">
-        <h3 class="text-lg font-bold">Nuevo Presupuesto Aprobado</h3>
-        <button onclick="cerrarModalNuevoPresupuesto()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-      </div>
-      <div class="p-5 space-y-4">
-        <div id="np-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
-          <input type="text" id="np-cliente-search" class="input-field" placeholder="Buscar cliente..." autocomplete="off" oninput="buscarClienteNP2(this.value)">
-          <div id="np-cliente-list2" class="hidden mt-1 bg-white border rounded-lg shadow-lg max-h-40 overflow-y-auto absolute z-10 w-full"></div>
-          <input type="hidden" id="np-cliente-id">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proyecto *</label>
-          <input type="text" id="np-proyecto" class="input-field" placeholder="Ej: Instalación Hotel Royal - Cerraduras">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">PDF del Presupuesto (opcional)</label>
-          <input type="file" id="np-pdf" accept=".pdf,image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-        </div>
-        <div class="flex justify-end gap-3 pt-2">
-          <button onclick="cerrarModalNuevoPresupuesto()" class="btn-secondary">Cancelar</button>
-          <button onclick="submitNuevoPresupuesto()" id="btn-crear-presupuesto" class="btn-primary">Crear Presupuesto</button>
-        </div>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
+// ============ NUEVO PRESUPUESTO INLINE ============
+window.cancelarNuevoPresupuesto = function () {
+  document.getElementById('ot-nuevo-presupuesto-form').classList.add('hidden');
+  document.getElementById('btn-nuevo-presupuesto').textContent = '+ Nuevo';
+  document.getElementById('np-cliente-id').value = '';
+  document.getElementById('np-cliente-search').value = '';
+  document.getElementById('np-proyecto').value = '';
+  document.getElementById('np-pdf').value = '';
+  document.getElementById('np-error').classList.add('hidden');
+  document.getElementById('np-cliente-list').classList.add('hidden');
 };
 
-window.cerrarModalNuevoPresupuesto = function () {
-  const el = document.getElementById('modal-nuevo-presupuesto');
-  if (el) el.remove();
+window.toggleNuevoPresupuesto = function () {
+  const form = document.getElementById('ot-nuevo-presupuesto-form');
+  const btn = document.getElementById('btn-nuevo-presupuesto');
+  const isHidden = form.classList.contains('hidden');
+  form.classList.toggle('hidden');
+  btn.textContent = isHidden ? '✕ Cancelar' : '+ Nuevo';
+  if (isHidden) {
+    document.getElementById('np-cliente-id').value = '';
+    document.getElementById('np-cliente-search').value = '';
+    document.getElementById('np-proyecto').value = '';
+    document.getElementById('np-pdf').value = '';
+    document.getElementById('np-error').classList.add('hidden');
+    document.getElementById('np-cliente-list').classList.add('hidden');
+    document.getElementById('np-cliente-search').focus();
+  }
 };
 
-let _clientesNP2 = [];
-async function buscarClienteNP2(q) {
-  const list = document.getElementById('np-cliente-list2');
+let _clientesNP = [];
+async function buscarClienteNP(q) {
+  const list = document.getElementById('np-cliente-list');
   if (q.length < 1) { list.classList.add('hidden'); return; }
   try {
     const d = await api('GET', '/api/clientes');
-    _clientesNP2 = d.clientes || [];
-    const filtrados = _clientesNP2.filter(c =>
+    _clientesNP = d.clientes || [];
+    const filtrados = _clientesNP.filter(c =>
       c.nombre.toLowerCase().includes(q.toLowerCase()) ||
       (c.telefono && c.telefono.includes(q))
     );
     if (filtrados.length === 0) { list.classList.add('hidden'); return; }
     list.innerHTML = filtrados.map(c =>
-      '<div onclick="seleccionarClienteNP2(' + c.id + ',\'' + escHtml(c.nombre) + '\')" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-100">'
+      '<div onclick="seleccionarClienteNP(' + c.id + ',\'' + escHtml(c.nombre) + '\')" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-100 last:border-0">'
       + '<strong>' + escHtml(c.nombre) + '</strong> <span class="text-gray-400">' + escHtml(c.telefono || '') + '</span></div>'
     ).join('');
     list.classList.remove('hidden');
   } catch (e) { /* ignore */ }
 }
-
-window.seleccionarClienteNP2 = function (id, nombre) {
+window.seleccionarClienteNP = function (id, nombre) {
   document.getElementById('np-cliente-id').value = id;
   document.getElementById('np-cliente-search').value = nombre;
-  document.getElementById('np-cliente-list2').classList.add('hidden');
+  document.getElementById('np-cliente-list').classList.add('hidden');
 };
 
-window.submitNuevoPresupuesto = async function () {
+window.crearPresupuestoInline = async function () {
   const cid = document.getElementById('np-cliente-id').value;
   const proyecto = document.getElementById('np-proyecto').value;
   const errDiv = document.getElementById('np-error');
@@ -1445,8 +1431,8 @@ window.submitNuevoPresupuesto = async function () {
   if (!cid) { errDiv.textContent = 'Selecciona un cliente'; errDiv.classList.remove('hidden'); return; }
   if (!proyecto) { errDiv.textContent = 'Escribe el nombre del proyecto'; errDiv.classList.remove('hidden'); return; }
 
-  const btn = document.getElementById('btn-crear-presupuesto');
-  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Creando...';
+  const btn = document.getElementById('btn-crear-presupuesto-inline');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-1"></span> Creando...';
 
   try {
     await api('POST', '/api/presupuestos', {
@@ -1472,8 +1458,6 @@ window.submitNuevoPresupuesto = async function () {
       }
     }
 
-    cerrarModalNuevoPresupuesto();
-
     // Reload presupuestos and select the new one
     await cargarPresupuestosSelect();
     const sel = document.getElementById('ot-presupuesto');
@@ -1482,7 +1466,10 @@ window.submitNuevoPresupuesto = async function () {
       await cargarPresupuestoOT();
     }
 
-    toggleNuevoPresupuesto();
+    // Hide form and restore btn text
+    document.getElementById('ot-nuevo-presupuesto-form').classList.add('hidden');
+    document.getElementById('btn-nuevo-presupuesto').textContent = '+ Nuevo';
+    btn.disabled = false; btn.innerHTML = 'Crear Presupuesto';
     toast('Presupuesto creado: ' + proyecto);
   } catch (e) {
     errDiv.textContent = e.message;
@@ -1807,11 +1794,30 @@ function renderModalNuevaOT() {
               <p id="ot-presupuesto-cliente"></p>
               <p id="ot-presupuesto-monto"></p>
             </div>
-            <!-- Boton que abre modal independiente para nuevo presupuesto -->
-            <div id="ot-nuevo-presupuesto-form" class="hidden mt-2">
-              <button type="button" onclick="abrirModalNuevoPresupuesto()" class="btn-primary text-sm px-3 py-2 w-full flex items-center justify-center gap-2">
-                <span>📄</span> Crear Nuevo Presupuesto Aprobado
-              </button>
+            <!-- Formulario inline para nuevo presupuesto -->
+            <div id="ot-nuevo-presupuesto-form" class="hidden mt-3 p-4 bg-white rounded-xl border-2 border-blue-200 space-y-3 shadow-sm">
+              <p class="text-sm font-semibold text-blue-700 flex items-center gap-1.5"><span class="text-base">📄</span> Nuevo Presupuesto Aprobado</p>
+              <div id="np-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Cliente *</label>
+                  <input type="text" id="np-cliente-search" class="input-field text-sm" placeholder="Buscar cliente..." autocomplete="off" oninput="buscarClienteNP(this.value)">
+                  <div id="np-cliente-list" class="hidden mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto absolute z-10 w-[calc(100%-1.5rem)]"></div>
+                  <input type="hidden" id="np-cliente-id">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del Proyecto *</label>
+                  <input type="text" id="np-proyecto" class="input-field text-sm" placeholder="Ej: Inst. Hotel Royal">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">PDF del Presupuesto <span class="text-gray-400 font-normal">(opcional)</span></label>
+                <input type="file" id="np-pdf" accept=".pdf,image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+              </div>
+              <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="cancelarNuevoPresupuesto()" class="btn-secondary text-sm px-3 py-1.5">Cancelar</button>
+                <button type="button" id="btn-crear-presupuesto-inline" onclick="crearPresupuestoInline()" class="btn-primary text-sm px-3 py-1.5">Crear Presupuesto</button>
+              </div>
             </div>
             <div class="mt-2">
               <label class="block text-sm font-medium text-gray-700 mb-1">Adjuntar PDF del presupuesto (si no lo subiste arriba)</label>
