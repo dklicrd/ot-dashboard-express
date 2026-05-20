@@ -358,7 +358,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [num, body.cliente_id, body.tipo_servicio, body.descripcion || null,
        body.presupuesto_aprobado ? 1 : 0, body.monto_total || 0, body.tecnico_id || null,
-       body.estado || 'pendiente', body.fuente || 'manual', body.notas || null,
+       body.estado || 'pendiente', (body.fuente === 'presupuesto' || body.fuente === 'garantia' || body.fuente === 'levantamiento' ? 'manual' : body.fuente || 'manual'), body.notas || null,
        req.user.userId, body.fecha_programada || null, body.presupuesto_id || null]);
 
     // Get the inserted OT id
