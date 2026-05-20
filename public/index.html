@@ -1369,7 +1369,7 @@ window.toggleNuevoPresupuesto = function () {
 };
 
 // ============ NUEVO PRESUPUESTO INLINE ============
-async function preloadNPClientes() {
+window.preloadNPClientes = async function () {
   try {
     const d = await api('GET', '/api/clientes');
     const sel = document.getElementById('np-cliente-id');
@@ -1384,11 +1384,9 @@ window.cancelarNuevoPresupuesto = function () {
   document.getElementById('ot-nuevo-presupuesto-form').classList.add('hidden');
   document.getElementById('btn-nuevo-presupuesto').textContent = '+ Nuevo';
   document.getElementById('np-cliente-id').value = '';
-  document.getElementById('np-cliente-search').value = '';
   document.getElementById('np-proyecto').value = '';
   document.getElementById('np-pdf').value = '';
   document.getElementById('np-error').classList.add('hidden');
-  document.getElementById('np-cliente-list').classList.add('hidden');
 };
 
 window.toggleNuevoPresupuesto = function () {
@@ -1399,12 +1397,13 @@ window.toggleNuevoPresupuesto = function () {
   btn.textContent = isHidden ? '✕ Cancelar' : '+ Nuevo';
   if (isHidden) {
     document.getElementById('np-cliente-id').value = '';
-    document.getElementById('np-cliente-search').value = '';
     document.getElementById('np-proyecto').value = '';
     document.getElementById('np-pdf').value = '';
     document.getElementById('np-error').classList.add('hidden');
-    document.getElementById('np-cliente-list').classList.add('hidden');
-    document.getElementById('np-cliente-search').focus();
+    setTimeout(() => {
+      const sel = document.getElementById('np-cliente-id');
+      if (sel) sel.focus();
+    }, 100);
   }
 };
 
