@@ -1380,13 +1380,67 @@ window.preloadNPClientes = async function () {
   } catch (e) { /* ignore */ }
 }
 
+window.onCambioClienteNP = function () {
+  const sel = document.getElementById('np-cliente-id');
+  const form = document.getElementById('np-nuevo-cliente-form');
+  if (sel.value === '__nuevo__') {
+    form.classList.remove('hidden');
+    document.getElementById('np-cliente-id-val').value = '';
+    document.getElementById('np-nuevo-cliente-nombre').focus();
+  } else if (sel.value) {
+    form.classList.add('hidden');
+    document.getElementById('np-cliente-id-val').value = sel.value;
+  } else {
+    form.classList.add('hidden');
+    document.getElementById('np-cliente-id-val').value = '';
+  }
+};
+
+window.guardarClienteNP = async function () {
+  const nombre = document.getElementById('np-nuevo-cliente-nombre').value.trim();
+  if (!nombre) { toast('Escribe el nombre del cliente', 'error'); return; }
+
+  const btn = document.getElementById('btn-guardar-cliente-np');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  try {
+    const result = await api('POST', '/api/clientes', {
+      nombre: nombre,
+      telefono: document.getElementById('np-nuevo-cliente-tel').value.trim(),
+      email: document.getElementById('np-nuevo-cliente-email').value.trim(),
+      direccion: document.getElementById('np-nuevo-cliente-dir').value.trim(),
+      tipo: 'particular',
+    });
+
+    // Reload clientes select
+    const d = await api('GET', '/api/clientes');
+    const sel = document.getElementById('np-cliente-id');
+    const nuevoCliente = d.clientes?.find(c => c.nombre === nombre);
+    if (nuevoCliente) {
+      sel.innerHTML = '<option value="">Seleccionar cliente existente...</option>' +
+        d.clientes.map(c => '<option value="' + c.id + '">' + escHtml(c.nombre) + (c.telefono ? ' — ' + escHtml(c.telefono) : '') + '</option>').join('') +
+        '<option value="__nuevo__">➕ Nuevo Cliente...</option>';
+      sel.value = String(nuevoCliente.id);
+      document.getElementById('np-cliente-id-val').value = nuevoCliente.id;
+      document.getElementById('np-nuevo-cliente-form').classList.add('hidden');
+      toast('Cliente creado: ' + nombre);
+    }
+    btn.disabled = false; btn.textContent = 'Guardar Cliente';
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Guardar Cliente';
+  }
+};
+
 window.cancelarNuevoPresupuesto = function () {
   document.getElementById('ot-nuevo-presupuesto-form').classList.add('hidden');
   document.getElementById('btn-nuevo-presupuesto').textContent = '+ Nuevo';
   document.getElementById('np-cliente-id').value = '';
+  document.getElementById('np-cliente-id-val').value = '';
   document.getElementById('np-proyecto').value = '';
   document.getElementById('np-pdf').value = '';
   document.getElementById('np-error').classList.add('hidden');
+  document.getElementById('np-nuevo-cliente-form').classList.add('hidden');
 };
 
 window.toggleNuevoPresupuesto = function () {
@@ -1397,9 +1451,15 @@ window.toggleNuevoPresupuesto = function () {
   btn.textContent = isHidden ? '✕ Cancelar' : '+ Nuevo';
   if (isHidden) {
     document.getElementById('np-cliente-id').value = '';
+    document.getElementById('np-cliente-id-val').value = '';
     document.getElementById('np-proyecto').value = '';
     document.getElementById('np-pdf').value = '';
     document.getElementById('np-error').classList.add('hidden');
+    document.getElementById('np-nuevo-cliente-form').classList.add('hidden');
+    document.getElementById('np-nuevo-cliente-nombre').value = '';
+    document.getElementById('np-nuevo-cliente-tel').value = '';
+    document.getElementById('np-nuevo-cliente-email').value = '';
+    document.getElementById('np-nuevo-cliente-dir').value = '';
     setTimeout(() => {
       const sel = document.getElementById('np-cliente-id');
       if (sel) sel.focus();
@@ -1409,7 +1469,7 @@ window.toggleNuevoPresupuesto = function () {
 
 
 window.crearPresupuestoInline = async function () {
-  const cid = document.getElementById('np-cliente-id').value;
+  const cid = document.getElementById('np-cliente-id-val').value || document.getElementById('np-cliente-id').value;
   const proyecto = document.getElementById('np-proyecto').value;
   const errDiv = document.getElementById('np-error');
   errDiv.classList.add('hidden');
@@ -1787,10 +1847,23 @@ function renderModalNuevaOT() {
               <div id="np-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Cliente *</label>
-                  <select id="np-cliente-id" class="select-field text-sm" onchange="this.dataset.nombre = this.options[this.selectedIndex]?.text || ''">
-                    <option value="">Seleccionar cliente...</option>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
+                  <select id="np-cliente-id" class="select-field text-sm" onchange="onCambioClienteNP()">
+                    <option value="">Seleccionar cliente existente...</option>
+                    <option value="__nuevo__">➕ Nuevo Cliente...</option>
                   </select>
+                  <!-- Formulario nuevo cliente (oculto) -->
+                  <div id="np-nuevo-cliente-form" class="hidden mt-2 space-y-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <p class="text-xs font-semibold text-yellow-700">Nuevo Cliente</p>
+                    <input type="text" id="np-nuevo-cliente-nombre" class="input-field text-sm" placeholder="Nombre completo *">
+                    <div class="grid grid-cols-2 gap-2">
+                      <input type="text" id="np-nuevo-cliente-tel" class="input-field text-sm" placeholder="Teléfono">
+                      <input type="email" id="np-nuevo-cliente-email" class="input-field text-sm" placeholder="Email">
+                    </div>
+                    <input type="text" id="np-nuevo-cliente-dir" class="input-field text-sm" placeholder="Dirección">
+                    <button type="button" onclick="guardarClienteNP()" id="btn-guardar-cliente-np" class="btn-primary text-xs px-3 py-1.5">Guardar Cliente</button>
+                  </div>
+                  <input type="hidden" id="np-cliente-id-val" value="">
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del Proyecto *</label>
