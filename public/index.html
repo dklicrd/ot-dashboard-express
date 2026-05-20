@@ -1369,6 +1369,17 @@ window.toggleNuevoPresupuesto = function () {
 };
 
 // ============ NUEVO PRESUPUESTO INLINE ============
+async function preloadNPClientes() {
+  try {
+    const d = await api('GET', '/api/clientes');
+    const sel = document.getElementById('np-cliente-id');
+    if (sel && sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+        (d.clientes || []).map(c => '<option value="' + c.id + '">' + escHtml(c.nombre) + (c.telefono ? ' — ' + escHtml(c.telefono) : '') + '</option>').join('');
+    }
+  } catch (e) { /* ignore */ }
+}
+
 window.cancelarNuevoPresupuesto = function () {
   document.getElementById('ot-nuevo-presupuesto-form').classList.add('hidden');
   document.getElementById('btn-nuevo-presupuesto').textContent = '+ Nuevo';
@@ -1397,27 +1408,7 @@ window.toggleNuevoPresupuesto = function () {
   }
 };
 
-let _clientesNP = [];
-async function buscarClienteNP(q) {
-  const list = document.getElementById('np-cliente-list');
-  if (q.length < 1) { list.classList.add('hidden'); return; }
-  try {
-    const d = await api('GET', '/api/clientes');
-    _clientesNP = d.clientes || [];
-    const filtrados = _clientesNP.filter(c =>
-      c.nombre.toLowerCase().includes(q.toLowerCase()) ||
-      (c.telefono && c.telefono.includes(q))
-    );
-    if (filtrados.length === 0) { list.classList.add('hidden'); return; }
-    list.innerHTML = filtrados.map(c =>
-      '<div onclick="seleccionarClienteNP(' + c.id + ',\'' + escHtml(c.nombre) + '\')" class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-100 last:border-0">'
-      + '<strong>' + escHtml(c.nombre) + '</strong> <span class="text-gray-400">' + escHtml(c.telefono || '') + '</span></div>'
-    ).join('');
-    list.classList.remove('hidden');
-  } catch (e) { /* ignore */ }
-}
-window.seleccionarClienteNP = function (id, nombre) {
-  document.getElementById('np-cliente-id').value = id;
+
   document.getElementById('np-cliente-search').value = nombre;
   document.getElementById('np-cliente-list').classList.add('hidden');
 };
@@ -1750,6 +1741,7 @@ function renderModalNuevaOT() {
   window._prodOT = window._prodOT || [];
   _productosSeleccionados = window._prodOT;
   cargarPresupuestosSelect();
+  preloadNPClientes();
 
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-ot')">
@@ -1801,9 +1793,9 @@ function renderModalNuevaOT() {
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Cliente *</label>
-                  <input type="text" id="np-cliente-search" class="input-field text-sm" placeholder="Buscar cliente..." autocomplete="off" oninput="buscarClienteNP(this.value)">
-                  <div id="np-cliente-list" class="hidden mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto absolute z-10 w-[calc(100%-1.5rem)]"></div>
-                  <input type="hidden" id="np-cliente-id">
+                  <select id="np-cliente-id" class="select-field text-sm" onchange="this.dataset.nombre = this.options[this.selectedIndex]?.text || ''">
+                    <option value="">Seleccionar cliente...</option>
+                  </select>
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del Proyecto *</label>
