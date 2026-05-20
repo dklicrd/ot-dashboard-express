@@ -353,11 +353,31 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
   try {
     const num = generarNumeroOT();
     const body = req.body;
+
+    // Calculate monto_total from config * productos
+    let montoCalculado = 0;
+    if (body.productos && Array.isArray(body.productos)) {
+      const config = queryFirst("SELECT valor FROM configuracion_incentivos WHERE clave = 'valores'");
+      let valores = {};
+      if (config && config.valor) {
+        try { valores = JSON.parse(config.valor); } catch (e) { valores = {}; }
+      }
+      const tipo = body.tipo_servicio || 'instalacion';
+      const precios = valores[tipo] || {};
+      for (const p of body.productos) {
+        if (p.producto_id && p.cantidad > 0) {
+          const prod = queryFirst('SELECT categoria FROM productos WHERE id = ?', [p.producto_id]);
+          const precio = precios[prod?.categoria] || 0;
+          montoCalculado += precio * p.cantidad;
+        }
+      }
+    }
+
     run(`INSERT INTO ordenes_trabajo (numero_ot, cliente_id, tipo_servicio, descripcion, presupuesto_aprobado,
       monto_total, tecnico_id, estado, fuente, notas, creada_por, fecha_programada, presupuesto_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [num, body.cliente_id, body.tipo_servicio, body.descripcion || null,
-       body.presupuesto_aprobado ? 1 : 0, body.monto_total || 0, body.tecnico_id || null,
+       body.presupuesto_aprobado ? 1 : 0, montoCalculado, body.tecnico_id || null,
        body.estado || 'pendiente', (body.fuente === 'presupuesto' || body.fuente === 'garantia' || body.fuente === 'levantamiento' ? 'manual' : body.fuente || 'manual'), body.notas || null,
        req.user.userId, body.fecha_programada || null, body.presupuesto_id || null]);
 
@@ -374,7 +394,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
       }
     }
 
-    res.status(201).json({ numero_ot: num, message: 'OT creada' });
+    res.status(201).json({ numero_ot: num, monto_incentivo: montoCalculado, message: 'OT creada' });
   } catch (e) {
     console.error('Error creating OT:', e);
     res.status(500).json({ error: 'Error al crear OT' });

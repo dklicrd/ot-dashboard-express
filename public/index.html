@@ -2004,7 +2004,7 @@ function actualizarListaProductosOT() {
     return;
   }
   div.innerHTML = _productosSeleccionados.map((p, i) =>
-    `<div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+    `<div data-prod-id="${p.producto_id}" data-prod-cant="${p.cantidad}" class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
       <div><span class="text-sm font-medium">${escHtml(p.nombre)}</span> <span class="text-sm text-gray-500">x${p.cantidad}</span></div>
       <button type="button" onclick="quitarProductoOT(${i})" class="text-red-500 hover:text-red-700 text-sm font-semibold">✕</button>
     </div>`
@@ -2070,6 +2070,16 @@ window.submitNuevaOT = async function (e) {
     cliente_id = Number(cliente_id);
   }
 
+  // Read productos directly from the DOM list items
+  const productosList = document.getElementById('ot-productos-list');
+  const items = productosList ? productosList.querySelectorAll('[data-prod-id]') : [];
+  const productos = [];
+  items.forEach(el => {
+    const pid = parseInt(el.dataset.prodId);
+    const qty = parseInt(el.dataset.prodCant) || 1;
+    if (pid) productos.push({ producto_id: pid, cantidad: qty });
+  });
+
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Creando...';
 
@@ -2085,7 +2095,7 @@ window.submitNuevaOT = async function (e) {
       presupuesto_aprobado: 1,
       estado: 'pendiente',
       fuente: origen,
-      productos: (window._prodOT || []).filter(p => p.producto_id),
+      productos: productos,
     };
 
     const result = await api('POST', '/api/ordenes', body);
