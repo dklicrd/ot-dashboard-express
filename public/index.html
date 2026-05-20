@@ -1401,13 +1401,15 @@ window.seleccionarClienteNP = function (id, nombre) {
   document.getElementById('np-cliente-list').classList.add('hidden');
 };
 
-window.crearPresupuestoYSeleccionar = async function () {
+window.crearPresupuestoYSeleccionar = async function (btnEl) {
   const cid = document.getElementById('np-cliente-id').value;
   const proyecto = document.getElementById('np-proyecto').value;
   if (!cid) { toast('Selecciona un cliente para el presupuesto', 'error'); return; }
   if (!proyecto) { toast('Escribe el nombre del proyecto', 'error'); return; }
 
-  const btn = event.target;
+  const btn = btnEl || document.querySelector('#ot-nuevo-presupuesto-form .btn-primary:last-child');
+  if (!btn) return;
+  const origText = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-1"></span> Creando...';
 
   try {
@@ -1449,7 +1451,7 @@ window.crearPresupuestoYSeleccionar = async function () {
     toast('Presupuesto creado: ' + proyecto);
   } catch (e) {
     toast('Error: ' + e.message, 'error');
-    btn.disabled = false; btn.textContent = 'Crear y Seleccionar';
+    if (btn) { btn.disabled = false; btn.innerHTML = origText || 'Crear y Seleccionar'; }
   }
 };
 
@@ -1790,7 +1792,7 @@ function renderModalNuevaOT() {
               </div>
               <div class="flex justify-end gap-2">
                 <button type="button" onclick="toggleNuevoPresupuesto()" class="btn-secondary text-xs px-3 py-1.5">Cancelar</button>
-                <button type="button" onclick="crearPresupuestoYSeleccionar()" class="btn-primary text-xs px-3 py-1.5">Crear y Seleccionar</button>
+                <button type="button" onclick="crearPresupuestoYSeleccionar(this)" class="btn-primary text-xs px-3 py-1.5">Crear y Seleccionar</button>
               </div>
             </div>
             <div class="mt-2">
