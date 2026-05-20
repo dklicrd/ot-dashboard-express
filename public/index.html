@@ -1832,6 +1832,8 @@ function renderModalNuevaOT() {
   cargarPresupuestosSelect();
   preloadNPClientes();
 
+  setTimeout(() => toggleOrigenOT(), 0);
+
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-ot')">
       <div class="modal-content">
