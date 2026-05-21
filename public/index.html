@@ -113,6 +113,32 @@ function toast(message, type = 'success') {
 }
 
 // ============ API HELPER ============
+async function api(method, path, body) {
+  const opts = { method, headers: { Authorization: `Bearer ${state.token}` } };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // Si es 401 y no es una request de auth, redirigir a login
+    if (res.status === 401 && path !== '/api/auth') {
+      console.warn('[api] Token expirado/inválido (401), redirigiendo a login');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      state.token = null;
+      state.user = null;
+      state.view = 'login';
+      Promise.resolve().then(() => render());
+      throw new Error('Sesión expirada. Inicia sesión nuevamente.');
+    }
+    throw new Error(data.error || `Error ${res.status}`);
+  }
+  return data;
+}
+
+// ============ LOGIN ============
 async function iniciarOT(id) {
   try {
     await api('PUT', '/api/ordenes/' + id + '/estado', { estado: 'en_curso' });
@@ -165,32 +191,6 @@ async function confirmarAval(avalId) {
 };
 
 
-async function api(method, path, body) {
-  const opts = { method, headers: { Authorization: `Bearer ${state.token}` } };
-  if (body) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(body);
-  }
-  const res = await fetch(path, opts);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    // Si es 401 y no es una request de auth, redirigir a login
-    if (res.status === 401 && path !== '/api/auth') {
-      console.warn('[api] Token expirado/inválido (401), redirigiendo a login');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      state.token = null;
-      state.user = null;
-      state.view = 'login';
-      Promise.resolve().then(() => render());
-      throw new Error('Sesión expirada. Inicia sesión nuevamente.');
-    }
-    throw new Error(data.error || `Error ${res.status}`);
-  }
-  return data;
-}
-
-// ============ LOGIN ============
 function renderLogin() {
   return `
     <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-900">
