@@ -1710,17 +1710,24 @@ async function render() {
 
   main.innerHTML = content;
 
-  // Event delegation para botones con data-action (onclick inline no siempre funciona en innerHTML)
-  main.querySelectorAll('[data-action]').forEach(btn => {
-    btn.onclick = function(e) {
-      const action = this.dataset.action;
-      const id = parseInt(this.dataset.id);
-      if (action === 'iniciar-ot') iniciarOT(id);
-      else if (action === 'cancelar-ot') cancelarOT(id);
-      else if (action === 'entregar-aval') showModal('entrega-aval', id);
-      else if (action === 'ver-aval') verAval(parseInt(this.dataset.avalId) || 0, parseInt(this.dataset.otId) || 0);
-    };
-  });
+  // Event delegation global para botones con data-action (mas confiable que iterar elementos)
+  if (!main._hasOtActions) {
+    main._hasOtActions = true;
+    main.addEventListener('click', function(e) {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      if (action === 'iniciar-ot') {
+        iniciarOT(parseInt(btn.dataset.id));
+      } else if (action === 'cancelar-ot') {
+        cancelarOT(parseInt(btn.dataset.id));
+      } else if (action === 'entregar-aval') {
+        showModal('entrega-aval', parseInt(btn.dataset.id));
+      } else if (action === 'ver-aval') {
+        verAval(parseInt(btn.dataset.avalId) || 0, parseInt(btn.dataset.otId) || 0);
+      }
+    });
+  }
 
   // Modals after main content
   const modalKeys = Object.keys(modals);
