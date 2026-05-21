@@ -1829,6 +1829,52 @@ window.eliminarProducto = async function (id) {
     render();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
+
+// ============ EVENT LISTENERS PARA MODAL NUEVA OT ============
+// Los onclick inline en HTML inyectado con innerHTML no siempre funcionan.
+// Esta función ata los eventos manualmente después de renderizar.
+function bindModalEvents() {
+  // Cerrar modal al hacer click fuera
+  const overlay = document.getElementById('modal-overlay-nueva-ot');
+  if (overlay) overlay.onclick = function(e) { if (e.target === this) closeModal('nueva-ot'); };
+  
+  const closeBtn = document.getElementById('btn-close-nueva-ot');
+  if (closeBtn) closeBtn.onclick = function() { closeModal('nueva-ot'); };
+  
+  // Submit del formulario
+  const form = document.getElementById('form-nueva-ot');
+  if (form) form.onsubmit = function(e) { submitNuevaOT(e); };
+  
+  // Toggle origen OT (radios)
+  document.querySelectorAll('[data-toggle-origen]').forEach(el => {
+    el.onchange = function() { toggleOrigenOT(); };
+  });
+  
+  // Presupuesto select
+  const otPresupuesto = document.getElementById('ot-presupuesto');
+  if (otPresupuesto) otPresupuesto.onchange = function() { cargarPresupuestoOT(); };
+  
+  // Botón + Nuevo presupuesto
+  const btnNP = document.getElementById('btn-nuevo-presupuesto');
+  if (btnNP) btnNP.onclick = function() { toggleNuevoPresupuesto(); };
+  
+  // Select de cliente en nuevo presupuesto
+  const npCliente = document.getElementById('np-cliente-id');
+  if (npCliente) npCliente.onchange = function() { onCambioClienteNP(); };
+  
+  // Botón Guardar Cliente
+  const btnGuardar = document.getElementById('btn-guardar-cliente-np');
+  if (btnGuardar) btnGuardar.onclick = function() { guardarClienteNP(); };
+  
+  // Botón Cancelar nuevo presupuesto
+  const btnCancelar = document.getElementById('btn-cancelar-nuevo-presupuesto');
+  if (btnCancelar) btnCancelar.onclick = function() { cancelarNuevoPresupuesto(); };
+  
+  // Botón Crear Presupuesto
+  const btnCrear = document.getElementById('btn-crear-presupuesto-inline');
+  if (btnCrear) btnCrear.onclick = function() { crearPresupuestoInline(); };
+}
+
 function renderModalNuevaOT() {
   loadTecnicos();
   cargarProductosSelect();
@@ -1837,31 +1883,35 @@ function renderModalNuevaOT() {
   cargarPresupuestosSelect();
   preloadNPClientes();
 
-  setTimeout(() => toggleOrigenOT(), 0);
+  setTimeout(() => {
+    toggleOrigenOT();
+    // Atar eventos del modal via JS (los onclick inline no siempre funcionan en innerHTML)
+    setTimeout(() => bindModalEvents(), 50);
+  }, 0);
 
   return `
-    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nueva-ot')">
+    <div class="modal-overlay fade-in" id="modal-overlay-nueva-ot">
       <div class="modal-content">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
           <h2 class="text-xl font-bold">Nueva Orden de Trabajo</h2>
-          <button onclick="closeModal('nueva-ot')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+          <button id="btn-close-nueva-ot" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
         </div>
-        <form onsubmit="submitNuevaOT(event)" class="p-6 space-y-4">
+        <form id="form-nueva-ot" class="p-6 space-y-4">
           <div id="ot-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
           <!-- Origen de la OT -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Origen *</label>
             <div class="flex gap-4">
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="ot-origen" value="presupuesto" checked onchange="toggleOrigenOT()" class="text-blue-600">
+                <input type="radio" name="ot-origen" value="presupuesto" checked data-toggle-origen class="text-blue-600">
                 <span class="text-sm">Presupuesto Aprobado</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="ot-origen" value="garantia" onchange="toggleOrigenOT()" class="text-blue-600">
+                <input type="radio" name="ot-origen" value="garantia" data-toggle-origen class="text-blue-600">
                 <span class="text-sm">Garantía</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="ot-origen" value="levantamiento" onchange="toggleOrigenOT()" class="text-blue-600">
+                <input type="radio" name="ot-origen" value="levantamiento" data-toggle-origen class="text-blue-600">
                 <span class="text-sm">Levantamiento</span>
               </label>
             </div>
@@ -1871,11 +1921,11 @@ function renderModalNuevaOT() {
             <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto Aprobado *</label>
             <div class="flex gap-2 items-start">
               <div class="flex-1">
-                <select id="ot-presupuesto" class="select-field" onchange="cargarPresupuestoOT()">
+                <select id="ot-presupuesto" class="select-field">
                   <option value="">Seleccionar presupuesto existente...</option>
                 </select>
               </div>
-              <button type="button" onclick="toggleNuevoPresupuesto()" id="btn-nuevo-presupuesto" class="btn-primary text-sm px-3 py-2.5 whitespace-nowrap">+ Nuevo</button>
+              <button type="button" id="btn-nuevo-presupuesto" class="btn-primary text-sm px-3 py-2.5 whitespace-nowrap">+ Nuevo</button>
             </div>
             <!-- Info del presupuesto seleccionado -->
             <div id="ot-presupuesto-info" class="hidden mt-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
@@ -1889,7 +1939,7 @@ function renderModalNuevaOT() {
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
-                  <select id="np-cliente-id" class="select-field text-sm" onchange="onCambioClienteNP()">
+                  <select id="np-cliente-id" class="select-field text-sm">
                     <option value="">Seleccionar cliente existente...</option>
                     <option value="__nuevo__">➕ Nuevo Cliente...</option>
                   </select>
@@ -1902,7 +1952,7 @@ function renderModalNuevaOT() {
                       <input type="email" id="np-nuevo-cliente-email" class="input-field text-sm" placeholder="Email">
                     </div>
                     <input type="text" id="np-nuevo-cliente-dir" class="input-field text-sm" placeholder="Dirección">
-                    <button type="button" onclick="guardarClienteNP()" id="btn-guardar-cliente-np" class="btn-primary text-xs px-3 py-1.5">Guardar Cliente</button>
+                    <button type="button" id="btn-guardar-cliente-np" class="btn-primary text-xs px-3 py-1.5">Guardar Cliente</button>
                   </div>
                   <input type="hidden" id="np-cliente-id-val" value="">
                 </div>
@@ -1916,8 +1966,8 @@ function renderModalNuevaOT() {
                 <input type="file" id="np-pdf" accept=".pdf,image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
               </div>
               <div class="flex justify-end gap-2 pt-1">
-                <button type="button" onclick="cancelarNuevoPresupuesto()" class="btn-secondary text-sm px-3 py-1.5">Cancelar</button>
-                <button type="button" id="btn-crear-presupuesto-inline" onclick="crearPresupuestoInline()" class="btn-primary text-sm px-3 py-1.5">Crear Presupuesto</button>
+                <button type="button" id="btn-cancelar-nuevo-presupuesto" class="btn-secondary text-sm px-3 py-1.5">Cancelar</button>
+                <button type="button" id="btn-crear-presupuesto-inline" class="btn-primary text-sm px-3 py-1.5">Crear Presupuesto</button>
               </div>
             </div>
             <div class="mt-2">
