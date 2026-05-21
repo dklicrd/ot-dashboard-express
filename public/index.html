@@ -1710,21 +1710,22 @@ async function render() {
 
   main.innerHTML = content;
 
-  // Event delegation global para botones con data-action (mas confiable que iterar elementos)
+  // Event delegation global para botones con data-action
   if (!main._hasOtActions) {
     main._hasOtActions = true;
     main.addEventListener('click', function(e) {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
       const action = btn.dataset.action;
-      if (action === 'iniciar-ot') {
-        iniciarOT(parseInt(btn.dataset.id));
-      } else if (action === 'cancelar-ot') {
-        cancelarOT(parseInt(btn.dataset.id));
-      } else if (action === 'entregar-aval') {
-        showModal('entrega-aval', parseInt(btn.dataset.id));
-      } else if (action === 'ver-aval') {
-        verAval(parseInt(btn.dataset.avalId) || 0, parseInt(btn.dataset.otId) || 0);
+      const id = parseInt(btn.dataset.id);
+      if (action === 'iniciar-ot' && typeof window.iniciarOT === 'function') {
+        window.iniciarOT(id);
+      } else if (action === 'cancelar-ot' && typeof window.cancelarOT === 'function') {
+        window.cancelarOT(id);
+      } else if (action === 'entregar-aval' && typeof window.showModal === 'function') {
+        window.showModal('entrega-aval', id);
+      } else if (action === 'ver-aval' && typeof window.verAval === 'function') {
+        window.verAval(parseInt(btn.dataset.avalId) || 0, parseInt(btn.dataset.otId) || 0);
       }
     });
   }
