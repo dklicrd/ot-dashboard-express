@@ -1421,38 +1421,53 @@ window.onCambioClienteNP = function () {
 };
 
 window.guardarClienteNP = async function () {
+  console.log('[guardarClienteNP] iniciando');
   const nombre = document.getElementById('np-nuevo-cliente-nombre').value.trim();
   if (!nombre) { toast('Escribe el nombre del cliente', 'error'); return; }
 
   const btn = document.getElementById('btn-guardar-cliente-np');
+  if (!btn) { console.error('[guardarClienteNP] boton no encontrado'); toast('Error interno', 'error'); return; }
   btn.disabled = true; btn.textContent = 'Guardando...';
 
   try {
-    const result = await api('POST', '/api/clientes', {
+    const payload = {
       nombre: nombre,
-      telefono: document.getElementById('np-nuevo-cliente-tel').value.trim(),
-      email: document.getElementById('np-nuevo-cliente-email').value.trim(),
-      direccion: document.getElementById('np-nuevo-cliente-dir').value.trim(),
+      telefono: (document.getElementById('np-nuevo-cliente-tel')?.value || '').trim(),
+      email: (document.getElementById('np-nuevo-cliente-email')?.value || '').trim(),
+      direccion: (document.getElementById('np-nuevo-cliente-dir')?.value || '').trim(),
       tipo: 'particular',
-    });
+    };
+    console.log('[guardarClienteNP] payload:', payload);
+
+    const result = await api('POST', '/api/clientes', payload);
+    console.log('[guardarClienteNP] POST response:', result);
 
     // Reload clientes select
     const d = await api('GET', '/api/clientes');
+    console.log('[guardarClienteNP] clientes cargados:', d.clientes?.length);
     const sel = document.getElementById('np-cliente-id');
+    if (!sel) { console.error('[guardarClienteNP] select np-cliente-id no encontrado'); return; }
     const nuevoCliente = d.clientes?.find(c => c.nombre === nombre);
     if (nuevoCliente) {
       sel.innerHTML = '<option value="">Seleccionar cliente existente...</option>' +
-        d.clientes.map(c => '<option value="' + c.id + '">' + escHtml(c.nombre) + (c.telefono ? ' — ' + escHtml(c.telefono) : '') + '</option>').join('') +
+        (d.clientes || []).map(c => '<option value="' + c.id + '">' + escHtml(c.nombre) + (c.telefono ? ' — ' + escHtml(c.telefono) : '') + '</option>').join('') +
         '<option value="__nuevo__">➕ Nuevo Cliente...</option>';
       sel.value = String(nuevoCliente.id);
-      document.getElementById('np-cliente-id-val').value = nuevoCliente.id;
-      document.getElementById('np-nuevo-cliente-form').classList.add('hidden');
+      const valInput = document.getElementById('np-cliente-id-val');
+      if (valInput) valInput.value = nuevoCliente.id;
+      const form = document.getElementById('np-nuevo-cliente-form');
+      if (form) form.classList.add('hidden');
       toast('Cliente creado: ' + nombre);
+      console.log('[guardarClienteNP] cliente seleccionado, ID:', nuevoCliente.id);
+    } else {
+      console.warn('[guardarClienteNP] no se encontro el cliente creado en la lista');
+      toast('Cliente creado pero no encontrado en lista. Recarga la pagina.', 'warning');
     }
-    btn.disabled = false; btn.textContent = 'Guardar Cliente';
   } catch (e) {
+    console.error('[guardarClienteNP] error:', e);
     toast('Error: ' + e.message, 'error');
-    btn.disabled = false; btn.textContent = 'Guardar Cliente';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar Cliente'; }
   }
 };
 
