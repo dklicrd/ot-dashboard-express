@@ -121,7 +121,20 @@ async function api(method, path, body) {
   }
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  if (!res.ok) {
+    // Si es 401 y no es una request de auth, redirigir a login
+    if (res.status === 401 && path !== '/api/auth') {
+      console.warn('[api] Token expirado/inválido (401), redirigiendo a login');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      state.token = null;
+      state.user = null;
+      state.view = 'login';
+      render();
+      throw new Error('Sesión expirada. Inicia sesión nuevamente.');
+    }
+    throw new Error(data.error || `Error ${res.status}`);
+  }
   return data;
 }
 
@@ -2521,9 +2534,20 @@ let _otsCompletadas = [];
   if (state.token && state.user) {
     state.view = 'inicio';
     try {
+      // Verificar que el token sigue siendo válido
+      const authCheck = await api('GET', '/api/auth');
+      if (!authCheck.user) throw new Error('Token inválido');
+      
       const d = await api('GET', '/api/ordenes?estado=completada');
       _otsCompletadas = d.ordenes || [];
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.warn('[init] Token inválido o servidor no disponible, redirigiendo a login:', e.message);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      state.token = null;
+      state.user = null;
+      state.view = 'login';
+    }
     // Preload tecnicos
     loadTecnicos();
   }
