@@ -1353,7 +1353,20 @@ window.showModal = function (id, data) {
   render();
   requestAnimationFrame(() => {
     const el = document.querySelector('.modal-overlay');
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // Si es modal de nueva OT, enfocar el primer input
+    if (id === 'nueva-ot') {
+      setTimeout(() => {
+        // Scroll al contenido del modal
+        const content = document.querySelector('.modal-content');
+        if (content) content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Enfocar el primer radio del origen
+        const firstRadio = document.querySelector('input[name="ot-origen"]');
+        if (firstRadio) firstRadio.focus({ preventScroll: true });
+      }, 100);
+    }
   });
 };
 
