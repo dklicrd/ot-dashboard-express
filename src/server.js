@@ -354,16 +354,11 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     const num = generarNumeroOT();
     const body = req.body;
 
-    // Calculate monto_total from config * productos
+    // Calculate monto_total from precios fijos
     let montoCalculado = 0;
     if (body.productos && Array.isArray(body.productos)) {
-      const config = queryFirst("SELECT valor FROM configuracion_incentivos WHERE clave = 'valores'");
-      let valores = {};
-      if (config && config.valor) {
-        try { valores = JSON.parse(config.valor); } catch (e) { valores = {}; }
-      }
       const tipo = body.tipo_servicio || 'instalacion';
-      const precios = valores[tipo] || {};
+      const precios = tipo === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
       for (const p of body.productos) {
         if (p.producto_id && p.cantidad > 0) {
           const prod = queryFirst('SELECT categoria FROM productos WHERE id = ?', [p.producto_id]);
