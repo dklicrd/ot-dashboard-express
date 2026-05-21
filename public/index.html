@@ -96,7 +96,8 @@ const state = {
 
 function setState(partial) {
   Object.assign(state, partial);
-  render();
+  // Programar render en el siguiente microtask para asegurar que todas las funciones esten definidas
+  Promise.resolve().then(() => render());
 }
 
 function toast(message, type = 'success') {
@@ -130,7 +131,7 @@ async function api(method, path, body) {
       state.token = null;
       state.user = null;
       state.view = 'login';
-      render();
+      Promise.resolve().then(() => render());
       throw new Error('Sesión expirada. Inicia sesión nuevamente.');
     }
     throw new Error(data.error || `Error ${res.status}`);
