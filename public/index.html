@@ -96,8 +96,7 @@ const state = {
 
 function setState(partial) {
   Object.assign(state, partial);
-  // Programar render en el siguiente microtask para asegurar que todas las funciones esten definidas
-  Promise.resolve().then(() => render());
+  render();
 }
 
 function toast(message, type = 'success') {
@@ -348,15 +347,15 @@ async function renderOrdenes() {
     // Build action buttons based on estado
     let actions = '';
     if (ot.estado === 'pendiente') {
-      actions += `<button onclick="window.iniciarOT(\`${ot.id}\`)" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Iniciar OT">▶️</button>`;
-      actions += `<button onclick="window.cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      actions += `<button onclick="iniciarOT(\`${ot.id}\`)" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Iniciar OT">▶️</button>`;
+      actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'en_curso') {
-      actions += `<button onclick="window.showModal('entrega-aval', ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
-      actions += `<button onclick="window.cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      actions += `<button onclick="showModal('entrega-aval', ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
+      actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'aval_entregado') {
-      actions += `<button onclick="window.verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
+      actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
     } else if (ot.estado === 'completada') {
-      actions += `<button onclick="window.verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Ver Aval">📄</button>`;
+      actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Ver Aval">📄</button>`;
     }
 
     return `
@@ -481,7 +480,7 @@ async function uploadFirmado(id) {
 async function renderEncuestas() {
 
 // ============ AVAL NUEVO FLUJO: Actions ============
-window.iniciarOT = async function (id) {
+async function iniciarOT(id) {
   try {
     await api('PUT', '/api/ordenes/' + id + '/estado', { estado: 'en_curso' });
     toast('OT iniciada correctamente');
@@ -489,7 +488,7 @@ window.iniciarOT = async function (id) {
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
 
-window.cancelarOT = async function (id) {
+async function cancelarOT(id) {
   if (!confirm('¿Estás seguro de cancelar esta OT?')) return;
   try {
     await api('PUT', '/api/ordenes/' + id + '/estado', { estado: 'cancelada' });
@@ -498,7 +497,7 @@ window.cancelarOT = async function (id) {
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
 
-window.verAval = async function (avalId, otId) {
+async function verAval(avalId, otId) {
   if (!avalId) {
     try {
       const d = await api('GET', '/api/avales?orden_trabajo_id=' + otId);
@@ -513,7 +512,7 @@ window.verAval = async function (avalId, otId) {
   }
 };
 
-window.confirmarAval = async function (avalId) {
+async function confirmarAval(avalId) {
   if (!confirm('¿Confirmar este aval? La OT se marcará como completada.')) return;
   try {
     const productos = [];
