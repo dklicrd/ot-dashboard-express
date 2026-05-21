@@ -344,18 +344,18 @@ async function renderOrdenes() {
       ? ot.productos.map(p => `${escHtml(p.nombre)} x${p.cantidad}`).join(', ')
       : '<span class="text-gray-400">—</span>';
 
-    // Build action buttons based on estado
+    // Build action buttons based on estado - usar data-action en vez de onclick para compatibilidad con innerHTML
     let actions = '';
     if (ot.estado === 'pendiente') {
-      actions += `<button onclick="iniciarOT(${ot.id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Iniciar OT">▶️</button>`;
-      actions += `<button onclick="cancelarOT(${ot.id})" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      actions += `<button data-action="iniciar-ot" data-id="${ot.id}" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Iniciar OT">▶️</button>`;
+      actions += `<button data-action="cancelar-ot" data-id="${ot.id}" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'en_curso') {
-      actions += `<button onclick="showModal('entrega-aval', ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
-      actions += `<button onclick="cancelarOT(${ot.id})" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      actions += `<button data-action="entregar-aval" data-id="${ot.id}" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
+      actions += `<button data-action="cancelar-ot" data-id="${ot.id}" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'aval_entregado') {
-      actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
+      actions += `<button data-action="ver-aval" data-aval-id="${ot.aval_id || 0}" data-ot-id="${ot.id}" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
     } else if (ot.estado === 'completada') {
-      actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Ver Aval">📄</button>`;
+      actions += `<button data-action="ver-aval" data-aval-id="${ot.aval_id || 0}" data-ot-id="${ot.id}" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Ver Aval">📄</button>`;
     }
 
     return `
@@ -1709,6 +1709,18 @@ async function render() {
   }
 
   main.innerHTML = content;
+
+  // Event delegation para botones con data-action (onclick inline no siempre funciona en innerHTML)
+  main.querySelectorAll('[data-action]').forEach(btn => {
+    btn.onclick = function(e) {
+      const action = this.dataset.action;
+      const id = parseInt(this.dataset.id);
+      if (action === 'iniciar-ot') iniciarOT(id);
+      else if (action === 'cancelar-ot') cancelarOT(id);
+      else if (action === 'entregar-aval') showModal('entrega-aval', id);
+      else if (action === 'ver-aval') verAval(parseInt(this.dataset.avalId) || 0, parseInt(this.dataset.otId) || 0);
+    };
+  });
 
   // Modals after main content
   const modalKeys = Object.keys(modals);
