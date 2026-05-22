@@ -1368,8 +1368,40 @@ async function renderConfig() {
           </div>
         </div>
 
+        <!-- Herramientas de sistema -->
+        <div class="bg-red-50 border border-red-200 rounded-2xl p-6 mt-8">
+          <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Herramientas del Sistema</h3>
+          <p class="text-sm text-red-600 mb-4">Elimina todos los datos demo del sistema (OTs, avales, encuestas, clientes, productos). <strong>Esta acción no se puede deshacer.</strong></p>
+          <button onclick="limpiarBD()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-bd">
+            <span>🗑️</span> Eliminar todos los datos demo
+          </button>
+          <div id="limpiar-bd-result" class="mt-3 text-sm"></div>
+        </div>
+
   `;
 }
+
+
+window.limpiarBD = async function () {
+  const btn = document.getElementById('btn-limpiar-bd');
+  const resultDiv = document.getElementById('limpiar-bd-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Limpiando...';
+  resultDiv.innerHTML = '';
+  
+  try {
+    const res = await api('POST', '/api/limpiar-bd');
+    resultDiv.innerHTML = '<span class="text-green-700 font-medium">✅ ' + (res.message || 'BD limpiada exitosamente') + '</span>';
+    toast('Datos demo eliminados correctamente');
+    setTimeout(() => render(), 2000);
+  } catch (e) {
+    resultDiv.innerHTML = '<span class="text-red-700 font-medium">❌ Error: ' + e.message + '</span>';
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🗑️</span> Eliminar todos los datos demo';
+  }
+};
 
 
 
