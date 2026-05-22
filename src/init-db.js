@@ -14,7 +14,7 @@ async function initDatabase() {
       nombre TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
-      rol TEXT NOT NULL CHECK(rol IN ('admin', 'tecnico', 'servicio_cliente')),
+      rol TEXT NOT NULL CHECK(rol IN ('superadmin', 'admin', 'tecnico', 'servicio_cliente')),
       telefono TEXT,
       activo INTEGER DEFAULT 1,
       creado_en TEXT DEFAULT (datetime('now', '-04:00'))
@@ -379,7 +379,7 @@ async function initDatabase() {
     const bcrypt = require('bcryptjs');
     const hashed = await bcrypt.hash('admin123', 10);
     run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
-      ['Administrador', 'admin@sistema.com', hashed, 'admin']);
+      ['Administrador', 'admin@sistema.com', hashed, 'superadmin']);
   }
 
   // Productos por defecto si están vacíos

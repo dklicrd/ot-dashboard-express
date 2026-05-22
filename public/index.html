@@ -254,6 +254,16 @@ async function handleLogin(e) {
 
 // ============ LAYOUT ============
 const navItems = {
+  superadmin: [
+    { id: 'inicio', label: 'Inicio', icon: '📊' },
+    { id: 'ordenes', label: 'Órdenes de Trabajo', icon: '📋' },
+    { id: 'avales', label: 'Avales', icon: '✅' },
+    { id: 'encuestas', label: 'Encuestas', icon: '📝' },
+    { id: 'bonos', label: 'Bonos e Incentivos', icon: '💰' },
+    { id: 'reportes', label: 'Reportes', icon: '📈' },
+    { id: 'usuarios', label: 'Usuarios', icon: '👥' },
+    { id: 'config', label: 'Configuración', icon: '⚙️' },
+  ],
   admin: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
     { id: 'ordenes', label: 'Órdenes de Trabajo', icon: '📋' },
@@ -279,7 +289,7 @@ const navItems = {
 
 function renderLayout() {
   const items = navItems[state.user?.rol] || navItems.admin;
-  const rolLabel = { admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[state.user?.rol] || '';
+  const rolLabel = { superadmin: 'Super Administrador', admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[state.user?.rol] || '';
 
   const navHtml = items.map((i, idx) => `
     <a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item group ${state.view === i.id ? 'active' : ''}">
@@ -1368,6 +1378,7 @@ async function renderConfig() {
           </div>
         </div>
 
+        ${state.user?.rol === 'superadmin' ? `
         <!-- Herramientas de sistema -->
         <div class="bg-red-50 border border-red-200 rounded-2xl p-6 mt-8">
           <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Herramientas del Sistema</h3>
@@ -1377,6 +1388,7 @@ async function renderConfig() {
           </button>
           <div id="limpiar-bd-result" class="mt-3 text-sm"></div>
         </div>
+        ` : ''}
 
   `;
 }

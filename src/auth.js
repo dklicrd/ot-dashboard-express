@@ -36,6 +36,13 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+function superAdminOnly(req, res, next) {
+  if (req.user.rol !== 'superadmin') {
+    return res.status(403).json({ error: 'Solo superadmin' });
+  }
+  next();
+}
+
 function adminOnly(req, res, next) {
   if (req.user.rol !== 'admin') {
     return res.status(403).json({ error: 'Acceso denegado' });
@@ -43,4 +50,4 @@ function adminOnly(req, res, next) {
   next();
 }
 
-module.exports = { generarToken, verificarToken, authMiddleware, adminOnly };
+module.exports = { generarToken, verificarToken, authMiddleware, adminOnly, superAdminOnly };

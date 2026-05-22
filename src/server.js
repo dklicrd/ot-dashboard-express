@@ -16,7 +16,7 @@ const upload = multer({
   }
 });
 const { initDatabase } = require('./init-db');
-const { authMiddleware, adminOnly, generarToken, verificarToken } = require('./auth');
+const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { generarAvalPDF } = require('./pdf');
 const { enviarEmail, enviarNotificacionOT } = require('./email');
 
@@ -1717,7 +1717,7 @@ app.get(/^\/(?!api\/|uploads\/|orden\/).*/, (req, res) => {
 
 
 // ============ LIMPIEZA DE BD (admin only) ============
-app.post('/api/limpiar-bd', authMiddleware, adminOnly, (req, res) => {
+app.post('/api/limpiar-bd', authMiddleware, superAdminOnly, (req, res) => {
   try {
     transaction(() => {
       const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','notificaciones_ot','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos','configuracion_incentivos','configuracion_documentos','productos','clientes'];
