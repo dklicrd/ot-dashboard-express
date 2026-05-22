@@ -1727,4 +1727,24 @@ app.post('/api/limpiar-bd', authMiddleware, adminOnly, (req, res) => {
     setTimeout(() => process.exit(0), 2000);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ============ ELIMINAR AVALES TEMPORAL ============
+app.post('/api/eliminar-avales-demo', authMiddleware, adminOnly, (req, res) => {
+  try {
+    transaction(() => {
+      // Eliminar avales legacy del 1 al 5
+      run('DELETE FROM avales_legacy WHERE id BETWEEN 1 AND 5');
+      run('DELETE FROM encuestas_satisfaccion WHERE id BETWEEN 1 AND 5');
+      // Resetear secuencias
+      try { run("DELETE FROM sqlite_sequence WHERE name='avales_legacy'"); } catch(e) {}
+      try { run("DELETE FROM sqlite_sequence WHERE name='encuestas_satisfaccion'"); } catch(e) {}
+    });
+    console.log('AVALES DEMO ELIMINADOS');
+    res.json({ success: true, message: 'Avales AV-2026-0001 al -0005 y encuestas demo eliminados' });
+  } catch (e) {
+    console.error('Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 start();
