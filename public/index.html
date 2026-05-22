@@ -412,7 +412,7 @@ async function renderOrdenes() {
 
     return `
     <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-      <td class="py-3 px-4 font-medium text-blue-600 whitespace-nowrap">${ot.numero_ot}</td>
+      <td class="py-3 px-4 font-medium whitespace-nowrap"><a href="/orden/${ot.id}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold">${ot.numero_ot}</a></td>
       <td class="py-3 px-4">${escHtml(ot.cliente_nombre)}</td>
       <td class="py-3 px-4"><span class="badge capitalize bg-gray-100 text-gray-700">${ot.tipo_servicio}</span></td>
       <td class="py-3 px-4 text-sm text-gray-600 max-w-[200px] truncate" title="${escHtml(prodHtml.replace(/<[^>]+>/g, ''))}">${prodHtml}</td>

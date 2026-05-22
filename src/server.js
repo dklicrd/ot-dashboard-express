@@ -428,6 +428,88 @@ const TRANSICIONES_ESTADO = {
   'en_curso': ['cancelada'], // 'aval_entregado' se maneja desde flujo de avales
 };
 
+// ==================== API: ORDEN DE TRABAJO POR ID (detalle completo) ====================
+app.get('/api/ordenes/:id', authMiddleware, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const ot = queryFirst(`
+      SELECT ot.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono,
+             c.email as cliente_email, c.direccion as cliente_direccion,
+             c.cedula_rnc as cliente_cedula_rnc, c.tipo as cliente_tipo,
+             u.id as tecnico_id, u.nombre as tecnico_nombre, u.telefono as tecnico_telefono,
+             p.nombre_proyecto, p.aprobado as presupuesto_aprobado,
+             cr.nombre as creado_por_nombre
+      FROM ordenes_trabajo ot
+      JOIN clientes c ON ot.cliente_id = c.id
+      LEFT JOIN usuarios u ON ot.tecnico_id = u.id
+      LEFT JOIN presupuestos p ON ot.presupuesto_id = p.id
+      LEFT JOIN usuarios cr ON ot.creada_por = cr.id
+      WHERE ot.id = ?
+    `, [id]);
+
+    if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
+
+    // Productos con precios
+    const productos = queryAll(`
+      SELECT p.id, p.nombre, p.categoria, p.descripcion as producto_descripcion,
+             otp.cantidad
+      FROM orden_trabajo_productos otp
+      JOIN productos p ON otp.producto_id = p.id
+      WHERE otp.orden_trabajo_id = ?
+    `, [id]);
+
+    // Calcular precios unitarios según tipo de servicio
+    const precios = ot.tipo_servicio === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
+    const productosConPrecio = productos.map(p => ({
+      ...p,
+      precio_unitario: precios[p.categoria] || 0,
+      subtotal: (precios[p.categoria] || 0) * p.cantidad
+    }));
+
+    // Aval asociado
+    const aval = queryFirst(`
+      SELECT a.*, u.nombre as tecnico_nombre
+      FROM avales a
+      LEFT JOIN usuarios u ON a.tecnico_id = u.id
+      WHERE a.orden_trabajo_id = ?
+    `, [id]);
+
+    // Encuesta asociada
+    const encuesta = queryFirst(`
+      SELECT * FROM encuestas_satisfaccion WHERE orden_trabajo_id = ?
+    `, [id]);
+
+    // Desglose por categoría
+    const desglose = {};
+    let montoCalculado = 0;
+    for (const p of productosConPrecio) {
+      const cat = p.categoria || 'otro';
+      if (!desglose[cat]) desglose[cat] = { cantidad: 0, subtotal: 0 };
+      desglose[cat].cantidad += p.cantidad;
+      desglose[cat].subtotal += p.subtotal;
+      montoCalculado += p.subtotal;
+    }
+
+    res.json({
+      orden: {
+        ...ot,
+        productos: productosConPrecio,
+        desglose,
+        monto_calculado: Math.round(montoCalculado * 100) / 100
+      },
+      aval: aval || null,
+      encuesta: encuesta ? {
+        ...encuesta,
+        promedio: encuesta.tiempo_entrega && encuesta.desempeno_equipo ?
+          Math.round((encuesta.tiempo_entrega + encuesta.desempeno_equipo + encuesta.presentacion_equipo + encuesta.calidad_productos + encuesta.calidad_entrenamientos) / 5 * 10) / 10 : null
+      } : null
+    });
+  } catch (e) {
+    console.error('Error fetching OT detail:', e);
+    res.status(500).json({ error: 'Error al obtener detalle de OT' });
+  }
+});
+
 app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -1333,9 +1415,239 @@ app.get('/api/reportes', authMiddleware, adminOnly, (req, res) => {
   res.json(resultado);
 });
 
+// ============ PÁGINA DE DETALLE DE OT (standalone, nueva pestaña) ============
+app.get('/orden/:id', authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const ot = queryFirst(`
+      SELECT ot.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono,
+             c.email as cliente_email, c.direccion as cliente_direccion,
+             c.cedula_rnc as cliente_cedula_rnc, c.tipo as cliente_tipo,
+             u.nombre as tecnico_nombre, u.telefono as tecnico_telefono,
+             p.nombre_proyecto,
+             cr.nombre as creado_por_nombre
+      FROM ordenes_trabajo ot
+      JOIN clientes c ON ot.cliente_id = c.id
+      LEFT JOIN usuarios u ON ot.tecnico_id = u.id
+      LEFT JOIN presupuestos p ON ot.presupuesto_id = p.id
+      LEFT JOIN usuarios cr ON ot.creada_por = cr.id
+      WHERE ot.id = ?
+    `, [id]);
+    if (!ot) return res.status(404).send('OT no encontrada');
+
+    const productos = queryAll(`
+      SELECT p.id, p.nombre, p.categoria, otp.cantidad
+      FROM orden_trabajo_productos otp
+      JOIN productos p ON otp.producto_id = p.id
+      WHERE otp.orden_trabajo_id = ?
+    `, [id]);
+
+    const escHtml2 = (s) => { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+
+    const precios = ot.tipo_servicio === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
+    let montoTotal = 0;
+    const prodRows = productos.map(p => {
+      const pu = precios[p.categoria] || 0;
+      const sub = pu * p.cantidad;
+      montoTotal += sub;
+      return `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(p.nombre)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.categoria}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${pu.toFixed(2)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${sub.toFixed(2)}</td></tr>`;
+    }).join('');
+
+    // Desglose
+    const desglose = {};
+    for (const p of productos) {
+      const cat = p.categoria || 'otro';
+      const pu = precios[cat] || 0;
+      if (!desglose[cat]) desglose[cat] = { cantidad: 0, subtotal: 0 };
+      desglose[cat].cantidad += p.cantidad;
+      desglose[cat].subtotal += pu * p.cantidad;
+    }
+    const desgRows = Object.entries(desglose).map(([cat, v]) =>
+      `<tr><td style="border:1px solid #e5e7eb;padding:8px">${cat.replace(/_/g, ' ')}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${v.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${v.subtotal.toFixed(2)}</td></tr>`
+    ).join('');
+
+    // Aval
+    const aval = queryFirst(`SELECT * FROM avales WHERE orden_trabajo_id = ?`, [id]);
+    // Encuesta
+    const encuesta = queryFirst(`SELECT * FROM encuestas_satisfaccion WHERE orden_trabajo_id = ?`, [id]);
+
+    const estadoLabel = { pendiente: 'Pendiente', aprobada: 'Aprobada', en_curso: 'En Curso', aval_entregado: 'Aval Entregado', completada: 'Completada', cancelada: 'Cancelada' };
+    const estadoColor = { pendiente: '#eab308', aprobada: '#22c55e', en_curso: '#3b82f6', aval_entregado: '#8b5cf6', completada: '#6b7280', cancelada: '#ef4444' };
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>${escHtml2(ot.numero_ot)} - Detalle OT</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @media print { body { margin: 0.5in; } .no-print { display: none !important; } }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
+</style>
+</head>
+<body>
+<div class="max-w-4xl mx-auto p-4 space-y-4">
+  <div class="no-print flex justify-between items-center mb-4">
+    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">🖨️ Guardar PDF</button>
+    <div class="flex gap-2">
+      <a href="mailto:${escHtml2(ot.cliente_email)}?subject=${encodeURIComponent('OT ' + ot.numero_ot)}&body=${encodeURIComponent('Detalle de la OT ' + ot.numero_ot + '\n\nCliente: ' + ot.cliente_nombre + '\nMonto: RD$ ' + montoTotal.toFixed(2))}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">📧 Enviar Email</a>
+      <a href="https://wa.me/1${escHtml2(ot.cliente_telefono ? ot.cliente_telefono.replace(/[^\d]/g,'') : '')}?text=${encodeURIComponent('Hola ' + ot.cliente_nombre + ', aquí está el detalle de su Orden de Trabajo ' + ot.numero_ot + '.\n\nAbrir detalle: https://' + req.get('host') + '/orden/' + id + '\n\nMonto total: RD$ ' + montoTotal.toFixed(2))}" target="_blank" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">💬 WhatsApp</a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+    <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+      <div class="flex justify-between items-start">
+        <div>
+          <h1 class="text-3xl font-bold">${escHtml2(ot.numero_ot)}</h1>
+          <p class="text-blue-100 mt-1">Orden de Trabajo</p>
+        </div>
+        <div style="background:${estadoColor[ot.estado] || '#6b7280'}" class="px-4 py-1.5 rounded-full text-sm font-semibold">${estadoLabel[ot.estado] || ot.estado}</div>
+      </div>
+    </div>
+
+    <div class="p-6 space-y-6">
+      <!-- DATOS DE LA OT -->
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>📋</span> Datos de la OT</div>
+        <div class="p-4 grid grid-cols-2 gap-3 text-sm">
+          <div><span class="text-gray-500">Tipo de Servicio:</span><br><span class="font-medium capitalize">${escHtml2(ot.tipo_servicio)}</span></div>
+          <div><span class="text-gray-500">Fuente:</span><br><span class="font-medium">${escHtml2(ot.fuente || '-')}</span></div>
+          ${ot.descripcion ? `<div class="col-span-2"><span class="text-gray-500">Descripción:</span><br><span class="font-medium">${escHtml2(ot.descripcion)}</span></div>` : ''}
+          ${ot.notas ? `<div class="col-span-2"><span class="text-gray-500">Notas:</span><br><span class="font-medium">${escHtml2(ot.notas)}</span></div>` : ''}
+          ${ot.nombre_proyecto ? `<div class="col-span-2"><span class="text-gray-500">Presupuesto:</span><br><span class="font-medium">${escHtml2(ot.nombre_proyecto)} ${ot.presupuesto_aprobado ? '(Aprobado)' : ''}</span></div>` : ''}
+          <div><span class="text-gray-500">Creada por:</span><br><span class="font-medium">${escHtml2(ot.creado_por_nombre || '-')}</span></div>
+        </div>
+      </div>
+
+      <!-- CLIENTE -->
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>👤</span> Cliente</div>
+        <div class="p-4 grid grid-cols-2 gap-3 text-sm">
+          <div><span class="text-gray-500">Nombre:</span><br><span class="font-medium">${escHtml2(ot.cliente_nombre)}</span></div>
+          <div><span class="text-gray-500">Tipo:</span><br><span class="font-medium capitalize">${escHtml2(ot.cliente_tipo || '-')}</span></div>
+          <div><span class="text-gray-500">Teléfono:</span><br><span class="font-medium">${escHtml2(ot.cliente_telefono || '-')}</span></div>
+          <div><span class="text-gray-500">Email:</span><br><span class="font-medium">${escHtml2(ot.cliente_email || '-')}</span></div>
+          <div class="col-span-2"><span class="text-gray-500">Dirección:</span><br><span class="font-medium">${escHtml2(ot.cliente_direccion || '-')}</span></div>
+          <div class="col-span-2"><span class="text-gray-500">Cédula/RNC:</span><br><span class="font-medium">${escHtml2(ot.cliente_cedula_rnc || '-')}</span></div>
+        </div>
+      </div>
+
+      <!-- TÉCNICO -->
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>🔧</span> Técnico Asignado</div>
+        <div class="p-4 grid grid-cols-2 gap-3 text-sm">
+          <div><span class="text-gray-500">Nombre:</span><br><span class="font-medium">${escHtml2(ot.tecnico_nombre || 'No asignado')}</span></div>
+          <div><span class="text-gray-500">Teléfono:</span><br><span class="font-medium">${escHtml2(ot.tecnico_telefono || '-')}</span></div>
+        </div>
+      </div>
+
+      <!-- PRODUCTOS -->
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>📦</span> Productos / Servicios</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 border-b border-gray-200">
+              <th class="text-left py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Producto</th>
+              <th class="text-center py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Categoría</th>
+              <th class="text-center py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Cant.</th>
+              <th class="text-right py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Precio Unit.</th>
+              <th class="text-right py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Subtotal</th>
+            </tr></thead>
+            <tbody>${productos.length === 0 ? '<tr><td colspan="5" class="text-center py-8 text-gray-400">Sin productos asignados</td></tr>' : prodRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- DESGLOSE DE MONTOS -->
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>💰</span> Desglose de Montos</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 border-b border-gray-200">
+              <th class="text-left py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Categoría</th>
+              <th class="text-center py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Cant.</th>
+              <th class="text-right py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Subtotal</th>
+            </tr></thead>
+            <tbody>${desgRows}</tbody>
+            <tfoot><tr class="bg-gray-50 border-t-2 border-gray-200">
+              <td class="py-3 px-4 font-bold text-gray-800">TOTAL</td>
+              <td class="py-3 px-4 text-center font-bold">${productos.reduce((s,p) => s + p.cantidad, 0)}</td>
+              <td class="py-3 px-4 text-right font-bold text-blue-700">RD$ ${montoTotal.toFixed(2)}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- AVAL -->
+      ${aval ? `<div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>📄</span> Aval de Instalación</div>
+        <div class="p-4 flex items-center justify-between">
+          <div class="text-sm">
+            <span class="font-medium">Estado:</span> ${aval.estado === 'confirmado' ? '✅ Confirmado' : '⏳ Pendiente'}<br>
+            ${aval.fecha_entrega_tecnico ? `<span class="text-gray-500">Entrega: ${aval.fecha_entrega_tecnico}</span>` : ''}
+          </div>
+          <a href="/api/avales/${aval.id}/pdf" target="_blank" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-medium">Ver Aval</a>
+        </div>
+      </div>` : ''}
+
+      <!-- ENCUESTA -->
+      ${encuesta ? `<div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>⭐</span> Encuesta de Satisfacción</div>
+        <div class="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+          <div><span class="text-gray-500">Tiempo de Entrega:</span><br><span class="font-medium">${encuesta.tiempo_entrega}/5</span></div>
+          <div><span class="text-gray-500">Desempeño del Equipo:</span><br><span class="font-medium">${encuesta.desempeno_equipo}/5</span></div>
+          <div><span class="text-gray-500">Presentación del Equipo:</span><br><span class="font-medium">${encuesta.presentacion_equipo}/5</span></div>
+          <div><span class="text-gray-500">Calidad de Productos:</span><br><span class="font-medium">${encuesta.calidad_productos}/5</span></div>
+          <div><span class="text-gray-500">Calidad de Entrenamiento:</span><br><span class="font-medium">${encuesta.calidad_entrenamientos}/5</span></div>
+          <div><span class="text-gray-500">Promedio:</span><br><span class="font-bold text-lg text-yellow-600">${((encuesta.tiempo_entrega + encuesta.desempeno_equipo + encuesta.presentacion_equipo + encuesta.calidad_productos + encuesta.calidad_entrenamientos) / 5).toFixed(1)}/5</span></div>
+        </div>
+        ${encuesta.comentario ? `<div class="px-4 pb-4 text-sm"><span class="text-gray-500">Comentario:</span><br><span class="italic">"${escHtml2(encuesta.comentario)}"</span></div>` : ''}
+      </div>` : ''}
+
+      <!-- TIMELINE -->
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>📅</span> Timeline</div>
+        <div class="p-4">
+          <div class="relative border-l-2 border-blue-200 ml-3 space-y-4">
+            ${[ 
+              { label: 'Creada', date: ot.creado_en },
+              { label: 'Programada', date: ot.fecha_programada },
+              { label: 'Iniciada', date: ot.fecha_inicio },
+              { label: 'Finalizada', date: ot.fecha_fin },
+              { label: 'Última actualización', date: ot.actualizado_en }
+            ].filter(t => t.date).map(t => `
+              <div class="relative pl-6">
+                <div class="absolute -left-[11px] top-1 w-5 h-5 bg-blue-600 rounded-full border-2 border-white"></div>
+                <p class="text-sm font-medium text-gray-700">${t.label}</p>
+                <p class="text-xs text-gray-400">${t.date}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="text-center text-gray-400 text-xs pb-4">
+    DKLIC PLUS INVESTMENT &bull; Generado el ${new Date().toLocaleDateString('es-DO', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+  </div>
+</div>
+</body>
+</html>`;
+
+    res.send(html);
+  } catch (e) {
+    console.error('Error rendering OT detail page:', e);
+    res.status(500).send('Error interno');
+  }
+});
+
 // ============ FRONTEND (SPA) ============
 // Para SPA: servir index.html en todas las rutas excepto API y archivos estáticos
-app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+app.get(/^\/(?!api\/|uploads\/|orden\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
