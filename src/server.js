@@ -18,7 +18,7 @@ const upload = multer({
 const { initDatabase } = require('./init-db');
 const { authMiddleware, adminOnly, generarToken } = require('./auth');
 const { generarAvalPDF } = require('./pdf');
-const { enviarEmail } = require('./email');
+const { enviarEmail, enviarNotificacionOT } = require('./email');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -528,9 +528,15 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
     // Validaciones adicionales
     if (nuevoEstado === 'en_curso') {
       if (ot.tecnico_id === null) {
-        return res.status(400).json({ error: 'La OT debe tener un técnico asignado para iniciarse' });
+        return res.status(400).json({ error: 'La OT debe tener un tecnico asignado para iniciarse' });
       }
       run("UPDATE ordenes_trabajo SET estado=?, fecha_inicio=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+      // Enviar notificaciones por email al iniciar OT
+      try {
+        enviarNotificacionOT(id).catch(e => console.error('Error enviando email OT:', e.message));
+      } catch (e) {
+        console.error('Error al cargar modulo email:', e.message);
+      }
     } else {
       run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
     }
