@@ -1713,38 +1713,4 @@ app.get(/^\/(?!api\/|uploads\/|orden\/).*/, (req, res) => {
 
 
 
-// ============ LIMPIEZA TEMPORAL ============
-app.post('/api/limpiar-bd', authMiddleware, adminOnly, (req, res) => {
-  try {
-    transaction(() => {
-      const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','notificaciones_ot','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos','configuracion_incentivos','configuracion_documentos','productos','clientes'];
-      for (const t of tables) { try { run('DELETE FROM ' + t); } catch(e) {} }
-      try { run('DELETE FROM usuarios WHERE email != "admin@sistema.com"'); } catch(e) {}
-      try { run('DELETE FROM sqlite_sequence'); } catch(e) {}
-    });
-    console.log('BD LIMPIADA');
-    res.json({ success: true, message: 'BD limpiada!' });
-    setTimeout(() => process.exit(0), 2000);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ============ ELIMINAR AVALES TEMPORAL ============
-app.post('/api/eliminar-avales-demo', authMiddleware, adminOnly, (req, res) => {
-  try {
-    transaction(() => {
-      // Eliminar avales legacy del 1 al 5
-      run('DELETE FROM avales_legacy WHERE id BETWEEN 1 AND 5');
-      run('DELETE FROM encuestas_satisfaccion WHERE id BETWEEN 1 AND 5');
-      // Resetear secuencias
-      try { run("DELETE FROM sqlite_sequence WHERE name='avales_legacy'"); } catch(e) {}
-      try { run("DELETE FROM sqlite_sequence WHERE name='encuestas_satisfaccion'"); } catch(e) {}
-    });
-    console.log('AVALES DEMO ELIMINADOS');
-    res.json({ success: true, message: 'Avales AV-2026-0001 al -0005 y encuestas demo eliminados' });
-  } catch (e) {
-    console.error('Error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
 start();
