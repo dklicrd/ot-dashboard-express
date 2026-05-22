@@ -17,6 +17,7 @@ const upload = multer({
 });
 const { initDatabase } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
+const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
 const { enviarEmail, enviarNotificacionOT } = require('./email');
 
@@ -131,6 +132,7 @@ app.post('/api/usuarios', authMiddleware, adminOnly, async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     run('INSERT INTO usuarios (nombre, email, password, rol, telefono) VALUES (?, ?, ?, ?, ?)',
       [nombre.trim(), email.trim().toLowerCase(), hashed, rol, telefono || null]);
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
     res.status(201).json({ message: 'Usuario creado' });
   } catch (e) {
     if (e.message && e.message.includes('UNIQUE')) {
@@ -207,6 +209,7 @@ app.post('/api/clientes', authMiddleware, adminOnly, (req, res) => {
 
     run('INSERT INTO clientes (nombre, telefono, email, direccion, cedula_rnc, tipo, referencias_ubicacion) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [nombre.trim(), telefono || null, email || null, direccion || null, cedula_rnc || null, tipo || 'particular', referencias_ubicacion || null]);
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
     res.status(201).json({ message: 'Cliente creado' });
   } catch (e) {
     console.error('Error creating client:', e);
@@ -238,6 +241,7 @@ app.post('/api/productos', authMiddleware, adminOnly, (req, res) => {
     }
     run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)',
       [nombre.trim(), categoria, descripcion || null]);
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
     res.status(201).json({ message: 'Producto creado' });
   } catch (e) {
     console.error('Error creating producto:', e);
@@ -293,6 +297,7 @@ app.post('/api/presupuestos', authMiddleware, adminOnly, (req, res) => {
     if (!nombre_proyecto) return res.status(400).json({ error: 'Nombre del proyecto requerido' });
     run('INSERT INTO presupuestos (cliente_id, nombre_proyecto, aprobado) VALUES (?, ?, ?)',
       [cliente_id || null, nombre_proyecto, aprobado ? 1 : 0]);
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
     res.status(201).json({ message: 'Presupuesto creado' });
   } catch (e) {
     console.error('Error creating presupuesto:', e);
