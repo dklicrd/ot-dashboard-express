@@ -545,5 +545,3 @@ function verificarYRestaurarBackup() {
 }
 
 module.exports = { initDatabase, verificarYRestaurarBackup };
-
-module.exports = { initDatabase };
