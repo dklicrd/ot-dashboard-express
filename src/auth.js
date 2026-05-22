@@ -15,12 +15,19 @@ function verificarToken(token) {
 }
 
 function authMiddleware(req, res, next) {
+  let token = null;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (req.query.token) {
+    token = req.query.token;
+  }
+  
+  if (!token) {
     return res.status(401).json({ error: 'No autorizado' });
   }
   
-  const user = verificarToken(authHeader.slice(7));
+  const user = verificarToken(token);
   if (!user) {
     return res.status(401).json({ error: 'Token inválido' });
   }
