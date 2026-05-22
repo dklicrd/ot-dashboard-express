@@ -441,7 +441,7 @@ async function renderOrdenes() {
     <div class="fade-in">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Órdenes de Trabajo</h1>
-        ${state.user?.rol === 'admin' ? `<button onclick="showModal('nueva-ot')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nueva OT</button>` : ''}
+        ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin' ? `<button onclick="showModal('nueva-ot')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nueva OT</button>` : ''}
       </div>
       <div class="card overflow-hidden">
         <div class="overflow-x-auto">
@@ -484,7 +484,7 @@ async function renderAvales() {
           : '<span class="text-gray-400">—</span>'}
       </td>
       <td class="py-3 px-4 text-center">
-        ${state.user?.rol === 'admin' && a.estado !== 'completado'
+        ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin' && a.estado !== 'completado'
           ? `<button onclick="uploadFirmado(${a.id})" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto"><span>📤</span> Subir Firmado</button>`
           : ''}
         ${a.archivo_pdf_firmado
@@ -498,7 +498,7 @@ async function renderAvales() {
     <div class="fade-in">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Avales de Servicio</h1>
-        ${state.user?.rol === 'admin' ? `<button onclick="showModal('nuevo-aval')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nuevo Aval</button>` : ''}
+        ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin' ? `<button onclick="showModal('nuevo-aval')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nuevo Aval</button>` : ''}
       </div>
       <div class="card overflow-hidden">
         <div class="overflow-x-auto">
@@ -731,7 +731,7 @@ function renderDetalleAvalContent(aval, productos, ot) {
       <td class="py-2 px-3">${escHtml(p.producto_nombre || '')}</td>
       <td class="py-2 px-3 text-center">${p.cantidad_reportada || 0}</td>
       <td class="py-2 px-3 text-center">
-        ${isPendiente && state.user?.rol === 'admin'
+        ${isPendiente && state.user?.rol === 'admin' || state.user?.rol === 'superadmin'
           ? `<input type="number" min="0" value="${p.cantidad_confirmada !== null ? p.cantidad_confirmada : (p.cantidad_reportada || 0)}" 
               class="input-field w-20 text-center" data-confirm-cantidad="${p.producto_id}">`
           : (p.cantidad_confirmada !== null ? p.cantidad_confirmada : '-')
@@ -787,7 +787,7 @@ function renderDetalleAvalContent(aval, productos, ot) {
 
       <div class="flex justify-end gap-3 pt-2 border-t">
         <a href="/api/avales/${aval.id}/pdf" target="_blank" class="btn-secondary flex items-center gap-2"><span>🖨️</span> Descargar PDF</a>
-        ${isPendiente && state.user?.rol === 'admin'
+        ${isPendiente && state.user?.rol === 'admin' || state.user?.rol === 'superadmin'
           ? `<button onclick="confirmarAval(${aval.id})" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar Aval</button>`
           : ''}
       </div>
