@@ -44,7 +44,7 @@ function superAdminOnly(req, res, next) {
 }
 
 function adminOnly(req, res, next) {
-  if (req.user.rol !== 'admin') {
+  if (req.user.rol !== 'admin' && req.user.rol !== 'superadmin') {
     return res.status(403).json({ error: 'Acceso denegado' });
   }
   next();
