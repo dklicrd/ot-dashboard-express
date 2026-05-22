@@ -1207,9 +1207,14 @@ async function eliminarUsuario(id) {
 // ============ CONFIGURACIÓN ============
 async function renderConfig() {
   let config = null;
+  let docConfig = null;
   try {
     const d = await api('GET', '/api/config');
     config = d.config;
+  } catch (e) { /* ignore */ }
+  try {
+    const d = await api('GET', '/api/config/documentos');
+    docConfig = d.configuracion;
   } catch (e) { /* ignore */ }
 
   const pondHeader = `
@@ -1308,7 +1313,61 @@ async function renderConfig() {
       </div>
     </div>
   `;
-}
+}        <!-- Personalización de Documentos -->
+        <div class="card">
+          <h3 class="card-header">Personalización de Documentos</h3>
+          <p class="text-sm text-gray-500 mb-4">Estos datos aparecerán en los PDFs y páginas de detalle de OT.</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Nombre de la Empresa</label>
+              <input type="text" id="doc-nombre-empresa" class="input-field" value="${escHtml(docConfig?.nombre_empresa || 'Mi Empresa')}">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Eslogan</label>
+              <input type="text" id="doc-eslogan" class="input-field" value="${escHtml(docConfig?.eslogan || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Dirección</label>
+              <input type="text" id="doc-direccion" class="input-field" value="${escHtml(docConfig?.direccion || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Teléfono</label>
+              <input type="text" id="doc-telefono" class="input-field" value="${escHtml(docConfig?.telefono || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+              <input type="email" id="doc-email" class="input-field" value="${escHtml(docConfig?.email || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Sitio Web</label>
+              <input type="text" id="doc-website" class="input-field" value="${escHtml(docConfig?.website || '')}" placeholder="Opcional">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Pie de Página</label>
+              <input type="text" id="doc-pie-pagina" class="input-field" value="${escHtml(docConfig?.pie_pagina || '')}" placeholder="Texto que aparece al pie de los documentos">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Color Primario</label>
+              <div class="flex items-center gap-3">
+                <input type="color" id="doc-color" class="w-12 h-10 rounded-lg border border-gray-300 cursor-pointer" value="${docConfig?.color_primario || '#1e40af'}">
+                <span class="text-sm text-gray-500" id="doc-color-label">${docConfig?.color_primario || '#1e40af'}</span>
+              </div>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-700 mb-2">Logo de la Empresa</label>
+              ${docConfig?.logo_base64
+                ? '<div class="flex items-center gap-4 mb-3"><img src="' + escHtml(docConfig.logo_base64) + '" class="h-20 w-auto rounded-lg border border-gray-200 p-1 bg-white" alt="Logo actual"><button onclick="this.parentElement.parentElement.querySelector(\'#doc-logo-input\').value=\'\';this.parentElement.parentElement.querySelector(\'#doc-logo-preview\').innerHTML=\'\';this.parentElement.remove()" class="text-sm text-red-600 hover:text-red-800 ml-2">Eliminar logo</button></div>'
+                : ''}
+              <div id="doc-logo-preview" class="mb-2"></div>
+              <div class="flex items-center gap-3">
+                <input type="file" id="doc-logo-input" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewLogo(this)">
+                <span class="text-xs text-gray-400">PNG, JPG o WEBP (máx 2MB)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
 
 window.saveConfig = async function () {
   const btn = document.getElementById('cfg-save-btn');
@@ -1344,6 +1403,70 @@ window.saveConfig = async function () {
 
 window.reloadConfig = function () {
   render();
+};
+
+window.previewLogo = function (input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { toast('El archivo es muy grande (max 2MB)', 'error'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    document.getElementById('doc-logo-preview').innerHTML = '<img src="' + e.target.result + '" class="h-20 w-auto rounded-lg border border-gray-200 p-1 bg-white" alt="Vista previa">';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveDocConfig = async function () {
+  const btn = document.getElementById('doc-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Guardando...';
+
+  const logoFile = document.getElementById('doc-logo-input').files[0];
+  let logo_base64 = null;
+
+  if (logoFile) {
+    logo_base64 = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsDataURL(logoFile);
+    });
+  }
+
+  const body = {};
+  const fields = [
+    ['nombre_empresa', 'doc-nombre-empresa'],
+    ['eslogan', 'doc-eslogan'],
+    ['direccion', 'doc-direccion'],
+    ['telefono', 'doc-telefono'],
+    ['email', 'doc-email'],
+    ['website', 'doc-website'],
+    ['pie_pagina', 'doc-pie-pagina'],
+  ];
+
+  for (const [key, elId] of fields) {
+    const el = document.getElementById(elId);
+    if (el) body[key] = el.value;
+  }
+
+  body.color_primario = document.getElementById('doc-color')?.value || '#1e40af';
+
+  if (logo_base64) body.logo_base64 = logo_base64;
+  const hasPreview = document.querySelector('#doc-logo-preview img') !== null;
+  const hasLogo = document.querySelector('.mb-3 img') !== null;
+  if (!logoFile && !hasPreview && !hasLogo) {
+    body.logo_base64 = '';
+  }
+
+  try {
+    await api('PUT', '/api/config/documentos', body);
+    toast('Configuracion de documentos guardada');
+    render();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>📄</span> Guardar Docs';
+  }
 };
 
 // ============ MODALS ============

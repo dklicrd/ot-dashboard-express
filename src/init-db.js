@@ -346,6 +346,28 @@ async function initDatabase() {
     run('INSERT INTO configuracion_incentivos (id) VALUES (1)');
   }
 
+  run(`
+    CREATE TABLE IF NOT EXISTS configuracion_documentos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre_empresa TEXT DEFAULT 'Mi Empresa',
+      eslogan TEXT DEFAULT '',
+      direccion TEXT DEFAULT '',
+      telefono TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      website TEXT DEFAULT '',
+      logo_base64 TEXT DEFAULT '',
+      pie_pagina TEXT DEFAULT 'Documento generado por el sistema',
+      color_primario TEXT DEFAULT '#1e40af',
+      actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+    );
+  `);
+
+  // Config documentos por defecto
+  const cfgDocResult = queryFirst('SELECT id FROM configuracion_documentos LIMIT 1');
+  if (!cfgDocResult) {
+    run("INSERT INTO configuracion_documentos (id, nombre_empresa) VALUES (1, 'DKLIC PLUS INVESTMENT')");
+  }
+
   // Admin por defecto
   const adminResult = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
   if (!adminResult) {

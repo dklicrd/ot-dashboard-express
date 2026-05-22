@@ -1078,6 +1078,46 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
+// ==================== API: CONFIGURACIÓN DE DOCUMENTOS ====================
+app.get('/api/config/documentos', authMiddleware, (req, res) => {
+  const cfg = queryFirst('SELECT * FROM configuracion_documentos WHERE id = 1');
+  delete cfg.id;
+  res.json({ configuracion: cfg });
+});
+
+app.put('/api/config/documentos', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const b = req.body;
+    const allowedFields = [
+      'nombre_empresa', 'eslogan', 'direccion', 'telefono', 'email', 'website',
+      'logo_base64', 'pie_pagina', 'color_primario'
+    ];
+
+    const sets = [];
+    const params = [];
+    for (const field of allowedFields) {
+      if (b[field] !== undefined) {
+        sets.push(`${field} = ?`);
+        params.push(b[field]);
+      }
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    sets.push("actualizado_en = datetime('now', '-04:00')");
+    run(`UPDATE configuracion_documentos SET ${sets.join(', ')} WHERE id = 1`, params);
+
+    const cfg = queryFirst('SELECT * FROM configuracion_documentos WHERE id = 1');
+    delete cfg.id;
+    res.json({ message: 'Configuración de documentos actualizada', configuracion: cfg });
+  } catch (e) {
+    console.error('Error updating documentos config:', e);
+    res.status(500).json({ error: 'Error al actualizar configuración de documentos' });
+  }
+});
+
 // ==================== API: REPORTE DE BONO (NUEVO) ====================
 app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
   try {
@@ -1442,6 +1482,13 @@ app.get('/orden/:id', authMiddleware, async (req, res) => {
       WHERE otp.orden_trabajo_id = ?
     `, [id]);
 
+    // Cargar configuración de documentos
+    const cfgDoc = queryFirst('SELECT * FROM configuracion_documentos WHERE id = 1') || {
+      nombre_empresa: 'DKLIC PLUS INVESTMENT', eslogan: '', direccion: '', telefono: '',
+      email: '', website: '', logo_base64: '', pie_pagina: 'Documento generado por el sistema',
+      color_primario: '#1e40af'
+    };
+
     const escHtml2 = (s) => { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
 
     const precios = ot.tipo_servicio === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
@@ -1497,15 +1544,20 @@ app.get('/orden/:id', authMiddleware, async (req, res) => {
   </div>
 
   <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-    <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
-      <div class="flex justify-between items-start">
-        <div>
-          <h1 class="text-3xl font-bold">${escHtml2(ot.numero_ot)}</h1>
-          <p class="text-blue-100 mt-1">Orden de Trabajo</p>
+      <div class="p-6 text-white" style="background:linear-gradient(135deg, ${cfgDoc.color_primario || '#1e40af'} 0%, ${cfgDoc.color_primario || '#1e40af'}dd 100%)">
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex items-center gap-4">
+            ${cfgDoc.logo_base64 ? `<img src="${cfgDoc.logo_base64}" class="h-16 w-auto rounded-lg bg-white/10 p-1" alt="Logo">` : ''}
+            <div>
+              <h2 class="text-lg font-bold opacity-90">${escHtml2(cfgDoc.nombre_empresa)}</h2>
+              ${cfgDoc.eslogan ? `<p class="text-sm opacity-75">${escHtml2(cfgDoc.eslogan)}</p>` : ''}
+              <h1 class="text-3xl font-bold mt-2">${escHtml2(ot.numero_ot)}</h1>
+              <p class="opacity-80 mt-0.5">Orden de Trabajo</p>
+            </div>
+          </div>
+          <div style="background:${estadoColor[ot.estado] || '#6b7280'}" class="px-4 py-1.5 rounded-full text-sm font-semibold shrink-0">${estadoLabel[ot.estado] || ot.estado}</div>
         </div>
-        <div style="background:${estadoColor[ot.estado] || '#6b7280'}" class="px-4 py-1.5 rounded-full text-sm font-semibold">${estadoLabel[ot.estado] || ot.estado}</div>
       </div>
-    </div>
 
     <div class="p-6 space-y-6">
       <!-- DATOS DE LA OT -->
@@ -1632,7 +1684,7 @@ app.get('/orden/:id', authMiddleware, async (req, res) => {
   </div>
 
   <div class="text-center text-gray-400 text-xs pb-4">
-    DKLIC PLUS INVESTMENT &bull; Generado el ${new Date().toLocaleDateString('es-DO', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+    ${escHtml2(cfgDoc.nombre_empresa)} &bull; Generado el ${new Date().toLocaleDateString('es-DO', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}
   </div>
 </div>
 </body>
