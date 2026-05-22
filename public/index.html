@@ -263,6 +263,7 @@ const navItems = {
     { id: 'reportes', label: 'Reportes', icon: '📈' },
     { id: 'usuarios', label: 'Usuarios', icon: '👥' },
     { id: 'config', label: 'Configuración', icon: '⚙️' },
+    { id: 'guia', label: 'Guía de Usuario', icon: '📖' },
   ],
   admin: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
@@ -274,6 +275,7 @@ const navItems = {
     { id: 'productos', label: 'Productos', icon: '📦' },
     { id: 'usuarios', label: 'Usuarios', icon: '👥' },
     { id: 'config', label: 'Configuración', icon: '⚙️' },
+    { id: 'guia', label: 'Guía', icon: '📖' },
   ],
   tecnico: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
@@ -284,6 +286,7 @@ const navItems = {
     { id: 'inicio', label: 'Inicio', icon: '📊' },
     { id: 'encuestas', label: 'Encuestas', icon: '⭐' },
     { id: 'reportes', label: 'Reportes', icon: '📈' },
+    { id: 'guia', label: 'Guía', icon: '📖' },
   ],
 };
 
@@ -1870,6 +1873,7 @@ async function render() {
       case 'perfil': content = renderPerfil(); break;
       case 'usuarios': content = await renderUsuarios(); break;
       case 'config': content = await renderConfig(); break;
+      case 'guia': content = renderGuia(); break;
       default: content = await renderInicio();
     }
   } catch (e) {
@@ -2571,6 +2575,55 @@ window.submitNuevaEncuesta = async function (e) {
 };
 
 // ============ PERFIL ============
+function renderGuia() {
+
+  var html = '';
+  html += '<div class="max-w-4xl mx-auto fade-in">';
+  html += '<div class="flex items-center gap-3 mb-6">';
+  html += '<span class="text-3xl">📖</span>';
+  html += '<div>';
+  html += '<h1 class="text-2xl font-bold text-gray-900">Guía de Usuario</h1>';
+  html += '<p class="text-sm text-gray-500 mt-1">Aprende a usar OT Dashboard paso a paso</p>';
+  html += '</div></div>';
+  html += '<div class="space-y-4">';
+
+  var pasos = [
+    { n: '1', t: 'Crear un Cliente', d: 'Ve a Inicio > clic en "Nueva Orden de Trabajo". Si no hay clientes, ve a Ordenes > boton "+ Nueva OT" y en el formulario encontraras opcion para seleccionar o crear cliente.' },
+    { n: '2', t: 'Crear Productos', d: 'Menu izquierdo > Productos. Dale clic a "+ Nuevo Producto". Completa nombre, categoria (cerradura, control_acceso, caja_fuerte, ahorro_energia, otro) y descripcion.', nt: 'Los precios se configuran desde Configuracion > Valores por Tipo de Servicio.' },
+    { n: '3', t: 'Crear una OT (Orden de Trabajo)', d: 'Menu > Ordenes de Trabajo. Clic en "+ Nueva OT". Completa: cliente, tipo de servicio, tecnico asignado, productos con cantidades, fecha programada y notas. Clic en "Guardar".', nt: 'La OT se numerara automaticamente como OT-2026-XXXX.' },
+    { n: '4', t: 'Iniciar una OT', d: 'En la lista de OTs, busca la OT en estado "pendiente". Clic en el boton "Iniciar OT". Se enviara un email al cliente y al tecnico con los detalles de la OT.', nt: 'Configura SMTP en Render Dashboard para que funcionen los correos.' },
+    { n: '5', t: 'Completar OT y Generar Aval', d: 'Cuando el tecnico termine, desde Ordenes busca la OT "en_curso". Clic en "Aval". Se abrira un modal para confirmar cantidades reales. Confirma y se genera el aval.', nt: 'El aval se numera como AV-2026-XXXX.' },
+    { n: '6', t: 'Encuesta de Satisfaccion', d: 'Menu > Encuestas. Cada OT completada debe tener una encuesta. Clic en la OT > "+ Registrar Encuesta". Califica del 1 al 5 los criterios.', nt: 'Las ponderaciones se configuran en Configuracion.' },
+    { n: '7', t: 'Bonos e Incentivos', d: 'Menu > Bonos e Incentivos. Aqui ves los incentivos generados automaticamente por cada OT completada.', nt: 'El monto se calcula segun los precios y ponderaciones configurados.' },
+    { n: '8', t: 'Reportes', d: 'Menu > Reportes. Filtra por rango de fechas para ver OTs completadas y bonos generados en ese periodo.' },
+    { n: '9', t: 'Configuracion del Sistema', d: 'Menu > Configuracion. Ajusta ponderaciones, valores por servicio, personaliza documentos (nombre, color, logo), y elimina datos demo (solo superadmin).', nt: 'Los cambios se guardan con los botones Guardar.' },
+    { n: '10', t: 'Usuarios', d: 'Menu > Usuarios (solo admin/superadmin). Crea usuarios con roles: tecnico, servicio_cliente, admin.', nt: 'Cada usuario ve solo lo que necesita segun su rol.' }
+  ];
+
+  for (var i = 0; i < pasos.length; i++) {
+    var p = pasos[i];
+    html += '<div class="card p-6 hover:shadow-md transition-shadow">';
+    html += '<div class="flex gap-4">';
+    html += '<div class="flex-shrink-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md">' + p.n + '</div>';
+    html += '<div class="flex-1 min-w-0">';
+    html += '<h3 class="text-lg font-semibold text-gray-900 mb-2">' + p.t + '</h3>';
+    html += '<p class="text-gray-700 leading-relaxed mb-2">' + p.d + '</p>';
+    if (p.nt) {
+      html += '<div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r-lg text-sm text-yellow-800"><strong>Nota:</strong> ' + p.nt + '</div>';
+    }
+    html += '</div></div></div>';
+  }
+
+  html += '</div>';
+
+  html += '<div class="card p-6 mt-6 bg-blue-50 border border-blue-200 text-center">';
+  html += '<p class="text-sm text-blue-700"><strong>Recuerda:</strong> Los datos se pierden en cada deploy de Render Free. Usa el boton en Configuracion cuando necesites limpiar. Para persistencia, considera Render Starter con disco persistente.</p>';
+  html += '</div></div>';
+
+  return html;
+}
+
+
 function renderPerfil() {
   const u = state.user;
   const rolLabel = { admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[u?.rol] || '';
