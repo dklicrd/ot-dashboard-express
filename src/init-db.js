@@ -384,6 +384,27 @@ async function initDatabase() {
 
   // Productos por defecto si están vacíos
   const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
+  
+  // ═══════════════════════════════════════════════
+  // Si backup.json existe y está vacío, NO regenerar seeds
+  // (el usuario limpió la BD intencionalmente)
+  // ═══════════════════════════════════════════════
+  const fs = require('fs');
+  const path = require('path');
+  const BACKUP_FILE = path.join(__dirname, '..', 'data', 'backup.json');
+  const backupExisteVacio = fs.existsSync(BACKUP_FILE) && (() => {
+    try {
+      const content = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
+      return Object.keys(content).length === 0;
+    } catch (e) { return false; }
+  })();
+  
+  if (backupExisteVacio && numProductos === 0) {
+    console.log('📭 backup.json vacío detectado — saltando seeds demo');
+    console.log('✅ Base de datos lista');
+    return;
+  }
+  
   if (numProductos === 0) {
     const productosDemo = [
       ['Cerradura Eléctrica', 'cerradura', 'Cerradura eléctrica estándar para puertas'],
