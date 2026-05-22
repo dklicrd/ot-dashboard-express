@@ -16,7 +16,7 @@ const upload = multer({
   }
 });
 const { initDatabase } = require('./init-db');
-const { authMiddleware, adminOnly, generarToken } = require('./auth');
+const { authMiddleware, adminOnly, generarToken, verificarToken } = require('./auth');
 const { generarAvalPDF } = require('./pdf');
 const { enviarEmail, enviarNotificacionOT } = require('./email');
 
@@ -32,6 +32,14 @@ async function start() {
   try {
     await getDb();
     await initDatabase();
+
+    // Backup & Restore — persistencia en Render free tier
+    try {
+      const { verificarYRestaurarBackup } = require('./init-db');
+      verificarYRestaurarBackup();
+    } catch (e) {
+      console.error('⚠️ Error en backup/restore:', e.message);
+    }
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);
     });
@@ -1462,7 +1470,7 @@ app.get('/api/reportes', authMiddleware, adminOnly, (req, res) => {
 });
 
 // ============ PÁGINA DE DETALLE DE OT (standalone, nueva pestaña) ============
-app.get('/orden/:id', authMiddleware, async (req, res) => {
+app.get('/orden/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     const ot = queryFirst(`

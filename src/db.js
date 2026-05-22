@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DB_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DB_DIR, 'ot-dashboard.db');
+const DB_PATH = process.env.DB_PATH || path.join(DB_DIR, 'ot-dashboard.db');
 
 let db = null;
 let initPromise = null;

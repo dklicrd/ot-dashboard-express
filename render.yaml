@@ -7,7 +7,12 @@ services:
     name: ot-dashboard
     env: node
     region: ohio
-    plan: free
+    plan: free # ⚠️ Free tier NO tiene disco persistente. Los datos en SQLite se pierden con cada deploy.
+    # Para persistencia real: cambiar a plan Starter ($7/mes) o descomentar disk:
+    # disk:
+    #   name: data
+    #   mountPath: /var/data
+    #   sizeGB: 1
     buildCommand: npm install
     startCommand: node src/server.js
     envVars:
@@ -16,9 +21,15 @@ services:
       - key: PORT
         value: 10000
       - key: JWT_SECRET
-        generateValue: true
+        value: ot-dashboard-secret-fijo-2026-dklic-plus
+        # ⚠️ No usar generateValue: true porque cada deploy regenera el secret
+        # e invalida todos los tokens existentes. Usar valor fijo.
       - key: DASHBOARD_URL
         value: https://ot-dashboard.onrender.com
+      # ⚠️ Free tier de Render NO tiene disco persistente.
+      # Los datos en SQLite se pierden con cada deploy.
+      # Para persistencia: actualizar a plan Starter ($7/mes)
+      # o migrar a PostgreSQL externo.
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
@@ -26,10 +37,14 @@ services:
       - key: SMTP_SECURE
         value: "false"
       # SMTP_USER y SMTP_PASS deben configurarse manualmente en Render Dashboard
-      # si se desea enviar emails (usar contraseña de aplicación de Google)
+      # usando una contraseña de aplicación de Google (no la contraseña normal)
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
         sync: false
       - key: SMTP_FROM
-        value: noreply@ot-dashboard.com
+        value: notificaciones@dklicplus.com
+      # ⚠️ DB_PATH: en Render se puede usar un disco persistente.
+      # Si usas plan Starter+, descomenta disk: arriba y setea:
+      # - key: DB_PATH
+      #   value: /var/data/ot-dashboard.db

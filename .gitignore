@@ -1,6 +1,11 @@
 # OT Dashboard - .gitignore
 node_modules/
-data/
+# data/ contiene la BD SQLite (efímera en Render)
+# Excluimos todo EXCEPTO backup.json
+# backup.json permite persistir datos entre deploys
+# Ver src/backup-restore.js
+/data/*.db
+/data/backups/
 public/uploads/avales/
 .env
 *.log

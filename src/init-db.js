@@ -514,4 +514,36 @@ async function seedDemo() {
   console.log('✅ Datos demo insertados');
 }
 
+// ═══════════════════════════════════════════════
+// Backup & Restore (persistencia en Render free tier)
+// ═══════════════════════════════════════════════
+// Render free tier NO tiene disco persistente.
+// Cada deploy borra el archivo SQLite.
+//
+// Este mecanismo guarda un backup en data/backup.json
+// que se restaura en el próximo deploy.
+//
+// SOLUCIÓN DEFINITIVA: Render Starter ($7/mes) con disk:
+// Ver render.yaml
+
+function verificarYRestaurarBackup() {
+  try {
+    const { needsRestore, restoreDatabase, exportDatabase } = require('./backup-restore');
+
+    if (needsRestore()) {
+      const restored = restoreDatabase();
+      if (restored) {
+        console.log('✅ Datos restaurados desde backup');
+      }
+    }
+
+    // Guardar backup cada vez que se inicie (si hay datos reales)
+    exportDatabase();
+  } catch (e) {
+    console.error('⚠️ Error en backup/restore:', e.message);
+  }
+}
+
+module.exports = { initDatabase, verificarYRestaurarBackup };
+
 module.exports = { initDatabase };

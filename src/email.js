@@ -78,9 +78,9 @@ async function enviarNotificacionOT(otId) {
     return `<tr><td style="border:1px solid #ddd;padding:8px">${escHtml(p.nombre)}</td><td style="border:1px solid #ddd;padding:8px;text-align:center">${p.categoria.replace(/_/g, ' ')}</td><td style="border:1px solid #ddd;padding:8px;text-align:center">${p.cantidad}</td><td style="border:1px solid #ddd;padding:8px;text-align:right">RD$${pu.toFixed(2)}</td><td style="border:1px solid #ddd;padding:8px;text-align:right">RD$${sub.toFixed(2)}</td></tr>`;
   }).join('');
 
-  const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard.onrender.com';
-  const enlaceDetalle = `${dashUrl}/orden/${otId}?token=${process.env.JWT_SECRET ? 'pending' : 'pending'}`;
-  // For email we use the public dashboard URL as link (no auth needed since it's just informational)
+  const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+  // El enlace público de detalle NO necesita token porque removimos authMiddleware
+  const enlaceDetalle = `${dashUrl}/orden/${otId}`;
 
   const emailHtml = `
 <!DOCTYPE html>
