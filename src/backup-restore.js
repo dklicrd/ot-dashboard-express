@@ -72,7 +72,18 @@ function needsRestore() {
     const hasBackup = fs.existsSync(BACKUP_FILE);
 
     if (isSeedData && hasBackup) {
-      return true;
+      // Solo restaurar si el backup tiene datos reales
+      try {
+        const backupContent = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
+        const tableCount = Object.keys(backupContent).length;
+        if (tableCount > 0) {
+          return true;
+        }
+        console.log('📭 Backup vacío (0 tablas), saltando restauración.');
+      } catch (e) {
+        console.log('⚠️ Backup inválido, saltando restauración.');
+      }
+      return false;
     }
 
     // Si hay datos reales pero backup no existe, crear backup

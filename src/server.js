@@ -33,13 +33,6 @@ async function start() {
     await getDb();
     await initDatabase();
 
-    // Backup & Restore — persistencia en Render free tier
-    try {
-      const { verificarYRestaurarBackup } = require('./init-db');
-      verificarYRestaurarBackup();
-    } catch (e) {
-      console.error('⚠️ Error en backup/restore:', e.message);
-    }
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);
     });
