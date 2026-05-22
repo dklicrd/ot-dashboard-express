@@ -263,7 +263,6 @@ const navItems = {
     { id: 'reportes', label: 'Reportes', icon: '📈' },
     { id: 'usuarios', label: 'Usuarios', icon: '👥' },
     { id: 'config', label: 'Configuración', icon: '⚙️' },
-    { id: 'guia', label: 'Guía de Usuario', icon: '📖' },
   ],
   admin: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
@@ -275,7 +274,6 @@ const navItems = {
     { id: 'productos', label: 'Productos', icon: '📦' },
     { id: 'usuarios', label: 'Usuarios', icon: '👥' },
     { id: 'config', label: 'Configuración', icon: '⚙️' },
-    { id: 'guia', label: 'Guía', icon: '📖' },
   ],
   tecnico: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
@@ -286,7 +284,6 @@ const navItems = {
     { id: 'inicio', label: 'Inicio', icon: '📊' },
     { id: 'encuestas', label: 'Encuestas', icon: '⭐' },
     { id: 'reportes', label: 'Reportes', icon: '📈' },
-    { id: 'guia', label: 'Guía', icon: '📖' },
   ],
 };
 
@@ -1873,7 +1870,6 @@ async function render() {
       case 'perfil': content = renderPerfil(); break;
       case 'usuarios': content = await renderUsuarios(); break;
       case 'config': content = await renderConfig(); break;
-      case 'guia': content = renderGuia(); break;
       default: content = await renderInicio();
     }
   } catch (e) {
@@ -2575,109 +2571,6 @@ window.submitNuevaEncuesta = async function (e) {
 };
 
 // ============ PERFIL ============
-function renderGuia() {
-  const pasos = [
-    {
-      num: '1',
-      titulo: 'Crear un Cliente',
-      detalle: 'Ve a Inicio > clic en "📋 Nueva Orden de Trabajo". Si no hay clientes, ve a Órdenes > botón "+ Nueva OT" y en el formulario encontrarás opción para seleccionar o crear cliente.',
-      nota: 'También puedes crear clientes desde el backend (admin).'
-    },
-    {
-      num: '2',
-      titulo: 'Crear Productos',
-      detalle: 'Menú izquierdo > Productos. Dale clic a "+ Nuevo Producto". Completa nombre, categoría (cerradura, control_acceso, caja_fuerte, ahorro_energia, otro) y descripción.',
-      nota: 'Los precios se configuran desde Configuración > Valores por Tipo de Servicio.'
-    },
-    {
-      num: '3',
-      titulo: 'Crear una OT (Orden de Trabajo)',
-      detalle: 'Menú > Órdenes de Trabajo. Clic en "+ Nueva OT". Completa: cliente, tipo de servicio (instalación/mantenimiento/reparación), técnico asignado, productos con cantidades, fecha programada y notas. Clic en "Guardar".',
-      nota: 'La OT se numerará automáticamente como OT-2026-XXXX.'
-    },
-    {
-      num: '4',
-      titulo: 'Iniciar una OT',
-      detalle: 'En la lista de OTs, busca la OT en estado "pendiente". Clic en el botón "▶️ Iniciar OT" (en la columna Acción). Se enviará un email al cliente y al técnico con los detalles de la OT.',
-      nota: 'Configura SMTP en Render Dashboard (SMTP_HOST, SMTP_USER, SMTP_PASS) para que funcionen los correos.'
-    },
-    {
-      num: '5',
-      titulo: 'Completar OT y Generar Aval',
-      detalle: 'Cuando el técnico termine, desde Órdenes busca la OT "en_curso". Clic en "✅ Aval". Se abrirá un modal para confirmar cantidades reales de productos instalados. Confirma y se genera el aval automáticamente.',
-      nota: 'El aval se numera como AV-2026-XXXX y queda disponible en la sección Avales.'
-    },
-    {
-      num: '6',
-      titulo: 'Encuesta de Satisfacción',
-      detalle: 'Menú > Encuestas. Cada OT completada debe tener una encuesta. Clic en la OT > "+ Registrar Encuesta". Califica: tiempo entrega, desempeño, conocimientos, presentación, calidad productos, calidad entrenamientos (1-5).',
-      nota: 'Las ponderaciones se configuran en Configuración > Ponderaciones.'
-    },
-    {
-      num: '7',
-      titulo: 'Bonos e Incentivos',
-      detalle: 'Menú > Bonos e Incentivos. Aquí ves los incentivos generados automáticamente por cada OT completada. El monto se calcula según los precios configurados y las ponderaciones.',
-      nota: 'Los valores se calculan con base a: productos x cantidades x precio configurado / ponderación.'
-    },
-    {
-      num: '8',
-      titulo: 'Reportes',
-      detalle: 'Menú > Reportes. Filtra por rango de fechas para ver reportes de OTs completadas y bonos generados en ese período.',
-      nota: 'Puedes exportar los datos si es necesario.'
-    },
-    {
-      num: '9',
-      titulo: 'Configuración del Sistema',
-      detalle: 'Menú > Configuración. Aquí puedes: ajustar ponderaciones de evaluación (sliders), configurar valores por tipo de servicio (RD$), personalizar documentos (nombre empresa, eslogan, color, logo), y eliminar datos demo (solo superadmin).',
-      nota: 'Los cambios se guardan con los botones 💾 Guardar Configuración y 📄 Guardar Documentos.'
-    },
-    {
-      num: '10',
-      titulo: 'Usuarios',
-      detalle: 'Menú > Usuarios (solo admin/superadmin). Crea usuarios con roles: técnico (ejecuta OTs), servicio_cliente (encuestas/reportes), admin (gestión completa).',
-      nota: 'Cada usuario ve solo lo que necesita según su rol.'
-    }
-  ];
-
-  return \`
-    <div class="max-w-4xl mx-auto fade-in">
-      <div class="flex items-center gap-3 mb-6">
-        <span class="text-3xl">📖</span>
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">Guía de Usuario</h1>
-          <p class="text-sm text-gray-500 mt-1">Aprende a usar OT Dashboard paso a paso</p>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        \${pasos.map(p => \`
-        <div class="card p-6 hover:shadow-md transition-shadow">
-          <div class="flex gap-4">
-            <div class="flex-shrink-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md">
-              \${p.num}
-            </div>
-            <div class="flex-1 min-w-0">
-              <h3 class="text-lg font-semibold text-gray-900 mb-2">\${p.titulo}</h3>
-              <p class="text-gray-700 leading-relaxed mb-2">\${p.detalle}</p>
-              \${p.nota ? \`<div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r-lg text-sm text-yellow-800"><strong>💡 Nota:</strong> \${p.nota}</div>\` : ''}
-            </div>
-          </div>
-        </div>
-        \`).join('')}
-      </div>
-
-      <div class="card p-6 mt-6 bg-blue-50 border border-blue-200 text-center">
-        <p class="text-sm text-blue-700">
-          <strong>📌 Recuerda:</strong> Los datos se pierden en cada deploy de Render Free. 
-          Usa el botón <strong>🗑️ Eliminar datos demo</strong> en Configuración cuando necesites limpiar.
-          Para persistencia definitiva, considera el plan Render Starter con disco persistente.
-        </p>
-      </div>
-    </div>
-  \`;
-}
-
-
 function renderPerfil() {
   const u = state.user;
   const rolLabel = { admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[u?.rol] || '';
