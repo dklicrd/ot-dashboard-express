@@ -660,15 +660,15 @@
     {
       "id": 1,
       "nombre_empresa": "DKLIC PLUS INVESTMENT",
-      "eslogan": "",
-      "direccion": "",
-      "telefono": "",
-      "email": "",
-      "website": "",
+      "eslogan": "Seguridad e Innovación",
+      "direccion": "Av. Principal, Santo Domingo",
+      "telefono": "809-555-0000",
+      "email": "info@dklicplus.com",
+      "website": "www.dklicplus.com",
       "logo_base64": "",
-      "pie_pagina": "Documento generado por el sistema",
+      "pie_pagina": "Documento oficial de DKLIC PLUS INVESTMENT",
       "color_primario": "#1e40af",
-      "actualizado_en": "2026-05-22 08:41:46"
+      "actualizado_en": "2026-05-22 13:20:39"
     }
   ]
 }
