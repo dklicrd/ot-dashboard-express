@@ -156,12 +156,4 @@ function restoreDatabase() {
 }
 
 
-app.post('/api/exportar-backup', authMiddleware, adminOnly, (req, res) => {
-  try {
-    exportDatabase();
-    res.json({ success: true, message: 'Backup exportado correctamente' });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 module.exports = { exportDatabase, needsRestore, restoreDatabase, BACKUP_FILE };
