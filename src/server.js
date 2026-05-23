@@ -144,6 +144,37 @@ app.post('/api/usuarios', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
+// ==================== API: ACTUALIZAR USUARIO ============ 
+app.put('/api/usuarios/:id', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { nombre, email, password, rol, telefono } = req.body;
+    if (!nombre || !email || !rol) {
+      return res.status(400).json({ error: 'Nombre, email y rol requeridos' });
+    }
+    if (!['admin', 'tecnico', 'servicio_cliente'].includes(rol)) {
+      return res.status(400).json({ error: 'Rol inválido' });
+    }
+
+    if (password && password.length >= 6) {
+      const hashed = await bcrypt.hash(password, 10);
+      run('UPDATE usuarios SET nombre=?, email=?, password=?, rol=?, telefono=? WHERE id=?',
+        [nombre.trim(), email.trim().toLowerCase(), hashed, rol, telefono || null, id]);
+    } else {
+      run('UPDATE usuarios SET nombre=?, email=?, rol=?, telefono=? WHERE id=?',
+        [nombre.trim(), email.trim().toLowerCase(), rol, telefono || null, id]);
+    }
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+    res.json({ message: 'Usuario actualizado' });
+  } catch (e) {
+    if (e.message && e.message.includes('UNIQUE')) {
+      return res.status(400).json({ error: 'El email ya existe' });
+    }
+    console.error('Error updating user:', e);
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
 app.delete('/api/usuarios/:id', authMiddleware, adminOnly, (req, res) => {
   try {
     const id = Number(req.params.id);

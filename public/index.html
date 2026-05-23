@@ -1179,9 +1179,12 @@ async function renderUsuarios() {
       <td class="py-3 px-4">${u.telefono || '<span class="text-gray-400">—</span>'}</td>
       <td class="py-3 px-4 text-center">${u.activo ? '<span class="text-green-600 text-lg">✅</span>' : '<span class="text-red-400">❌</span>'}</td>
       <td class="py-3 px-4 text-center">
-        ${u.id !== state.user.id
-          ? `<button onclick="confirmarEliminarUsuario(${u.id},'${escHtml(u.nombre).replace(/'/g, "\\'")}')" class="btn-delete" title="Eliminar"><span>🗑️</span></button>`
-          : '<span class="text-gray-400 text-xs">—</span>'}
+        <div class="flex items-center justify-center gap-2">
+          <button onclick="editarUsuario(${u.id},'${escHtml(u.nombre).replace(/'/g, "\\'")}','${escHtml(u.email).replace(/'/g, "\\'")}','${u.rol}','${escHtml(u.telefono||'').replace(/'/g, "\\'")}')" class="btn-edit" title="Editar"><span>✏️</span></button>
+          ${u.id !== state.user.id
+            ? `<button onclick="confirmarEliminarUsuario(${u.id},'${escHtml(u.nombre).replace(/'/g, "\\'")}')" class="btn-delete" title="Eliminar"><span>🗑️</span></button>`
+            : '<span class="text-gray-400 text-xs">—</span>'}
+        </div>
       </td>
     </tr>
   `).join('');
@@ -1397,9 +1400,14 @@ async function renderConfig() {
         <div class="bg-red-50 border border-red-200 rounded-2xl p-6 mt-8">
           <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Herramientas del Sistema</h3>
           <p class="text-sm text-red-600 mb-4">Elimina todos los datos demo del sistema (OTs, avales, encuestas, clientes, productos). <strong>Esta acción no se puede deshacer.</strong></p>
-          <button onclick="limpiarBD()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-bd">
-            <span>🗑️</span> Eliminar todos los datos demo
-          </button>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="limpiarBD()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-bd">
+              <span>🗑️</span> Eliminar todos los datos demo
+            </button>
+            <button onclick="limpiarOTs()" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-ots">
+              <span>🧹</span> Limpiar solo OTs, Avales y Encuestas
+            </button>
+          </div>
           <div id="limpiar-bd-result" class="mt-3 text-sm"></div>
         </div>
         ` : ''}
@@ -1429,7 +1437,25 @@ window.limpiarBD = async function () {
   }
 };
 
-
+window.limpiarOTs = async function () {
+  const btn = document.getElementById('btn-limpiar-ots');
+  const resultDiv = document.getElementById('limpiar-bd-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Limpiando...';
+  resultDiv.innerHTML = '';
+  try {
+    const res = await api('POST', '/api/limpiar-ots');
+    resultDiv.innerHTML = '<span class="text-green-700 font-medium">\u2705 ' + (res.message || 'OTs limpiadas exitosamente') + '</span>';
+    toast('OTs, avales y encuestas eliminados');
+    setTimeout(() => render(), 2000);
+  } catch (e) {
+    resultDiv.innerHTML = '<span class="text-red-700 font-medium">\u274c Error: ' + e.message + '</span>';
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>\ud83e\uddf9</span> Limpiar solo OTs, Avales y Encuestas';
+  }
+};
 
 window.saveConfig = async function () {
   const btn = document.getElementById('cfg-save-btn');
@@ -1903,6 +1929,7 @@ async function render() {
     if (key === 'nuevo-aval') main.innerHTML += renderModalNuevoAval();
     if (key === 'nueva-encuesta') main.innerHTML += renderModalNuevaEncuesta();
     if (key === 'nuevo-usuario') main.innerHTML += renderModalNuevoUsuario();
+    if (key === 'editar-usuario') main.innerHTML += renderModalEditarUsuario();
     if (key === 'entrega-aval' && modal.data) main.innerHTML += renderModalEntregaAval(modal.data);
     if (key === 'detalle-aval' && modal.data) main.innerHTML += renderModalDetalleAval(modal.data);
   }
@@ -2838,6 +2865,76 @@ window.submitNuevoUsuario = async function (e) {
     err.textContent = e.message;
     err.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Crear Usuario';
+  }
+};
+
+// ============ EDITAR USUARIO ============
+window.editarUsuario = function (id, nombre, email, rol, telefono) {
+  showModal('editar-usuario');
+  setTimeout(function() {
+    document.getElementById('eu-id').value = id;
+    document.getElementById('eu-nombre').value = nombre;
+    document.getElementById('eu-email').value = email;
+    document.getElementById('eu-rol').value = rol;
+    document.getElementById('eu-tel').value = telefono;
+  }, 100);
+};
+
+function renderModalEditarUsuario() {
+  return `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('editar-usuario')">
+      <div class="modal-content max-w-md">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold">Editar Usuario</h2>
+          <button onclick="closeModal('editar-usuario')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <form onsubmit="submitEditarUsuario(event)" class="p-6 space-y-4">
+          <div id="eu-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
+          <input type="hidden" id="eu-id">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label><input type="text" id="eu-nombre" class="input-field" required></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico *</label><input type="email" id="eu-email" class="input-field" required></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña <span class="text-gray-400 font-normal">(dejar vacío para mantener actual)</span></label><input type="password" id="eu-pass" class="input-field" minlength="6"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Rol *</label>
+            <select id="eu-rol" class="select-field">
+              <option value="tecnico">Técnico</option>
+              <option value="admin">Administrador</option>
+              <option value="servicio_cliente">Servicio al Cliente</option>
+            </select></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input type="text" id="eu-tel" class="input-field" placeholder="809-555-0100"></div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="closeModal('editar-usuario')" class="btn-secondary">Cancelar</button>
+            <button type="submit" class="btn-primary">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+window.submitEditarUsuario = async function (e) {
+  e.preventDefault();
+  const err = document.getElementById('eu-error');
+  err.classList.add('hidden');
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Guardando...';
+
+  try {
+    const id = document.getElementById('eu-id').value;
+    var body = {
+      nombre: document.getElementById('eu-nombre').value.trim(),
+      email: document.getElementById('eu-email').value.trim(),
+      rol: document.getElementById('eu-rol').value,
+      telefono: document.getElementById('eu-tel').value.trim() || null,
+    };
+    var pass = document.getElementById('eu-pass').value;
+    if (pass && pass.length >= 6) body.password = pass;
+    await api('PUT', '/api/usuarios/' + id, body);
+    closeModal('editar-usuario');
+    toast('Usuario actualizado correctamente');
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Guardar Cambios';
   }
 };
 
