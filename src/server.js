@@ -363,7 +363,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     // Calculate monto_total from precios fijos
     let montoCalculado = 0;
     if (body.productos && Array.isArray(body.productos)) {
-      const tipo = body.tipo_servicio || 'instalacion';
+      const tipo = body.tipo_servicio || 'proyecto_nuevo';
       const precios = tipo === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
       for (const p of body.productos) {
         if (p.producto_id && p.cantidad > 0) {
@@ -1179,7 +1179,7 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
         `, [ot.aval_id]);
 
         for (const p of productosConfirmados) {
-          if (ot.tipo_servicio === 'instalacion') {
+          if (ot.tipo_servicio === 'proyecto_nuevo') {
             if (p.categoria === 'cerradura') cerradurasNuevas += p.cantidad_confirmada;
             else if (p.categoria === 'caja_fuerte') cajasNuevas += p.cantidad_confirmada;
             else if (p.categoria === 'control_acceso') controlAccesoNuevo += p.cantidad_confirmada;
@@ -1199,7 +1199,7 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
           WHERE otp.orden_trabajo_id = ?
         `, [ot.id]);
         for (const p of prods) {
-          if (ot.tipo_servicio === 'instalacion') {
+          if (ot.tipo_servicio === 'proyecto_nuevo') {
             if (p.categoria === 'cerradura') cerradurasNuevas += p.cantidad;
             else if (p.categoria === 'caja_fuerte') cajasNuevas += p.cantidad;
             else if (p.categoria === 'control_acceso') controlAccesoNuevo += p.cantidad;
@@ -1373,7 +1373,7 @@ app.get('/api/reportes', authMiddleware, adminOnly, (req, res) => {
   let sumTE = 0, sumDE = 0, sumPR = 0, sumCP = 0, sumCE = 0, countEval = 0;
 
   for (const ot of ordenes) {
-    if (ot.tipo_servicio === 'instalacion') totalCerraduras++;
+    if (ot.tipo_servicio === 'proyecto_nuevo') totalCerraduras++;
     if (ot.tipo_servicio === 'mantenimiento') totalMantCer++;
     if (ot.porcentaje_final) {
       sumTE += ot.tiempo_entrega || 0; sumDE += ot.desempeno_equipo || 0;

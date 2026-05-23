@@ -1546,27 +1546,25 @@ window.showModal = function (id, data) {
 };
 
 window.calcularMontoEstimadoOT = async function () {
-  const div = document.getElementById('ot-monto-estimado');
+  var div = document.getElementById('ot-monto-estimado');
   if (!div) return;
-  const productos = window._prodOT || [];
-  if (productos.length === 0) {
-    div.innerHTML = '<span class="text-gray-400 italic">Agrega productos para calcular</span>';
+  if (typeof _productosSeleccionados === 'undefined') _productosSeleccionados = [];
+  if (_productosSeleccionados.length === 0) {
+    div.innerHTML = '<span class="text-gray-400 italic">Selecciona cantidades para calcular</span>';
     return;
   }
   try {
-    const d = await api('GET', '/api/config');
-    const valores = d.valores || {};
-    const tipo = document.getElementById('ot-tipo')?.value || 'instalacion';
-    let total = 0;
-    for (const p of productos) {
-      const cat = await obtenerCategoriaProducto(p.producto_id);
-      if (cat && valores[tipo] && valores[tipo][cat]) {
-        total += valores[tipo][cat] * (p.cantidad || 1);
-      }
+    var d = await api('GET', '/api/config');
+    var cfg = d.config || {};
+    var total = 0;
+    for (var i = 0; i < _productosSeleccionados.length; i++) {
+      var p = _productosSeleccionados[i];
+      var precio = p.precio || 0;
+      total += precio * p.cantidad;
     }
-    div.innerHTML = '<span class="font-semibold text-blue-700">RD$ ' + total.toLocaleString('es-DO') + '</span> <span class="text-gray-400 text-xs">(estimado según configuración)</span>';
+    div.innerHTML = '<span class="font-semibold text-blue-700">RD$ ' + Number(total).toLocaleString('es-DO') + '</span> <span class="text-gray-400 text-xs">(estimado seg\u00fan configuraci\u00f3n)</span>';
   } catch (e) {
-    div.innerHTML = '<span class="text-gray-400 italic">No se pudo calcular (configuración no disponible)</span>';
+    div.innerHTML = '<span class="text-gray-400 italic">No se pudo calcular (configuraci\u00f3n no disponible)</span>';
   }
 };
 
@@ -1581,7 +1579,7 @@ window.obtenerCategoriaProducto = async function (productoId) {
 
 window.closeModal = function (id) {
   delete modals[id];
-  if (id === 'nueva-ot') window._prodOT = [];
+  if (id === 'nueva-ot') { _productosSeleccionados = []; }
   render();
 };
 
@@ -2079,9 +2077,8 @@ function bindModalEvents() {
 
 function renderModalNuevaOT() {
   loadTecnicos();
-  cargarProductosSelect();
-  window._prodOT = window._prodOT || [];
-  _productosSeleccionados = window._prodOT;
+  cargarCategoriasOT();
+  _productosSeleccionados = [];
   cargarPresupuestosSelect();
   preloadNPClientes();
 
@@ -2186,11 +2183,10 @@ function renderModalNuevaOT() {
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Tipo Servicio</label>
-              <select id="ot-tipo" class="select-field">
-                <option value="instalacion">Instalación</option><option value="mantenimiento">Mantenimiento</option>
-                <option value="reparacion">Reparación</option>
+              <select id="ot-tipo" class="select-field" onchange="onCambiarTipoOT()">
+                <option value="proyecto_nuevo">Proyecto Nuevo</option><option value="mantenimiento">Mantenimiento</option>
               </select></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Técnico Asignado</label>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">T\u00e9cnico Asignado</label>
               <select id="ot-tecnico" class="select-field"><option value="">Sin asignar...</option></select></div>
           </div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label><textarea id="ot-desc" class="input-field" rows="3" placeholder="Detalles del trabajo a realizar"></textarea></div>
@@ -2201,17 +2197,9 @@ function renderModalNuevaOT() {
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha Programada</label><input type="date" id="ot-fecha" class="input-field"></div>
           </div>
           <div class="border-t border-gray-200 pt-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Productos</label>
-            <div id="ot-productos-list" class="space-y-2 mb-3"></div>
-            <div class="flex gap-2 items-end">
-              <div class="flex-1">
-                <select id="ot-prod-select" class="select-field"><option value="">Seleccionar producto...</option></select>
-              </div>
-              <div class="w-24">
-                <input type="number" id="ot-prod-cant" class="input-field" placeholder="Cant." min="1" value="1">
-              </div>
-              <button type="button" onclick="agregarProductoOT()" class="btn-success text-sm px-3 py-2.5">+</button>
-            </div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Servicios por Categoría</label>
+            <div id="ot-categorias-list" class="space-y-3 mb-3"></div>
+            <p class="text-xs text-gray-400 italic">Los precios se configuran desde Configuraci&oacute;n &gt; Valores por Tipo de Servicio</p>
           </div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" onclick="closeModal('nueva-ot')" class="btn-secondary">Cancelar</button>
@@ -2234,25 +2222,96 @@ async function cargarProductosSelect() {
   } catch (e) { /* ignore */ }
 }
 
-window.agregarProductoOT = function () {
-  const sel = document.getElementById('ot-prod-select');
-  const cant = document.getElementById('ot-prod-cant');
-  const pid = parseInt(sel.value);
-  const qty = parseInt(cant.value) || 1;
-  if (!pid) return;
-  const prod = _productos.find(p => p.id === pid);
-  if (!prod) return;
+// Categorias de servicio para el modal de OT
+var _categoriasServicio = [
+  { key: 'cerradura', label: 'Cerradura Electr\u00f3nica', icon: '\ud83d\udd12' },
+  { key: 'control_acceso', label: 'Control de Acceso', icon: '\ud83d\udee1\ufe0f' },
+  { key: 'caja_fuerte', label: 'Caja Fuerte', icon: '\ud83d\udd10' },
+  { key: 'ahorro_energia', label: 'Ahorro de Energ\u00eda', icon: '\ud83d\udca1' },
+];
+var _categoriasMant = [
+  { key: 'mant_cerradura', label: 'Mant. Cerradura Elect.', icon: '\ud83d\udd27' },
+  { key: 'mant_caja_fuerte', label: 'Mant. Caja Fuerte', icon: '\ud83d\udd29' },
+  { key: 'mant_ahorro_energia', label: 'Mant. Ahorro de Energ\u00eda', icon: '\u26a1' },
+];
+var _preciosCategorias = {};
 
-  const existing = _productosSeleccionados.findIndex(p => p.producto_id === pid);
-  if (existing >= 0) {
-    _productosSeleccionados[existing].cantidad += qty;
-  } else {
-    _productosSeleccionados.push({ producto_id: pid, nombre: prod.nombre, cantidad: qty });
+async function cargarCategoriasOT() {
+  try {
+    // Cargar productos reales tambien para mapeo categoria->id
+    var dp = await api('GET', '/api/productos');
+    _productos = dp.productos || [];
+    var d = await api('GET', '/api/config');
+    _preciosCategorias = d.config || {};
+    renderCategoriasOT();
+  } catch (e) {
+    console.error('Error cargando categorias:', e);
   }
-  actualizarListaProductosOT();
+}
+
+function renderCategoriasOT() {
+  var container = document.getElementById('ot-categorias-list');
+  if (!container) return;
+  _productosSeleccionados = [];
+  var tipo = document.getElementById('ot-tipo') ? document.getElementById('ot-tipo').value : 'proyecto_nuevo';
+  var cats;
+  if (tipo === 'mantenimiento') {
+    cats = _categoriasMant;
+  } else {
+    cats = _categoriasServicio;
+  }
+  container.innerHTML = cats.map(function(c) {
+    var precio = _preciosCategorias[c.key] || 0;
+    return '<div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">' +
+      '<div class="flex items-center gap-3">' +
+        '<span class="text-xl">' + c.icon + '</span>' +
+        '<div>' +
+          '<p class="text-sm font-semibold text-gray-700">' + escHtml(c.label) + '</p>' +
+          '<p class="text-xs text-gray-400">RD$ ' + Number(precio).toFixed(2) + ' c/u</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="flex items-center gap-2">' +
+        '<input type="number" id="ot-cat-' + c.key + '" class="input-field w-20 text-center" placeholder="0" min="0" value="0" onchange="actualizarCategoriaOT()">' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  actualizarCategoriaOT();
+}
+
+function actualizarCategoriaOT() {
+  _productosSeleccionados = [];
+  var tipo = document.getElementById('ot-tipo') ? document.getElementById('ot-tipo').value : 'proyecto_nuevo';
+  var cats;
+  if (tipo === 'mantenimiento') {
+    cats = _categoriasMant;
+  } else {
+    cats = _categoriasServicio;
+  }
+  cats.forEach(function(c) {
+    var inp = document.getElementById('ot-cat-' + c.key);
+    if (inp) {
+      var qty = parseInt(inp.value) || 0;
+      if (qty > 0) {
+        var precio = _preciosCategorias[c.key] || 0;
+        _productosSeleccionados.push({
+          producto_id: 0,
+          categoria: c.key,
+          nombre: c.label,
+          cantidad: qty,
+          precio: precio
+        });
+      }
+    }
+  });
   calcularMontoEstimadoOT();
-  sel.value = '';
-  cant.value = '1';
+}
+
+function onCambiarTipoOT() {
+  renderCategoriasOT();
+}
+
+window.agregarProductoOT = function () {
+  // Ya no se usa, reemplazado por categorias
 };
 
 function actualizarListaProductosOT() {
@@ -2329,15 +2388,26 @@ window.submitNuevaOT = async function (e) {
     cliente_id = Number(cliente_id);
   }
 
-  // Read productos directly from the DOM list items
-  const productosList = document.getElementById('ot-productos-list');
-  const items = productosList ? productosList.querySelectorAll('[data-prod-id]') : [];
-  const productos = [];
-  items.forEach(el => {
-    const pid = parseInt(el.dataset.prodId);
-    const qty = parseInt(el.dataset.prodCant) || 1;
-    if (pid) productos.push({ producto_id: pid, cantidad: qty });
-  });
+  // Read categorias (productos) from _productosSeleccionados
+  var productos = [];
+  if (typeof _productosSeleccionados !== 'undefined') {
+    for (var i = 0; i < _productosSeleccionados.length; i++) {
+      var p = _productosSeleccionados[i];
+      if (p.cantidad > 0) {
+        // Buscar un producto real que tenga esta categoria
+        var prodReal = null;
+        for (var j = 0; j < (_productos || []).length; j++) {
+          if (_productos[j].categoria === p.categoria) {
+            prodReal = _productos[j];
+            break;
+          }
+        }
+        if (prodReal) {
+          productos.push({ producto_id: prodReal.id, cantidad: p.cantidad });
+        }
+      }
+    }
+  }
 
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Creando...';
