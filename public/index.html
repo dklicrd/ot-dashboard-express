@@ -2253,7 +2253,13 @@ async function cargarCategoriasOT() {
     var dp = await api('GET', '/api/productos');
     _productos = dp.productos || [];
     var d = await api('GET', '/api/config');
-    _preciosCategorias = d.config || {};
+    var cfg = d.config || {};
+    // Mapear keys de config (valor_X) a keys de categoria (X)
+    _preciosCategorias = {};
+    var mapKeys = { 'valor_cerradura':'cerradura', 'valor_control_acceso':'control_acceso', 'valor_caja_fuerte':'caja_fuerte', 'valor_ahorro_energia':'ahorro_energia', 'mant_cerradura':'mant_cerradura', 'mant_caja_fuerte':'mant_caja_fuerte', 'mant_ahorro_energia':'mant_ahorro_energia' };
+    for (var ck in mapKeys) {
+      if (cfg[ck] !== undefined) _preciosCategorias[mapKeys[ck]] = cfg[ck];
+    }
     renderCategoriasOT();
   } catch (e) {
     console.error('Error cargando categorias:', e);
@@ -2419,7 +2425,7 @@ window.submitNuevaOT = async function (e) {
       presupuesto_id: presupuesto_id,
       tipo_servicio: document.getElementById('ot-tipo').value,
       descripcion: document.getElementById('ot-desc').value,
-      monto_total: 0,
+      monto_total: (function() { var t=0; if(typeof _productosSeleccionados!=='undefined') for(var i=0;i<_productosSeleccionados.length;i++){var p=_productosSeleccionados[i];t+=(p.precio||0)*p.cantidad} return t; })(),
       tecnico_id: Number(document.getElementById('ot-tecnico').value) || null,
       fecha_programada: document.getElementById('ot-fecha').value || null,
       presupuesto_aprobado: 1,
