@@ -1754,6 +1754,27 @@ app.get(/^\/(?!api\/|uploads\/|orden\/).*/, (req, res) => {
 
 
 
+
+// ============ LIMPIAR SOLO OT, AVALES, ENCUESTAS (mantiene clientes, productos, usuarios) ============
+app.post('/api/limpiar-ots', authMiddleware, superAdminOnly, (req, res) => {
+  try {
+    transaction(() => {
+      const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','notificaciones_ot','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos'];
+      for (const t of tables) {
+        try { run('DELETE FROM ' + t); } catch(e) { console.warn('No se pudo limpiar ' + t); }
+      }
+      try { run('DELETE FROM sqlite_sequence WHERE name IN ("ordenes_trabajo","presupuestos","avales","avales_legacy","encuestas_satisfaccion")'); } catch(e) {}
+    });
+    // Exportar backup inmediatamente
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+    console.log('🧹 OTs, avales y encuestas limpiados por:', req.user.email);
+    res.json({ success: true, message: 'OTs, avales y encuestas eliminados. Clientes, productos y usuarios intactos.' });
+  } catch (e) {
+    console.error('Error limpiando OTs:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ============ LIMPIEZA DE BD (admin only) ============
 app.post('/api/limpiar-bd', authMiddleware, superAdminOnly, (req, res) => {
   try {
