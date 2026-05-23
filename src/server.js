@@ -366,9 +366,13 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
       const tipo = body.tipo_servicio || 'proyecto_nuevo';
       const precios = tipo === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
       for (const p of body.productos) {
-        if (p.producto_id && p.cantidad > 0) {
-          const prod = queryFirst('SELECT categoria FROM productos WHERE id = ?', [p.producto_id]);
-          const precio = precios[prod?.categoria] || 0;
+        if (p.cantidad > 0) {
+          var cat = p.categoria || '';
+          if (!cat && p.producto_id) {
+            var prod = queryFirst('SELECT categoria FROM productos WHERE id = ?', [p.producto_id]);
+            cat = prod?.categoria || '';
+          }
+          var precio = precios[cat] || 0;
           montoCalculado += precio * p.cantidad;
         }
       }
@@ -388,9 +392,24 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     // Insert productos if provided
     if (body.productos && Array.isArray(body.productos) && otRow) {
       for (const p of body.productos) {
-        if (p.producto_id && p.cantidad > 0) {
-          run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (?, ?, ?)',
-            [otRow.id, p.producto_id, p.cantidad]);
+        if (p.cantidad > 0) {
+          var pid = p.producto_id || 0;
+          // If no producto_id but has categoria, create or find product by categoria
+          if (!pid && p.categoria) {
+            var prodExistente = queryFirst('SELECT id FROM productos WHERE categoria = ? LIMIT 1', [p.categoria]);
+            if (prodExistente) {
+              pid = prodExistente.id;
+            } else if (p.nombre) {
+              run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)',
+                [p.nombre, p.categoria, 'Creado automaticamente desde OT']);
+              prodExistente = queryFirst('SELECT id FROM productos WHERE categoria = ?', [p.categoria]);
+              pid = prodExistente ? prodExistente.id : 0;
+            }
+          }
+          if (pid > 0) {
+            run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (?, ?, ?)',
+              [otRow.id, pid, p.cantidad]);
+          }
         }
       }
     }

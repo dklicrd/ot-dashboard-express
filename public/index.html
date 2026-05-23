@@ -405,8 +405,19 @@ async function renderOrdenes() {
   const estadoLabel = { pendiente: 'Pendiente', aprobada: 'Aprobada', en_curso: 'En Curso', aval_entregado: 'Aval Entregado', completada: 'Completada', cancelada: 'Cancelada' };
 
   const rows = ordenes.map(ot => {
-    const prodHtml = ot.productos && ot.productos.length > 0
-      ? ot.productos.map(p => `${escHtml(p.nombre)} x${p.cantidad}`).join(', ')
+    // Group productos by categoria, show unique categories with total qty
+    var catMap = {};
+    if (ot.productos && ot.productos.length > 0) {
+      for (var pi = 0; pi < ot.productos.length; pi++) {
+        var pp = ot.productos[pi];
+        var cat = pp.categoria || pp.nombre || '—';
+        cat = cat.replace(/_/g, ' ');
+        catMap[cat] = (catMap[cat] || 0) + (pp.cantidad || 0);
+      }
+    }
+    var catKeys = Object.keys(catMap);
+    var catHtml = catKeys.length > 0
+      ? catKeys.map(function(k) { return escHtml(k.charAt(0).toUpperCase() + k.slice(1)) + ' x' + catMap[k]; }).join(', ')
       : '<span class="text-gray-400">—</span>';
 
     // Build action buttons based on estado
@@ -428,7 +439,7 @@ async function renderOrdenes() {
       <td class="py-3 px-4 font-medium whitespace-nowrap"><a href="/orden/${ot.id}?token=${state.token}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold">${ot.numero_ot}</a></td>
       <td class="py-3 px-4">${escHtml(ot.cliente_nombre)}</td>
       <td class="py-3 px-4"><span class="badge capitalize bg-gray-100 text-gray-700">${ot.tipo_servicio}</span></td>
-      <td class="py-3 px-4 text-sm text-gray-600 max-w-[200px] truncate" title="${escHtml(prodHtml.replace(/<[^>]+>/g, ''))}">${prodHtml}</td>
+      <td class="py-3 px-4 text-sm text-gray-600 max-w-[200px] truncate" title="${escHtml(catHtml.replace(/<[^>]+>/g, ''))}">${catHtml}</td>
       <td class="py-3 px-4">${ot.tecnico_nombre || '<span class="text-gray-400">—</span>'}</td>
       <td class="py-3 px-4"><span class="badge-${ot.estado}">${estadoLabel[ot.estado] || ot.estado}</span></td>
       <td class="py-3 px-4 text-right font-medium">RD$ ${(ot.monto_total || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}</td>
@@ -450,7 +461,7 @@ async function renderOrdenes() {
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Tipo</th>
-              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Productos</th>
+              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Categor\u00eda</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Técnico</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
               <th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Monto</th>
@@ -2394,17 +2405,7 @@ window.submitNuevaOT = async function (e) {
     for (var i = 0; i < _productosSeleccionados.length; i++) {
       var p = _productosSeleccionados[i];
       if (p.cantidad > 0) {
-        // Buscar un producto real que tenga esta categoria
-        var prodReal = null;
-        for (var j = 0; j < (_productos || []).length; j++) {
-          if (_productos[j].categoria === p.categoria) {
-            prodReal = _productos[j];
-            break;
-          }
-        }
-        if (prodReal) {
-          productos.push({ producto_id: prodReal.id, cantidad: p.cantidad });
-        }
+        productos.push({ categoria: p.categoria, nombre: p.nombre, cantidad: p.cantidad });
       }
     }
   }
