@@ -73,9 +73,19 @@ function needsRestore() {
   try {
     const numOrdenes = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0;
     const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
+    const hasBackup = fs.existsSync(BACKUP_FILE);
+    const limpiadoFlag = fs.existsSync(path.join(path.dirname(BACKUP_FILE), '.limpiado'));
+
+    // Si se hizo una limpieza intencional, NO restaurar
+    if (limpiadoFlag) {
+      console.log('🧹 Limpieza manual detectada (.limpiado), saltando restauracion.');
+      // Eliminar el flag para futuros arranques
+      try { fs.unlinkSync(path.join(path.dirname(BACKUP_FILE), '.limpiado')); } catch(e) {}
+      return false;
+    }
+
     // Datos "seed" son exactamente 7 OTs y 5 clientes
     const isSeedData = numOrdenes <= 7 && numClientes <= 5;
-    const hasBackup = fs.existsSync(BACKUP_FILE);
 
     if (isSeedData && hasBackup) {
       // Solo restaurar si el backup tiene datos reales

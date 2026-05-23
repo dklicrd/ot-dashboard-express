@@ -1732,6 +1732,13 @@ app.post('/api/limpiar-bd', authMiddleware, superAdminOnly, (req, res) => {
       try { run('DELETE FROM usuarios WHERE email != "admin@sistema.com"'); } catch(e) {}
       try { run('DELETE FROM sqlite_sequence'); } catch(e) {}
     });
+    // Tambien limpiar el backup y marcar que fue limpieza intencional
+    try {
+      const BACKUP_FILE = require('path').join(__dirname, '..', 'data', 'backup.json');
+      require('fs').writeFileSync(BACKUP_FILE, '{}', 'utf-8');
+      const LIMPIADO_FILE = require('path').join(__dirname, '..', 'data', '.limpiado');
+      require('fs').writeFileSync(LIMPIADO_FILE, new Date().toISOString(), 'utf-8');
+    } catch(e) { console.warn('No se pudo limpiar backup:', e.message); }
     console.log('🧹 BD limpiada por admin:', req.user.email);
     res.json({ success: true, message: 'BD limpiada. Datos demo eliminados correctamente.' });
     setTimeout(() => process.exit(0), 2000);
