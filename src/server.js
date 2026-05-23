@@ -1741,7 +1741,8 @@ app.post('/api/limpiar-bd', authMiddleware, superAdminOnly, (req, res) => {
     } catch(e) { console.warn('No se pudo limpiar backup:', e.message); }
     console.log('🧹 BD limpiada por admin:', req.user.email);
     res.json({ success: true, message: 'BD limpiada. Datos demo eliminados correctamente.' });
-    setTimeout(() => process.exit(0), 2000);
+    // Ya no reiniciamos el servidor — la BD esta limpia y el backup tambien
+    // Asi evitamos el Bad Gateway y el ciclo de restauracion
   } catch (e) {
     console.error('Error limpiando BD:', e);
     res.status(500).json({ error: e.message });
