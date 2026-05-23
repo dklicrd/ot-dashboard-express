@@ -1,5 +1,64 @@
 const nodemailer = require('nodemailer');
+const https = require('https');
 const { getDb, queryFirst, queryAll } = require('./db');
+
+// Prioridad 1: SendGrid API HTTP (funciona en Render free)
+// Prioridad 2: SMTP como fallback
+
+async function enviarEmail({ to, subject, html, attachments }) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (apiKey) {
+    return enviarViaSendGridAPI({ to, subject, html, attachments, apiKey });
+  }
+  // Fallback SMTP
+  return enviarViaSMTP({ to, subject, html, attachments });
+}
+
+function enviarViaSendGridAPI({ to, subject, html, attachments, apiKey }) {
+  return new Promise((resolve) => {
+    const recipients = Array.isArray(to) ? to : [to];
+    const personalizations = recipients.map(email => ({ to: [{ email }] }));
+    const payload = JSON.stringify({
+      personalizations,
+      from: { email: process.env.SMTP_FROM || 'a.plasencia@grupoarboleda.com', name: 'OT Dashboard' },
+      subject,
+      content: [{ type: 'text/html', value: html }],
+    });
+    const opts = {
+      hostname: 'api.sendgrid.com',
+      path: '/v3/mail/send',
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+      timeout: 10000,
+    };
+    const req = https.request(opts, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log('Email enviado via SendGrid API a:', to);
+          resolve({ success: true });
+        } else {
+          console.error('SendGrid error:', res.statusCode, body);
+          resolve({ success: false, error: 'SendGrid HTTP ' + res.statusCode + ': ' + body });
+        }
+      });
+    });
+    req.on('error', (e) => {
+      console.error('SendGrid error de red:', e.message);
+      // Fallback a SMTP
+      console.log('Fallback a SMTP...');
+      enviarViaSMTP({ to, subject, html, attachments }).then(resolve);
+    });
+    req.on('timeout', () => { req.destroy(); });
+    req.write(payload);
+    req.end();
+  });
+}
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
