@@ -1791,6 +1791,27 @@ app.post('/api/test-email', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Diagnostico de env vars email
+const https = require('https');
+app.get('/api/diag-conexion', authMiddleware, adminOnly, (req, res) => {
+  const targets = [
+    { host: 'api.sendgrid.com', path: '/v3/mail/send', method: 'OPTIONS' },
+    { host: 'smtp.sendgrid.net', path: '/', method: 'GET' },
+    { host: 'google.com', path: '/', method: 'GET' },
+  ];
+  let i = 0;
+  const results = {};
+  targets.forEach(t => {
+    const start = Date.now();
+    const r = https.request({ hostname: t.host, path: t.path, method: t.method, timeout: 5000 }, (resp) => {
+      results[t.host] = 'RESPONDE (status ' + resp.statusCode + ') en ' + (Date.now() - start) + 'ms';
+      i++; if (i === targets.length) res.json(results);
+    });
+    r.on('error', (e) => { results[t.host] = 'ERROR: ' + e.message; i++; if (i === targets.length) res.json(results); });
+    r.on('timeout', () => { r.destroy(); results[t.host] = 'TIMEOUT (5s)'; i++; if (i === targets.length) res.json(results); });
+    r.end();
+  });
+});
+
 app.get('/api/diag-email', authMiddleware, adminOnly, (req, res) => {
   res.json({
     SENDGRID_API_KEY: process.env.SENDGRID_API_KEY ? 'CONFIGURADA (primeros 10 chars: ' + process.env.SENDGRID_API_KEY.substring(0,10) + '...)' : 'NO CONFIGURADA',
