@@ -25,7 +25,7 @@ services:
         # ⚠️ No usar generateValue: true porque cada deploy regenera el secret
         # e invalida todos los tokens existentes. Usar valor fijo.
       - key: DASHBOARD_URL
-        value: https://ot-dashboard.onrender.com
+        value: https://ot-dashboard-9mn9.onrender.com
       # ⚠️ Free tier de Render NO tiene disco persistente.
       # Los datos en SQLite se pierden con cada deploy.
       # Para persistencia: actualizar a plan Starter ($7/mes)
