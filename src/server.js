@@ -538,13 +538,13 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       }
       run("UPDATE ordenes_trabajo SET estado=?, fecha_inicio=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
       // Enviar notificaciones por email al iniciar OT
-      try {
-        enviarNotificacionOT(id).catch(e => console.error('Error enviando email OT:', e.message));
-      } catch (e) {
-        console.error('Error al cargar modulo email:', e.message);
-      }
+      enviarNotificacionOT(id).then(result => {
+        console.log('Email OT notificacion:', result?.success ? 'enviado' : 'fallo');
+      }).catch(e => console.error('Error enviando email OT:', e.message));
+      res.json({ message: 'Estado actualizado', email: 'enviando' });
     } else {
       run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+      res.json({ message: 'Estado actualizado' });
     }
 
     res.json({ success: true, nuevoEstado });

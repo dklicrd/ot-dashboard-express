@@ -141,8 +141,8 @@ async function api(method, path, body) {
 // ============ LOGIN ============
 async function iniciarOT(id) {
   try {
-    await api('PUT', '/api/ordenes/' + id + '/estado', { estado: 'en_curso' });
-    toast('OT iniciada correctamente');
+    const r = await api('PUT', '/api/ordenes/' + id + '/estado', { estado: 'en_curso' });
+    toast('OT iniciada correctamente - ' + (r.email === 'enviado' || r.email === 'enviando' ? 'Notificación por email enviada' : ''));
     render();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
