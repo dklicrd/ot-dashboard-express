@@ -129,6 +129,7 @@ app.post('/api/usuarios', authMiddleware, adminOnly, async (req, res) => {
     if (!['admin', 'tecnico', 'servicio_cliente'].includes(rol)) {
       return res.status(400).json({ error: 'Rol inválido' });
     }
+    if (rol === 'admin' && req.user.rol === 'superadmin') { /* allow admin creation */ }
 
     const hashed = await bcrypt.hash(password, 10);
     run('INSERT INTO usuarios (nombre, email, password, rol, telefono) VALUES (?, ?, ?, ?, ?)',
@@ -152,7 +153,7 @@ app.put('/api/usuarios/:id', authMiddleware, adminOnly, async (req, res) => {
     if (!nombre || !email || !rol) {
       return res.status(400).json({ error: 'Nombre, email y rol requeridos' });
     }
-    if (!['admin', 'tecnico', 'servicio_cliente'].includes(rol)) {
+    if (!['admin', 'tecnico', 'servicio_cliente', 'superadmin'].includes(rol)) {
       return res.status(400).json({ error: 'Rol inválido' });
     }
 
