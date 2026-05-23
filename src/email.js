@@ -8,10 +8,47 @@ const { getDb, queryFirst, queryAll } = require('./db');
 async function enviarEmail({ to, subject, html, attachments }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (apiKey) {
+    // Probar SMTP de SendGrid primero (mas confiable en Render free)
+    const result = await enviarViaSendGridSMTP({ to, subject, html, attachments, apiKey });
+    if (result.success) return result;
+    console.log('SendGrid SMTP fallo, probando API HTTP...');
     return enviarViaSendGridAPI({ to, subject, html, attachments, apiKey });
   }
-  // Fallback SMTP
+  // Fallback SMTP Gmail
   return enviarViaSMTP({ to, subject, html, attachments });
+}
+
+function enviarViaSendGridSMTP({ to, subject, html, attachments, apiKey }) {
+  return new Promise((resolve) => {
+    const smtpTransport = nodemailer.createTransport({
+      host: 'smtp.sendgrid.net',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'apikey',
+        pass: apiKey,
+      },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
+    });
+    const recipients = Array.isArray(to) ? to.join(', ') : to;
+    smtpTransport.sendMail({
+      from: process.env.SMTP_FROM || 'a.plasencia@grupoarboleda.com',
+      to: recipients,
+      subject,
+      html,
+      attachments: attachments || [],
+    }, (err) => {
+      if (err) {
+        console.error('SendGrid SMTP error:', err.message);
+        resolve({ success: false, error: err.message });
+      } else {
+        console.log('Email enviado via SendGrid SMTP a:', to);
+        resolve({ success: true });
+      }
+    });
+  });
 }
 
 function enviarViaSendGridAPI({ to, subject, html, attachments, apiKey }) {
