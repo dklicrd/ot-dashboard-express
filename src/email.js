@@ -51,9 +51,21 @@ function enviarViaSendGridSMTP({ to, subject, html, attachments, apiKey }) {
         console.log('Email enviado via SendGrid SMTP a:', to);
         resolve({ success: true });
       }
+
+function enviarViaSendGridSMTP({ to, subject, html, attachments, apiKey }) {
+  return new Promise((resolve) => {
+    const smtpTransport = nodemailer.createTransport({
+      host: 'smtp.sendgrid.net',
+      port: 2525,
+      secure: false,
+      auth: {
+        user: 'apikey',
+        pass: apiKey,
+      },
+      connectionTimeout: 6000,
+      greetingTimeout: 6000,
+      socketTimeout: 8000,
     });
-  });
-}
     const recipients = Array.isArray(to) ? to.join(', ') : to;
     smtpTransport.sendMail({
       from: process.env.SMTP_FROM || 'a.plasencia@grupoarboleda.com',
