@@ -3,11 +3,6 @@ const { queryAll, queryFirst, run, transaction } = require('./db');
 async function initDatabase() {
   console.log('📦 Inicializando base de datos...');
 
-  // ═══════════════════════════════════════════════
-  // Backup & Restore (antes de seeds)
-  // ═══════════════════════════════════════════════
-  verificarYRestaurarBackup();
-
   run(`
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
