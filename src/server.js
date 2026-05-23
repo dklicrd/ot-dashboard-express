@@ -1790,4 +1790,15 @@ app.post('/api/test-email', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
+// Diagnostico de env vars email
+app.get('/api/diag-email', authMiddleware, adminOnly, (req, res) => {
+  res.json({
+    SENDGRID_API_KEY: process.env.SENDGRID_API_KEY ? 'CONFIGURADA (primeros 10 chars: ' + process.env.SENDGRID_API_KEY.substring(0,10) + '...)' : 'NO CONFIGURADA',
+    SMTP_USER: process.env.SMTP_USER || 'NO CONFIGURADO',
+    SMTP_HOST: process.env.SMTP_HOST || 'default: smtp.gmail.com',
+    SMTP_PORT: process.env.SMTP_PORT || 'default: 587',
+    SMTP_FROM: process.env.SMTP_FROM || 'NO CONFIGURADO',
+  });
+});
+
 start();
