@@ -54,17 +54,10 @@ function exportDatabase() {
     fs.writeFileSync(BACKUP_FILE, JSON.stringify(backup, null, 2), 'utf-8');
     console.log(`💾 Backup guardado en ${BACKUP_FILE} (${Object.keys(backup).length} tablas)`);
 
-    // Intentar commit y push del backup a GitHub
-    try {
-      const { execSync } = require('child_process');
-      const repoDir = path.join(__dirname, '..');
-      execSync('git add data/backup.json', { cwd: repoDir, stdio: 'ignore', timeout: 5000 });
-      execSync('git commit -m "chore: actualizar backup.json [auto]" --no-verify', { cwd: repoDir, stdio: 'ignore', timeout: 5000 });
-      execSync('git push origin master', { cwd: repoDir, stdio: 'ignore', timeout: 10000 });
-      console.log('⬆️ backup.json subido a GitHub');
-    } catch (e) {
-      // No es crítico — si falla, al menos el backup está en disco
-    }
+    // ⚠️ Render no tiene credenciales Git — el backup queda en disco efímero
+    // Para persistencia real: Render Starter (/mes) + disco persistente
+    // Mientras, el workflow: crear datos > descargar backup.json desde Render
+    // > subirlo manualmente al repo
 
     return true;
   } catch (e) {
