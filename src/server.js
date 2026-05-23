@@ -152,6 +152,7 @@ app.delete('/api/usuarios/:id', authMiddleware, adminOnly, (req, res) => {
     }
     run('UPDATE usuarios SET activo = 0 WHERE id = ?', [id]);
     res.json({ message: 'Usuario desactivado' });
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
   } catch (e) {
     console.error('Error deleting user:', e);
     res.status(500).json({ error: 'Error al eliminar usuario' });
@@ -184,6 +185,7 @@ app.put('/api/auth/password', authMiddleware, async (req, res) => {
     run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, req.user.userId]);
 
     res.json({ message: 'Contraseña actualizada correctamente' });
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
   } catch (e) {
     console.error('Error changing password:', e);
     res.status(500).json({ error: 'Error al cambiar contraseña' });
@@ -264,6 +266,7 @@ app.put('/api/productos/:id', authMiddleware, adminOnly, (req, res) => {
     run('UPDATE productos SET nombre=?, categoria=?, descripcion=?, activo=? WHERE id=?',
       [nombre.trim(), categoria, descripcion || null, activo !== undefined ? (activo ? 1 : 0) : 1, id]);
     res.json({ message: 'Producto actualizado' });
+    try { exportDatabase(); } catch(e) { console.error("Backup error:", e.message); }
   } catch (e) {
     console.error('Error updating producto:', e);
     res.status(500).json({ error: 'Error al actualizar producto' });
@@ -416,6 +419,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     }
 
     res.status(201).json({ numero_ot: num, monto_incentivo: montoCalculado, message: 'OT creada' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error creating OT:', e);
     res.status(500).json({ error: 'Error al crear OT' });
@@ -442,6 +446,7 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     }
 
     res.json({ success: true });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error updating OT:', e);
     res.status(500).json({ error: 'Error al actualizar OT' });
@@ -758,6 +763,7 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
     });
 
     res.json({ message: 'Aval confirmado. OT marcada como completada.' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error confirmando aval:', e);
     res.status(500).json({ error: 'Error al confirmar aval' });
@@ -929,6 +935,7 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
     }
 
     res.status(201).json({ numero_aval: numAval, pdf_url: `/uploads/avales/${pdfFilename}`, message: 'Aval creado' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error creating aval legacy:', e);
     res.status(500).json({ error: 'Error al crear aval' });
@@ -959,6 +966,7 @@ app.put('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
       [pdfPath, respuestas_digitales || '{}', id]);
 
     res.json({ success: true });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error updating aval legacy:', e);
     res.status(500).json({ error: 'Error al actualizar aval' });
@@ -1064,6 +1072,7 @@ app.post('/api/encuestas', authMiddleware, async (req, res) => {
     }
 
     res.status(201).json({ porcentaje_final: pct, message: 'Encuesta registrada' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error creating encuesta:', e);
     res.status(500).json({ error: 'Error al registrar encuesta' });
