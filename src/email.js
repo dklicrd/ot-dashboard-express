@@ -91,7 +91,7 @@ function enviarViaSendGridAPI({ to, subject, html, attachments, apiKey }) {
       console.error('SendGrid API error de red:', e.message);
       resolve({ success: false, error: e.message });
     });
-    req.on('timeout', function() { req.destroy(); });
+    req.on('timeout', function() { req.destroy(); resolve({ success: false, error: 'Request timeout' }); });
     req.write(payload);
     req.end();
   });
