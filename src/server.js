@@ -1774,4 +1774,20 @@ app.get('/api/exportar-backup', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
+// Endpoint de prueba de email (diagnostico)
+app.post('/api/test-email', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { to, subject } = req.body;
+    const destino = to || req.user.email;
+    const result = await enviarEmail({
+      to: destino,
+      subject: subject || 'Prueba SMTP - OT Dashboard',
+      html: '<h2>Prueba de SMTP</h2><p>Si recibes esto, el servidor SMTP esta funcionando correctamente.</p><p>Timestamp: ' + new Date().toISOString() + '</p>'
+    });
+    res.json({ success: result.success, message: result.success ? 'Email enviado a ' + destino : 'Error: ' + result.error });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 start();
