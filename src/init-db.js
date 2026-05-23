@@ -381,25 +381,7 @@ async function initDatabase() {
   const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
   
   // ═══════════════════════════════════════════════
-  // Si backup.json existe y está vacío, NO regenerar seeds
-  // (el usuario limpió la BD intencionalmente)
-  // ═══════════════════════════════════════════════
-  const fs = require('fs');
-  const path = require('path');
-  const BACKUP_FILE = path.join(__dirname, '..', 'data', 'backup.json');
-  const backupExisteVacio = fs.existsSync(BACKUP_FILE) && (() => {
-    try {
-      const content = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
-      return Object.keys(content).length === 0;
-    } catch (e) { return false; }
-  })();
-  
-  if (backupExisteVacio && numProductos === 0) {
-    console.log('📭 backup.json vacío detectado — saltando seeds demo');
-    console.log('✅ Base de datos lista');
-    return;
-  }
-  
+  // Si backup.json en el repo tiene datos reales,
   if (numProductos === 0) {
     const productosDemo = [
       ['Cerradura Eléctrica', 'cerradura', 'Cerradura eléctrica estándar para puertas'],
@@ -423,7 +405,7 @@ async function initDatabase() {
   // Seeds demo
   const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
   if (numClientes === 0) {
-    seedDemo();
+    await seedDemo();
   }
 
   // Seed orden_trabajo_productos if empty
@@ -547,21 +529,53 @@ async function seedDemo() {
 // SOLUCIÓN DEFINITIVA: Render Starter ($7/mes) con disk:
 // Ver render.yaml
 
-function verificarYRestaurarBackup() {
+async function verificarYRestaurarBackup() {
   try {
     const { needsRestore, restoreDatabase, exportDatabase } = require('./backup-restore');
 
     if (needsRestore()) {
       const restored = restoreDatabase();
       if (restored) {
-        console.log('✅ Datos restaurados desde backup');
+        console.log('\u2705 Datos restaurados desde backup');
+        return;
       }
     }
 
-    // Guardar backup cada vez que se inicie (si hay datos reales)
-    exportDatabase();
+    // Si no se restaur\u00f3, verificar si la BD est\u00e1 vac\u00eda y forzar seeds
+    const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
+    const numOTs = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0;
+
+    if (numClientes === 0 && numOTs === 0) {
+      // BD vac\u00eda sin backup viable — forzar seeds
+      console.log('\ud83d\udced BD vac\u00eda sin backup viable — insertando datos seed...');
+      const numProd = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
+      if (numProd === 0) {
+        const prodDemo = [
+          ['Cerradura El\u00e9ctrica', 'cerradura', 'Cerradura el\u00e9ctrica est\u00e1ndar para puertas'],
+          ['Cerradura Electr\u00f3nica', 'cerradura', 'Cerradura con teclado electr\u00f3nico'],
+          ['Cerradura Biom\u00e9trica', 'cerradura', 'Cerradura con lector de huella'],
+          ['Puerta de Metal', 'puerta', 'Puerta de metal reforzado'],
+          ['Puerta de Vidrio Templado', 'puerta', 'Puerta de vidrio templado de seguridad'],
+          ['Control de Acceso Pro', 'control_acceso', 'Sistema de control de acceso profesional'],
+          ['Control de Acceso B\u00e1sico', 'control_acceso', 'Control de acceso b\u00e1sico con tarjeta'],
+          ['Caja Fuerte Digital', 'caja_fuerte', 'Caja fuerte digital electr\u00f3nica'],
+          ['Caja Fuerte Mec\u00e1nica', 'caja_fuerte', 'Caja fuerte con combinaci\u00f3n mec\u00e1nica'],
+          ['Sistema Ahorro Energ\u00eda', 'ahorro_energia', 'Sistema inteligente de ahorro de energ\u00eda'],
+          ['Sensor de Movimiento', 'ahorro_energia', 'Sensor de movimiento para ahorro energ\u00e9tico'],
+        ];
+        for (var pi = 0; pi < prodDemo.length; pi++) {
+          run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)', prodDemo[pi]);
+        }
+        console.log('\u2705 Productos insertados (fallback)');
+      }
+      await seedDemo();
+      console.log('\u2705 Seeds insertados exitosamente');
+    }
+
+    // Guardar backup
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
-    console.error('⚠️ Error en backup/restore:', e.message);
+    console.error('\u26a0\ufe0f Error en backup/restore:', e.message);
   }
 }
 

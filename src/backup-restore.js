@@ -5,8 +5,14 @@
  * Este módulo guarda un backup de la BD como JSON en data/backup.json,
  * y si al iniciar la BD está vacía, intenta restaurar desde allí.
  *
- * ⚠️ SOLUCIÓN DEFINITIVA: migrar a Render Starter ($7/mes) y usar disk:
- *    Ver render.yaml — descomentar las secciones disk: y DB_PATH.
+ * ✅ SOLUCIÓN DEFINITIVA:
+ *   - backup.json se mantiene ACTUALIZADO en el repositorio vía GitHub Actions
+ *   - Cada operación CRUD importante exporta el backup automáticamente
+ *   - El workflow .github/workflows/backup-automatico.yml corre cada 6h
+ *   - Si el repositorio tiene backup.json con datos, se restaura en cada deploy
+ *
+ * ⚠️ Si quieres persistencia aún más robusta: Render Starter ($7/mes) con disk.
+ *    Ver render.yaml — descomentar secciones disk: y DB_PATH.
  */
 
 const fs = require('fs');
@@ -84,18 +90,30 @@ function needsRestore() {
       return false;
     }
 
-    // Datos "seed" son exactamente 7 OTs y 5 clientes
-    const isSeedData = numOrdenes <= 7 && numClientes <= 5;
+    // Si la BD está vacía o tiene solo datos seed (max 7 OTs y 5 clientes)
+    // y hay backup disponible con datos reales, restaurar
+    const isSeedData = numOrdenes <= 8 && numClientes <= 6;
 
-    if (isSeedData && hasBackup) {
-      // Solo restaurar si el backup tiene datos reales
+    if (hasBackup) {
       try {
         const backupContent = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
         const tableCount = Object.keys(backupContent).length;
-        if (tableCount > 0) {
-          return true;
+
+        if (tableCount === 0) {
+          console.log('📭 Backup vacío (0 tablas), saltando restauración.');
+          return false;
         }
-        console.log('📭 Backup vacío (0 tablas), saltando restauración.');
+
+        // Restaurar SIEMPRE que el backup tenga datos y la BD sea semilla
+        if (isSeedData) {
+          // Verificar que no sea el backup de semilla (sin productos ni clientes reales)
+          const numBackupClientes = (backupContent.clientes || []).length;
+          const numBackupOTs = (backupContent.ordenes_trabajo || []).length;
+          if (numBackupClientes > 5 || numBackupOTs > 7) {
+            console.log('🔄 Backup con datos reales detectado (' + numBackupClientes + ' clientes, ' + numBackupOTs + ' OTs) — restaurando...');
+            return true;
+          }
+        }
       } catch (e) {
         console.log('⚠️ Backup inválido, saltando restauración.');
       }
@@ -112,7 +130,7 @@ function needsRestore() {
   } catch (e) {
     console.error('❌ Error verificando restauración:', e.message);
     return false;
-  }
+ }
 }
 
 /**

@@ -15,7 +15,7 @@ const upload = multer({
     }
   }
 });
-const { initDatabase } = require('./init-db');
+const { initDatabase, verificarYRestaurarBackup } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
@@ -33,6 +33,7 @@ async function start() {
   try {
     await getDb();
     await initDatabase();
+    await verificarYRestaurarBackup();
 
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);
@@ -566,6 +567,7 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       res.json({ message: 'Estado actualizado' });
     }
 
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
     res.json({ success: true, nuevoEstado });
   } catch (e) {
     console.error('Error actualizando estado OT:', e);
@@ -713,6 +715,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     });
 
     res.status(201).json({ message: 'Aval entregado correctamente', aval_id: queryFirst(`SELECT id FROM avales WHERE orden_trabajo_id = ?`, [body.orden_trabajo_id]).id });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error creating aval de entrega:', e);
     res.status(500).json({ error: 'Error al registrar aval' });
@@ -1103,6 +1106,7 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
 
     const config = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
     res.json({ message: 'Configuración actualizada', config });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error updating config:', e);
     res.status(500).json({ error: 'Error al actualizar configuración' });
@@ -1142,7 +1146,8 @@ app.put('/api/config/documentos', authMiddleware, adminOnly, (req, res) => {
 
     const cfg = queryFirst('SELECT * FROM configuracion_documentos WHERE id = 1');
     delete cfg.id;
-    res.json({ message: 'Configuración de documentos actualizada', configuracion: cfg });
+    res.json({ message: 'Configuración de documentos actualizada', configuracion: cfg })
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); };
   } catch (e) {
     console.error('Error updating documentos config:', e);
     res.status(500).json({ error: 'Error al actualizar configuración de documentos' });
