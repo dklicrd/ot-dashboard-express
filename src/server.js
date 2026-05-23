@@ -1741,4 +1741,29 @@ app.post('/api/limpiar-bd', authMiddleware, superAdminOnly, (req, res) => {
   }
 });
 
+
+// Endpoint para forzar exportacion de backup
+app.post('/api/exportar-backup', authMiddleware, adminOnly, (req, res) => {
+  try {
+    exportDatabase();
+    res.json({ success: true, message: 'Backup exportado correctamente' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Descargar backup como JSON
+app.get('/api/exportar-backup', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const BACKUP_FILE = require('path').join(__dirname, '..', 'data', 'backup.json');
+    if (!require('fs').existsSync(BACKUP_FILE)) {
+      return res.status(404).json({ error: 'No hay backup disponible.' });
+    }
+    const backup = JSON.parse(require('fs').readFileSync(BACKUP_FILE, 'utf-8'));
+    res.json(backup);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 start();
