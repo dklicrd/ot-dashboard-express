@@ -543,10 +543,15 @@ async function seedDemo() {
 async function verificarYRestaurarBackup() {
   try {
     const { needsRestore, restoreDatabase, exportDatabase } = require('./backup-restore');
-    const { restaurarSiNecesario } = require('./ftp-backup');
 
     // PASO 0: Intentar descargar backup desde FTP si el local no es válido
-    await restaurarSiNecesario();
+    try {
+      const { restaurarSiNecesario } = require('./ftp-backup');
+      await restaurarSiNecesario();
+    } catch (ftpErr) {
+      // FTP puede fallar en Render free (puerto 21 bloqueado)
+      // No es crítico — continuamos con backup local o seeds
+    }
 
     if (needsRestore()) {
       const restored = restoreDatabase();

@@ -62,9 +62,12 @@ function exportDatabase() {
     console.log(`💾 Backup guardado en ${BACKUP_FILE} (${Object.keys(backup).length} tablas)`);
 
     // Subir a FTP para persistencia entre deploys
-    subirBackupFTP().catch(ftpErr => {
-      console.error('⚠️ No se pudo subir backup a FTP:', ftpErr.message);
-    });
+    try {
+      const { subirBackupFTP } = require('./ftp-backup');
+      subirBackupFTP().catch(() => {});
+    } catch(e) {
+      // FTP no disponible
+    }
 
     return true;
   } catch (e) {
