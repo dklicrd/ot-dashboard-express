@@ -851,7 +851,7 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
 
     const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
-    if (aval.estado !== 'pendiente') {
+    if (aval.estado !== 'pendiente' && aval.estado !== 'firmado_cliente') {
       return res.status(400).json({ error: 'El aval ya fue confirmado o rechazado' });
     }
 
