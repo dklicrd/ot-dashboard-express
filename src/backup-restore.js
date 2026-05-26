@@ -18,7 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getDb, queryAll, queryFirst, run, transaction } = require('./db');
-const { descargarBackupFTP, subirBackupFTP } = require('./ftp-backup');
+const { subirBackupFTP } = require('./ftp-backup');
 
 const BACKUP_FILE = path.join(__dirname, '..', 'data', 'backup.json');
 
@@ -62,9 +62,9 @@ function exportDatabase() {
     console.log(`💾 Backup guardado en ${BACKUP_FILE} (${Object.keys(backup).length} tablas)`);
 
     // Subir a FTP para persistencia entre deploys
-    try { subirBackupFTP(); } catch(ftpErr) {
+    subirBackupFTP().catch(ftpErr => {
       console.error('⚠️ No se pudo subir backup a FTP:', ftpErr.message);
-    }
+    });
 
     return true;
   } catch (e) {
@@ -79,18 +79,7 @@ function exportDatabase() {
 function needsRestore() {
   try {
     // PASO 1: Intentar descargar backup desde FTP si no hay local válido
-    const localExiste = fs.existsSync(BACKUP_FILE);
-    let localValido = false;
-    if (localExiste) {
-      try {
-        const c = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
-        if (Object.keys(c).length > 0) localValido = true;
-      } catch(e) {}
-    }
-    if (!localValido) {
-      console.log('🔍 Backup local no disponible, intentando descargar desde FTP...');
-      descargarBackupFTP();
-    }
+    // (Esto se hace antes de llamar a needsRestore, desde verificarYRestaurarBackup)
 
     const numOrdenes = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0;
     const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;

@@ -543,6 +543,10 @@ async function seedDemo() {
 async function verificarYRestaurarBackup() {
   try {
     const { needsRestore, restoreDatabase, exportDatabase } = require('./backup-restore');
+    const { restaurarSiNecesario } = require('./ftp-backup');
+
+    // PASO 0: Intentar descargar backup desde FTP si el local no es válido
+    await restaurarSiNecesario();
 
     if (needsRestore()) {
       const restored = restoreDatabase();
