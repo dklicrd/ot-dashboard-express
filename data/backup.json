@@ -238,289 +238,35 @@
       "creado_en": "2026-05-25 22:49:55"
     }
   ],
-  "presupuestos": [
-    {
-      "id": 1,
-      "cliente_id": 1,
-      "nombre_proyecto": "SECRETS AND DREAMS MICHES",
-      "aprobado": 1,
-      "creado_en": "2026-05-25 23:46:28"
-    },
-    {
-      "id": 2,
-      "cliente_id": 2,
-      "nombre_proyecto": "CASA MARINA REEF - FASE 2",
-      "aprobado": 1,
-      "creado_en": "2026-05-25 23:46:28"
-    },
-    {
-      "id": 3,
-      "cliente_id": 3,
-      "nombre_proyecto": "HYATT VIVID - MANTENIMIENTO Q1",
-      "aprobado": 1,
-      "creado_en": "2026-05-25 23:46:28"
-    }
-  ],
   "ordenes_trabajo": [
     {
       "id": 1,
       "numero_ot": "OT-2026-0001",
       "cliente_id": 1,
       "tipo_servicio": "instalacion",
-      "descripcion": "Instalacion cerraduras - test email+persistencia",
+      "descripcion": "Prueba flujo aval - instalacion cerraduras",
       "presupuesto_aprobado": 0,
-      "monto_total": 1350,
+      "monto_total": 300,
       "tecnico_id": 4,
-      "estado": "completada",
+      "estado": "aval_entregado",
       "fuente": "manual",
       "archivo_presupuesto": null,
       "notas": null,
       "creada_por": 9,
       "fecha_programada": null,
-      "fecha_inicio": "2026-05-25 23:51:04",
+      "fecha_inicio": "2026-05-26 14:23:15",
       "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-25 23:47:39",
-      "actualizado_en": "2026-05-25 23:55:24"
-    },
-    {
-      "id": 2,
-      "numero_ot": "OT-2026-0002",
-      "cliente_id": 5,
-      "tipo_servicio": "reparacion",
-      "descripcion": "Reparacion cerradura - prueba email real",
-      "presupuesto_aprobado": 0,
-      "monto_total": 300,
-      "tecnico_id": 2,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-25 23:55:30",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-25 23:55:30",
-      "actualizado_en": "2026-05-25 23:55:30"
-    },
-    {
-      "id": 3,
-      "numero_ot": "OT-2026-0003",
-      "cliente_id": 1,
-      "tipo_servicio": "instalacion",
-      "descripcion": "Test de email para Alex",
-      "presupuesto_aprobado": 0,
-      "monto_total": 450,
-      "tecnico_id": 4,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-25 23:58:11",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-25 23:58:11",
-      "actualizado_en": "2026-05-25 23:58:11"
-    },
-    {
-      "id": 4,
-      "numero_ot": "OT-2026-0004",
-      "cliente_id": 2,
-      "tipo_servicio": "instalacion",
-      "descripcion": "Test email - sender corregido",
-      "presupuesto_aprobado": 0,
-      "monto_total": 300,
-      "tecnico_id": 3,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-26 00:05:40",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-26 00:05:40",
-      "actualizado_en": "2026-05-26 00:05:40"
-    },
-    {
-      "id": 5,
-      "numero_ot": "OT-2026-0005",
-      "cliente_id": 3,
-      "tipo_servicio": "instalacion",
-      "descripcion": "Test - Rosaura es admin y tecnica",
-      "presupuesto_aprobado": 0,
-      "monto_total": 150,
-      "tecnico_id": 7,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-26 00:08:45",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-26 00:08:45",
-      "actualizado_en": "2026-05-26 00:08:45"
-    },
-    {
-      "id": 6,
-      "numero_ot": "OT-2026-0006",
-      "cliente_id": 4,
-      "tipo_servicio": "instalacion",
-      "descripcion": "Test email nuevo admin",
-      "presupuesto_aprobado": 0,
-      "monto_total": 300,
-      "tecnico_id": 5,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-26 00:10:46",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-26 00:10:46",
-      "actualizado_en": "2026-05-26 00:10:46"
-    },
-    {
-      "id": 7,
-      "numero_ot": "OT-2026-0007",
-      "cliente_id": 1,
-      "tipo_servicio": "reparacion",
-      "descripcion": "Test post-deploy forzado",
-      "presupuesto_aprobado": 0,
-      "monto_total": 300,
-      "tecnico_id": 7,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-26 00:14:55",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-26 00:14:54",
-      "actualizado_en": "2026-05-26 00:14:55"
-    },
-    {
-      "id": 8,
-      "numero_ot": "OT-2026-0008",
-      "cliente_id": 2,
-      "tipo_servicio": "instalacion",
-      "descripcion": "Test post-fix - deben llegar a todos los admins",
-      "presupuesto_aprobado": 0,
-      "monto_total": 300,
-      "tecnico_id": 7,
-      "estado": "en_curso",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 9,
-      "fecha_programada": null,
-      "fecha_inicio": "2026-05-26 00:18:44",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-05-26 00:18:44",
-      "actualizado_en": "2026-05-26 00:18:44"
+      "presupuesto_id": null,
+      "creado_en": "2026-05-26 14:22:09",
+      "actualizado_en": "2026-05-26 14:24:07"
     }
   ],
   "orden_trabajo_productos": [
     {
-      "id": 1,
+      "id": 16,
       "orden_trabajo_id": 1,
-      "producto_id": 1,
-      "cantidad": 1230
-    },
-    {
-      "id": 2,
-      "orden_trabajo_id": 2,
-      "producto_id": 1,
-      "cantidad": 24
-    },
-    {
-      "id": 3,
-      "orden_trabajo_id": 3,
       "producto_id": 3,
-      "cantidad": 50
-    },
-    {
-      "id": 4,
-      "orden_trabajo_id": 4,
-      "producto_id": 1,
-      "cantidad": 943
-    },
-    {
-      "id": 5,
-      "orden_trabajo_id": 5,
-      "producto_id": 1,
-      "cantidad": 46
-    },
-    {
-      "id": 6,
-      "orden_trabajo_id": 6,
-      "producto_id": 4,
-      "cantidad": 30
-    },
-    {
-      "id": 7,
-      "orden_trabajo_id": 1,
-      "producto_id": 1,
-      "cantidad": 5
-    },
-    {
-      "id": 8,
-      "orden_trabajo_id": 1,
-      "producto_id": 6,
       "cantidad": 2
-    },
-    {
-      "id": 9,
-      "orden_trabajo_id": 2,
-      "producto_id": 1,
-      "cantidad": 2
-    },
-    {
-      "id": 10,
-      "orden_trabajo_id": 3,
-      "producto_id": 1,
-      "cantidad": 3
-    },
-    {
-      "id": 11,
-      "orden_trabajo_id": 4,
-      "producto_id": 1,
-      "cantidad": 2
-    },
-    {
-      "id": 12,
-      "orden_trabajo_id": 5,
-      "producto_id": 1,
-      "cantidad": 1
-    },
-    {
-      "id": 13,
-      "orden_trabajo_id": 6,
-      "producto_id": 1,
-      "cantidad": 2
-    },
-    {
-      "id": 14,
-      "orden_trabajo_id": 7,
-      "producto_id": 1,
-      "cantidad": 2
-    },
-    {
-      "id": 15,
-      "orden_trabajo_id": 8,
-      "producto_id": 6,
-      "cantidad": 1
     }
   ],
   "avales": [
@@ -528,19 +274,25 @@
       "id": 1,
       "orden_trabajo_id": 1,
       "tecnico_id": 9,
-      "cliente_nombre": "Hotel Secrets Royal Beach",
-      "cliente_contacto": null,
-      "cliente_cedula": null,
-      "cliente_telefono": null,
-      "cliente_email": null,
-      "observaciones": null,
-      "fecha_entrega_tecnico": "2026-05-25 23:55:19",
+      "numero_aval": "AV-2026-0001",
+      "token_publico": "bf54c3eb3544b3f898cbebe723eda498",
+      "cliente_nombre": "Juan Perez Cliente",
+      "cliente_contacto": "Reservaciones",
+      "cliente_cedula": "101-12345-6",
+      "cliente_telefono": "809-555-0101",
+      "cliente_email": "secrets@hotel.com",
+      "observaciones": "Instalacion completada sin novedad",
+      "fecha_entrega_tecnico": "2026-05-26 14:24:07",
       "fecha_confirmacion_admin": null,
-      "estado": "pendiente",
+      "estado": "firmado_cliente",
       "confirmado_por": null,
-      "productos_tecnico": "[]",
+      "firma_cliente_data": "\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"",
+      "fecha_firma_cliente": "2026-05-26 14:24:26",
+      "token_enviado_en": null,
+      "token_visto_en": "2026-05-26 14:24:25",
+      "productos_tecnico": "[{\"producto_id\":3,\"cantidad\":2,\"comentario\":\"Instaladas en habitaciones 201 y 202\"}]",
       "productos_admin": null,
-      "creado_en": "2026-05-25 23:55:19"
+      "creado_en": "2026-05-26 14:24:07"
     }
   ],
   "configuracion_incentivos": [
@@ -565,7 +317,7 @@
   "configuracion_documentos": [
     {
       "id": 1,
-      "nombre_empresa": "DKLIC PLUS INVESTMENT",
+      "nombre_empresa": "ARBOLEDA HPS-IMPORT",
       "eslogan": "",
       "direccion": "",
       "telefono": "",
@@ -574,7 +326,7 @@
       "logo_base64": "",
       "pie_pagina": "Documento generado por el sistema",
       "color_primario": "#1e40af",
-      "actualizado_en": "2026-05-25 22:49:54"
+      "actualizado_en": "2026-05-26 14:18:16"
     }
   ]
 }
