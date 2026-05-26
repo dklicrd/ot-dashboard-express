@@ -2068,4 +2068,20 @@ app.get('/api/diag-email', authMiddleware, adminOnly, (req, res) => {
   });
 });
 
+// Endpoint para ver los admins que recibirian notificaciones
+app.get('/api/diag-admins-email', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const admins = queryAll("SELECT id, nombre, email, rol FROM usuarios WHERE (rol = 'admin' OR rol = 'superadmin') AND email IS NOT NULL AND email != ''");
+    const tecnicos = queryAll("SELECT id, nombre, email, rol FROM usuarios WHERE rol = 'tecnico' AND email IS NOT NULL AND email != ''");
+    res.json({
+      admins_notificacion: admins,
+      tecnicos_disponibles: tecnicos,
+      total_admins: admins.length,
+      total_tecnicos: tecnicos.length,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 start();
