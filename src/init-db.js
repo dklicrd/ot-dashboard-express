@@ -242,7 +242,8 @@ async function initDatabase() {
         token_enviado_en TEXT,
         token_visto_en TEXT,
 
-        -- Auditoría: guardar el JSON que reportó el técnico vs lo que confirmó admin
+        -- Historial de re-firmas
+        historial_firmas TEXT,
         productos_tecnico TEXT, -- JSON array de {producto_id, nombre, cantidad_reportada}
         productos_admin TEXT,   -- JSON array de {producto_id, nombre, cantidad_confirmada} (se llena al confirmar)
 

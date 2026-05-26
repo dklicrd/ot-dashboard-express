@@ -543,7 +543,7 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
 const TRANSICIONES_ESTADO = {
   'pendiente': ['en_curso', 'cancelada'],
   'en_curso': ['cancelada'], // 'aval_entregado' se maneja desde flujo de avales
-  'aval_entregado': ['completada'],
+  'aval_entregado': ['completada', 'cancelada'],
 };
 
 // ==================== API: ORDEN DE TRABAJO POR ID (detalle completo) ====================
@@ -655,6 +655,18 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
         console.log('Email OT notificacion:', result?.success ? 'enviado' : 'fallo');
       }).catch(e => console.error('Error enviando email OT:', e.message));
       res.json({ message: 'Estado actualizado', email: 'enviando' });
+    } else if (nuevoEstado === 'cancelada') {
+      // Si la OT tiene avales activos, marcarlos como rechazados
+      if (ot.estado === 'aval_entregado') {
+        const avalesActivos = queryAll("SELECT id FROM avales WHERE orden_trabajo_id = ? AND estado IN ('pendiente', 'firmado_cliente')", [id]);
+        for (const av of avalesActivos) {
+          run("UPDATE avales SET estado='rechazado', productos_admin='[]', confirmado_por=?, fecha_confirmacion_admin=datetime('now', '-04:00'), observaciones=COALESCE(observaciones, '') || ' | Motivo: OT cancelada' WHERE id=?",
+            [req.user.userId, av.id]);
+        }
+      }
+      run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+      return res.json({ success: true, nuevoEstado });
     } else if (nuevoEstado === 'completada' && ot.estado === 'en_curso') {
       // Solo admin/superadmin pueden completar directo (sin aval)
       if (req.user.rol !== 'admin' && req.user.rol !== 'superadmin') {
@@ -886,12 +898,77 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-// GET /api/avales/:id/pdf — genera HTML del aval para imprimir
-app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
+// PUT /api/avales/:id/rechazar — admin rechaza aval
+app.put('/api/avales/:id/rechazar', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (aval.estado !== 'pendiente' && aval.estado !== 'firmado_cliente') {
+      return res.status(400).json({ error: 'El aval no puede ser rechazado en su estado actual' });
+    }
+
+    transaction(() => {
+      run(`UPDATE avales SET estado='rechazado', productos_admin='[]', confirmado_por=?, fecha_confirmacion_admin=datetime('now', '-04:00') WHERE id=?`,
+        [req.user.userId, id]);
+      // NO cambiamos estado de la OT — sigue en aval_entregado
+    });
+
+    res.json({ message: 'Aval rechazado. La OT permanece en estado aval_entregado.' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error rechazando aval:', e);
+    res.status(500).json({ error: 'Error al rechazar aval' });
+  }
+});
+
+// PUT /api/avales/:id/subir-firma — admin sube foto de firma fisica
+const avalUpload = multer({
+  dest: path.join(__dirname, '..', 'public', 'uploads', 'avales', 'firmas'),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo imágenes'), false);
+    }
+  }
+});
+app.put('/api/avales/:id/subir-firma', authMiddleware, adminOnly, avalUpload.single('firma'), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (aval.estado === 'confirmado' || aval.estado === 'rechazado') {
+      return res.status(400).json({ error: 'Aval ya procesado' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'Archivo de firma requerido' });
+
+    const ext = path.extname(req.file.originalname) || '.png';
+    const firmaDir = path.join(__dirname, '..', 'public', 'uploads', 'avales', 'firmas');
+    if (!fs.existsSync(firmaDir)) fs.mkdirSync(firmaDir, { recursive: true });
+    const filename = 'firma_' + id + ext;
+    const destPath = path.join(firmaDir, filename);
+    fs.renameSync(req.file.path, destPath);
+    const firmaUrl = '/uploads/avales/firmas/' + filename;
+
+    run(`UPDATE avales SET firma_cliente_data=?, estado='firmado_cliente', fecha_firma_cliente=datetime('now', '-04:00') WHERE id=?`,
+      [JSON.stringify({ tipo: 'foto', url: firmaUrl }), id]);
+
+    res.json({ message: 'Firma subida correctamente', firma_url: firmaUrl });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error subiendo firma:', e);
+    res.status(500).json({ error: 'Error al subir firma' });
+  }
+});
+
+// GET /api/avales/:id/pdf — genera PDF (PDFKit) o HTML para imprimir
+app.get('/api/avales/:id/pdf', authMiddleware, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const aval = queryFirst(`
-      SELECT a.*, ot.numero_ot, u.nombre as tecnico_nombre
+      SELECT a.*, ot.numero_ot, ot.descripcion, u.nombre as tecnico_nombre
       FROM avales a
       JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
       LEFT JOIN usuarios u ON a.tecnico_id = u.id
@@ -907,7 +984,9 @@ app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
       WHERE ap.aval_id = ?
     `, [id]);
 
-    const prodRows = productos.map(p => `
+    // HTML mode (legacy)
+    if (req.query.html === 'true') {
+      const prodRows = productos.map(p => `
       <tr>
         <td style="border:1px solid #ddd;padding:8px">${p.producto_nombre}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center">${p.cantidad_reportada}</td>
@@ -916,9 +995,9 @@ app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
       </tr>
     `).join('');
 
-    const estadoLabel = aval.estado === 'confirmado' ? '✅ CONFIRMADO' : aval.estado === 'rechazado' ? '❌ RECHAZADO' : '⏳ PENDIENTE';
+      const estadoLabel = aval.estado === 'confirmado' ? '✅ CONFIRMADO' : aval.estado === 'rechazado' ? '❌ RECHAZADO' : '⏳ PENDIENTE';
 
-    const html = `<!DOCTYPE html>
+      const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Aval #${id}</title>
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; }
@@ -936,7 +1015,7 @@ app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
   @media print { body { margin: 0; } }
 </style></head><body>
 <div class="header">
-  <h1>AVAL DE INSTALACIÓN</h1>
+  <h1>AVAL DE INSTALACION</h1>
   <h2>OT: ${aval.numero_ot}</h2>
 </div>
 <div class="status">${estadoLabel}</div>
@@ -944,12 +1023,12 @@ app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
   <h3>DATOS DEL CLIENTE</h3>
   <table><tr><td class="label">Nombre:</td><td>${aval.cliente_nombre}</td></tr>
   <tr><td class="label">Contacto:</td><td>${aval.cliente_contacto || '-'}</td></tr>
-  <tr><td class="label">Cédula:</td><td>${aval.cliente_cedula || '-'}</td></tr>
-  <tr><td class="label">Teléfono:</td><td>${aval.cliente_telefono || '-'}</td></tr>
+  <tr><td class="label">Cedula:</td><td>${aval.cliente_cedula || '-'}</td></tr>
+  <tr><td class="label">Telefono:</td><td>${aval.cliente_telefono || '-'}</td></tr>
   <tr><td class="label">Email:</td><td>${aval.cliente_email || '-'}</td></tr></table>
 </div>
 <div class="section">
-  <h3>TÉCNICO ASIGNADO</h3>
+  <h3>TECNICO ASIGNADO</h3>
   <p>${aval.tecnico_nombre}</p>
 </div>
 <div class="section">
@@ -957,24 +1036,144 @@ app.get('/api/avales/:id/pdf', authMiddleware, (req, res) => {
   <table><thead><tr><th>Producto</th><th>Cant. Reportada</th><th>Cant. Confirmada</th><th>Comentario</th></tr></thead>
   <tbody>${prodRows}</tbody></table>
 </div>
-${aval.observaciones ? `<div class="section"><h3>OBSERVACIONES</h3><p>${aval.observaciones}</p></div>` : ''}
+${aval.observaciones ? '<div class="section"><h3>OBSERVACIONES</h3><p>' + aval.observaciones + '</p></div>' : ''}
 <div class="section">
   <h3>FECHAS</h3>
-  <table><tr><td class="label">Fecha Entrega Técnico:</td><td>${aval.fecha_entrega_tecnico}</td></tr>
-  ${aval.fecha_confirmacion_admin ? `<tr><td class="label">Fecha Confirmación Admin:</td><td>${aval.fecha_confirmacion_admin}</td></tr>` : ''}</table>
+  <table><tr><td class="label">Fecha Entrega Tecnico:</td><td>${aval.fecha_entrega_tecnico}</td></tr>
+  ${aval.fecha_confirmacion_admin ? '<tr><td class="label">Fecha Confirmacion Admin:</td><td>' + aval.fecha_confirmacion_admin + '</td></tr>' : ''}</table>
 </div>
+${aval.firma_cliente_data ? '<div class="section"><h3>FIRMA DEL CLIENTE</h3><p>' + aval.cliente_nombre + '</p></div>' : ''}
 <div class="footer">Documento generado por OT Dashboard - ${new Date().toLocaleDateString('es-DO')}</div>
-<script>window.print()</script>
 </body></html>`;
 
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
+      res.setHeader('Content-Type', 'text/html');
+      return res.send(html);
+    }
+
+    // --- PDF nativo con PDFKit ---
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ size: 'LETTER', margin: 50, info: {
+      Title: 'Aval ' + aval.numero_aval,
+      Author: 'OT Dashboard'
+    }});
+
+    const buffers = [];
+    doc.on('data', chunk => buffers.push(chunk));
+    doc.on('end', () => {
+      const pdfData = Buffer.concat(buffers);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="aval-' + aval.numero_aval + '.pdf"');
+      res.send(pdfData);
+    });
+
+    const lm = 50;
+    const pw = doc.page.width - 100;
+    const blue = '#2563eb';
+
+    doc.rect(0, 0, doc.page.width, 120).fill(blue);
+    doc.fillColor('#ffffff').fontSize(24).font('Helvetica-Bold').text('AVAL DE SERVICIO', lm, 30, { align: 'center' })
+      .fontSize(11).font('Helvetica').text('OT: ' + (aval.numero_ot || ''), lm, 65, { align: 'center' })
+      .fontSize(10).text('Aval: ' + (aval.numero_aval || '#'), lm, 90, { align: 'center' });
+
+    let y = 145;
+
+    // Cliente
+    doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold').text('DATOS DEL CLIENTE', lm, y);
+    y += 25;
+
+    function df(label, value, x, yp, w) {
+      doc.fillColor('#6b7280').fontSize(9).font('Helvetica').text(label, x, yp);
+      doc.fillColor('#1f2937').fontSize(10).font('Helvetica').text(value || '-', x + (label.length > 8 ? 90 : 60), yp, { width: w || 200 });
+    }
+    df('Nombre:', aval.cliente_nombre, lm, y, 200);
+    df('Contacto:', aval.cliente_contacto, lm + 280, y, 150);
+    y += 18;
+    df('Cedula:', aval.cliente_cedula, lm, y, 200);
+    df('Telefono:', aval.cliente_telefono, lm + 280, y, 150);
+    y += 18;
+    df('Email:', aval.cliente_email, lm, y, 400);
+    y += 35;
+
+    // Tecnico
+    doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold').text('TECNICO ASIGNADO', lm, y);
+    y += 22;
+    doc.fillColor('#374151').fontSize(10).font('Helvetica').text(aval.tecnico_nombre || '', lm, y);
+    y += 30;
+
+    // Productos
+    doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold').text('PRODUCTOS INSTALADOS', lm, y);
+    y += 25;
+
+    doc.rect(lm, y, pw, 20).fill(blue);
+    doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
+    doc.text('Producto', lm + 5, y + 5);
+    doc.text('Cant.', lm + 250, y + 5, { width: 40, align: 'center' });
+    doc.text('Conf.', lm + 295, y + 5, { width: 40, align: 'center' });
+    doc.text('Comentario', lm + 340, y + 5);
+    y += 20;
+
+    productos.forEach((p, i) => {
+      if (y > 710) { doc.addPage(); y = 50; }
+      if (i % 2 === 0) doc.rect(lm, y, pw, 18).fill('#f9fafb');
+      doc.fillColor('#374151').fontSize(9).font('Helvetica');
+      doc.text(p.producto_nombre, lm + 5, y + 4);
+      doc.text(String(p.cantidad_reportada), lm + 250, y + 4, { width: 40, align: 'center' });
+      doc.text(p.cantidad_confirmada !== null ? String(p.cantidad_confirmada) : '-', lm + 295, y + 4, { width: 40, align: 'center' });
+      doc.text(p.comentario || '', lm + 340, y + 4, { width: 200 });
+      y += 18;
+    });
+
+    y += 20;
+
+    if (aval.observaciones) {
+      if (y > 660) { doc.addPage(); y = 50; }
+      doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold').text('OBSERVACIONES', lm, y);
+      y += 22;
+      doc.fillColor('#374151').fontSize(10).font('Helvetica').text(aval.observaciones, lm, y, { width: pw });
+      y += doc.y - y + 15;
+    }
+
+    if (y > 620) { doc.addPage(); y = 50; }
+    doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold').text('FECHAS', lm, y);
+    y += 22;
+    df('Entrega:', aval.fecha_entrega_tecnico, lm, y, pw);
+    y += 18;
+    if (aval.fecha_confirmacion_admin) { df('Confirmacion:', aval.fecha_confirmacion_admin, lm, y, pw); y += 18; }
+    if (aval.fecha_firma_cliente) { df('Firma Cliente:', aval.fecha_firma_cliente, lm, y, pw); y += 18; }
+
+    y = Math.max(y + 30, 580);
+    doc.moveTo(lm, y).lineTo(lm + pw, y).strokeColor('#d1d5db').stroke();
+    y += 25;
+    doc.fillColor('#1f2937').fontSize(12).font('Helvetica-Bold').text('ACEPTACION DEL SERVICIO', lm, y, { align: 'center' });
+    y += 20;
+    doc.fillColor('#6b7280').fontSize(9).font('Helvetica').text('Declaro haber recibido el servicio descrito, a mi entera satisfaccion.', lm, y, { width: pw, align: 'center' });
+    y += 40;
+
+    doc.moveTo(lm, y).lineTo(lm + 200, y).strokeColor('#374151').stroke();
+    doc.fillColor('#1f2937').fontSize(10).font('Helvetica-Bold').text('Firma del Cliente', lm, y + 5);
+    doc.fillColor('#6b7280').fontSize(8).font('Helvetica').text(aval.cliente_nombre || '', lm, y + 18);
+
+    doc.moveTo(lm + 300, y).lineTo(lm + 500, y).strokeColor('#374151').stroke();
+    doc.fillColor('#1f2937').fontSize(10).font('Helvetica-Bold').text('Firma del Tecnico', lm + 300, y + 5);
+    doc.fillColor('#6b7280').fontSize(8).font('Helvetica').text(aval.tecnico_nombre || '', lm + 300, y + 18);
+
+    y += 45;
+    const et = aval.estado === 'confirmado' ? 'ESTADO: CONFIRMADO' : aval.estado === 'rechazado' ? 'ESTADO: RECHAZADO' : 'ESTADO: ' + aval.estado.toUpperCase();
+    doc.rect(lm, y, pw, 22).fill(aval.estado === 'confirmado' ? '#16a34a' : aval.estado === 'rechazado' ? '#dc2626' : '#f59e0b');
+    doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold').text(et, lm, y + 5, { align: 'center' });
+
+    const fy = doc.page.height - 50;
+    doc.rect(0, fy, doc.page.width, 50).fill(blue);
+    doc.fillColor('#ffffff').fontSize(8).font('Helvetica').text('Documento generado electronicamente', lm, fy + 10, { align: 'center' });
+    doc.fontSize(7).text('Aval: ' + (aval.numero_aval || '') + ' | OT: ' + (aval.numero_ot || ''), lm, fy + 25, { align: 'center' });
+    doc.fontSize(7).text('Generado: ' + new Date().toLocaleString('es-DO'), lm, fy + 38, { align: 'center' });
+
+    doc.end();
   } catch (e) {
     console.error('Error generating aval PDF:', e);
     res.status(500).json({ error: 'Error al generar PDF' });
   }
 });
-
 // ==================== API: AVALES (legacy - existing flow) ====================
 app.get('/api/avales-legacy', authMiddleware, (req, res) => {
   const otId = req.query.orden_trabajo_id;
@@ -2126,6 +2325,21 @@ app.get('/api/avales/public/:token', (req, res) => {
 
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
 
+    // Item 8: Verificar expiración del token (30 días)
+    if (aval.token_enviado_en && !aval.fecha_firma_cliente && aval.estado !== 'confirmado') {
+      const fechaEnvio = new Date(aval.token_enviado_en + 'Z');
+      const ahora = new Date();
+      const diasTranscurridos = (ahora - fechaEnvio) / (1000 * 60 * 60 * 24);
+      if (diasTranscurridos > 30) {
+        return res.status(410).json({
+          error: 'Token expirado',
+          expirado: true,
+          fecha_envio: aval.token_enviado_en,
+          dias_transcurridos: Math.floor(diasTranscurridos)
+        });
+      }
+    }
+
     // Marcar como visto
     if (!aval.fecha_firma_cliente) {
       run("UPDATE avales SET token_visto_en = datetime('now', '-04:00') WHERE token_publico = ?", [req.params.token]);
@@ -2145,10 +2359,10 @@ app.get('/api/avales/public/:token', (req, res) => {
   }
 });
 
-// POST /api/avales/public/:token/firmar — cliente firma el aval
+// POST /api/avales/public/:token/firmar — cliente firma el aval (con re-firma + historial)
 app.post('/api/avales/public/:token/firmar', (req, res) => {
   try {
-    const aval = queryFirst('SELECT id, estado FROM avales WHERE token_publico = ?', [req.params.token]);
+    const aval = queryFirst('SELECT id, estado, firma_cliente_data, historial_firmas FROM avales WHERE token_publico = ?', [req.params.token]);
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
     if (aval.estado === 'confirmado' || aval.estado === 'rechazado') {
       return res.status(400).json({ error: 'Este aval ya fue procesado' });
@@ -2157,16 +2371,40 @@ app.post('/api/avales/public/:token/firmar', (req, res) => {
     const { firma_data, nombre_cliente } = req.body;
     if (!firma_data) return res.status(400).json({ error: 'Firma requerida' });
 
+    // Item 7: Guardar historial de firmas
+    var historial = [];
+    try {
+      if (aval.historial_firmas) historial = JSON.parse(aval.historial_firmas);
+      if (!Array.isArray(historial)) historial = [];
+    } catch(e) { historial = []; }
+    
+    if (aval.firma_cliente_data) {
+      historial.push({
+        firma_anterior: aval.firma_cliente_data,
+        fecha_anterior: queryFirst('SELECT fecha_firma_cliente FROM avales WHERE id = ?', [aval.id])?.fecha_firma_cliente,
+        re_firmado_en: new Date().toISOString()
+      });
+    }
+
     run(`UPDATE avales SET 
       firma_cliente_data = ?,
       fecha_firma_cliente = datetime('now', '-04:00'),
       estado = 'firmado_cliente',
-      cliente_nombre = COALESCE(?, cliente_nombre)
+      cliente_nombre = COALESCE(?, cliente_nombre),
+      historial_firmas = ?
       WHERE id = ?
-    `, [JSON.stringify(firma_data), nombre_cliente || null, aval.id]);
+    `, [JSON.stringify(firma_data), nombre_cliente || null, JSON.stringify(historial), aval.id]);
 
     res.json({ message: 'Aval firmado por el cliente' });
     try { exportDatabase(); } catch(e) {}
+
+    // Item 4: Notificar a admins que el cliente firmó
+    try {
+      const { enviarNotificacionFirmaCliente } = require('./email');
+      enviarNotificacionFirmaCliente(aval.id).catch(function(err) {
+        console.error('Error notificando firma cliente:', err);
+      });
+    } catch(e) {}
   } catch (e) {
     console.error('Error signing aval:', e);
     res.status(500).json({ error: 'Error al firmar aval' });
@@ -2181,10 +2419,15 @@ app.post('/api/avales/:id/compartir', authMiddleware, async (req, res) => {
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
 
     let token = aval.token_publico;
-    if (!token) {
+    const renovar = req.query.renovar === 'true';
+    if (!token || renovar) {
       const crypto = require('crypto');
+      const tokenAnterior = token;
       token = crypto.randomBytes(16).toString('hex');
       run('UPDATE avales SET token_publico = ?, token_enviado_en = datetime(\'now\', \'-04:00\') WHERE id = ?', [token, id]);
+      if (renovar) {
+        console.log('Token renovado para aval ' + id + ': anterior=' + tokenAnterior + ' nuevo=' + token);
+      }
     }
 
     const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';

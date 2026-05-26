@@ -179,6 +179,14 @@ async function init() {
 
   try {
     const res = await fetch('/api/avales/public/' + token);
+    if (res.status === 410) {
+      // Token expirado
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('error').querySelector('h2').textContent = '🔗 Enlace Expirado';
+      document.getElementById('error').querySelector('p').textContent = 'Este enlace de firma ha expirado. Solicita un nuevo enlace al técnico.';
+      document.getElementById('error').classList.remove('hidden');
+      return;
+    }
     if (!res.ok) throw new Error('Not found');
     const data = await res.json();
     avalData = data;

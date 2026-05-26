@@ -291,7 +291,80 @@ async function enviarNotificacionAval(avalId) {
   });
 }
 
-module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval };
+async function enviarNotificacionFirmaCliente(avalId) {
+  try {
+    await getDb();
+  } catch(e) {}
+
+  var aval = queryFirst([
+    'SELECT a.*, ot.numero_ot, u.nombre as tecnico_nombre, u.email as tecnico_email',
+    'FROM avales a',
+    'JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id',
+    'LEFT JOIN usuarios u ON a.tecnico_id = u.id',
+    'WHERE a.id = ?'
+  ].join(' '), [avalId]);
+
+  if (!aval) {
+    console.error('Aval ' + avalId + ' no encontrado para notificacion firma');
+    return { success: false, error: 'Aval no encontrado' };
+  }
+
+  var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+  var enlaceAdmin = dashUrl + '/orden/' + aval.orden_trabajo_id;
+
+  var emailHtml = [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"></head>',
+    '<body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px">',
+    '<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">',
+    '<div style="background:linear-gradient(135deg,#9333ea,#a855f7);color:white;padding:20px 24px">',
+    '<h1 style="margin:0;font-size:20px">\u270D\uFE0F Cliente Firm\u00f3 el Aval</h1>',
+    '<p style="margin:6px 0 0;opacity:0.9">' + escHtml(aval.numero_aval || '#') + ' \u2014 ' + escHtml(aval.cliente_nombre) + '</p>',
+    '</div>',
+    '<div style="padding:24px">',
+    '<p style="font-size:15px;color:#333">El cliente <strong>' + escHtml(aval.cliente_nombre) + '</strong> ha firmado digitalmente el aval <strong>' + escHtml(aval.numero_aval) + '</strong>.</p>',
+    '<div style="background:#f3e8ff;border:1px solid #d8b4fe;border-radius:8px;padding:12px 16px;margin:16px 0">',
+    '<table style="width:100%;font-size:13px">',
+    '<tr><td style="padding:4px 0;color:#666">Aval:</td><td style="font-weight:bold">' + escHtml(aval.numero_aval || '#') + '</td></tr>',
+    '<tr><td style="padding:4px 0;color:#666">OT:</td><td style="font-weight:bold">' + escHtml(aval.numero_ot || '#') + '</td></tr>',
+    '<tr><td style="padding:4px 0;color:#666">Cliente:</td><td>' + escHtml(aval.cliente_nombre) + '</td></tr>',
+    '</table>',
+    '</div>',
+    '<p style="font-size:14px;color:#374151"><strong>Pr\u00f3ximo paso:</strong> Revisa y confirma el aval desde el panel de administraci\u00f3n.</p>',
+    '<a href="' + escHtml(enlaceAdmin) + '" style="display:inline-block;background:#9333ea;color:white;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold;font-size:13px;margin-top:8px">Confirmar Aval</a>',
+    '<p style="color:#999;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">Este es un mensaje autom\u00e1tico del sistema de \u00d3rdenes de Trabajo.</p>',
+    '</div></div></body></html>'
+  ].join('');
+
+  var destinatarios = [];
+  try {
+    var admins = queryAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL AND email != ''");
+    admins.forEach(function(a) {
+      if (destinatarios.indexOf(a.email) === -1) destinatarios.push(a.email);
+    });
+  } catch(e) {
+    console.error('Error fetching admins:', e.message);
+  }
+
+  if (destinatarios.length === 0 && process.env.SMTP_USER) {
+    destinatarios.push(process.env.SMTP_USER);
+  }
+
+  if (destinatarios.length === 0) {
+    console.log('Sin destinatarios para notificacion de firma, aval', avalId);
+    return { success: false, error: 'Sin destinatarios' };
+  }
+
+  var result = await enviarEmail({
+    to: destinatarios,
+    subject: '\u270D\uFE0F Cliente firm\u00f3 aval - ' + aval.numero_aval + ' - ' + aval.cliente_nombre,
+    html: emailHtml
+  });
+
+  console.log('Notificacion firma cliente aval', aval.numero_aval, 'enviada a:', destinatarios.join(', '));
+  return result;
+}
+
+module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarNotificacionFirmaCliente };
 
 // ──────────────────────────────────────────────
 // Resend provider (alternativa a SendGrid)
