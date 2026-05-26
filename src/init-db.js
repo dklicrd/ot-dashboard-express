@@ -449,6 +449,18 @@ async function initDatabase() {
     console.log('✅ OTs vinculadas a presupuestos');
   }
 
+  // ═══════════════════════════════════════════════
+  // GARANTIZAR ADMIN — después de restore o seeds
+  // ═══════════════════════════════════════════════
+  const adminExiste = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
+  if (!adminExiste) {
+    const bcrypt2 = require('bcryptjs');
+    const hashed2 = await bcrypt2.hash('3806.Adm', 10);
+    run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
+      ['Administrador', 'admin@sistema.com', hashed2, 'superadmin']);
+    console.log('👤 Admin re-creado post-restore');
+  }
+
   console.log('✅ Base de datos lista');
 }
 
