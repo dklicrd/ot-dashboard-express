@@ -27,9 +27,10 @@ async function enviarEmail({ to, subject, html, attachments }) {
 
 async function enviarViaSendGridFetch({ to, subject, html, attachments, apiKey }) {
   const recipients = Array.isArray(to) ? to : [to];
+  const fromEmail = 'a.plasencia@grupoarboleda.com';
   const payload = {
     personalizations: recipients.map(function(email) { return { to: [{ email: email }] }; }),
-    from: { email: process.env.SMTP_FROM || 'a.plasencia@grupoarboleda.com', name: 'OT Dashboard' },
+    from: { email: fromEmail, name: 'OT Dashboard' },
     subject: subject,
     content: [{ type: 'text/html', value: html }],
   };
@@ -77,7 +78,7 @@ async function enviarViaSMTP({ to, subject, html, attachments }) {
   try {
     var recipients = Array.isArray(to) ? to.join(', ') : to;
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@ot-dashboard.com',
+      from: 'OT Dashboard <a.plasencia@grupoarboleda.com>',
       to: recipients,
       subject: subject,
       html: html,
