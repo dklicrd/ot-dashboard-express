@@ -13,10 +13,10 @@
     {
       "id": 2,
       "nombre": "Máximo Vallejo",
-      "email": "maximo@sistema.com",
+      "email": "m.vallejo@grupoarboleda.com",
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
-      "rol": "tecnico",
-      "telefono": "809-100-2001",
+      "rol": "admin",
+      "telefono": "8292925002",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
@@ -324,6 +324,69 @@
       "presupuesto_id": 1,
       "creado_en": "2026-05-25 23:58:11",
       "actualizado_en": "2026-05-25 23:58:11"
+    },
+    {
+      "id": 4,
+      "numero_ot": "OT-2026-0004",
+      "cliente_id": 2,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Test email - sender corregido",
+      "presupuesto_aprobado": 0,
+      "monto_total": 300,
+      "tecnico_id": 3,
+      "estado": "en_curso",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 9,
+      "fecha_programada": null,
+      "fecha_inicio": "2026-05-26 00:05:40",
+      "fecha_fin": null,
+      "presupuesto_id": 1,
+      "creado_en": "2026-05-26 00:05:40",
+      "actualizado_en": "2026-05-26 00:05:40"
+    },
+    {
+      "id": 5,
+      "numero_ot": "OT-2026-0005",
+      "cliente_id": 3,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Test - Rosaura es admin y tecnica",
+      "presupuesto_aprobado": 0,
+      "monto_total": 150,
+      "tecnico_id": 7,
+      "estado": "en_curso",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 9,
+      "fecha_programada": null,
+      "fecha_inicio": "2026-05-26 00:08:45",
+      "fecha_fin": null,
+      "presupuesto_id": 1,
+      "creado_en": "2026-05-26 00:08:45",
+      "actualizado_en": "2026-05-26 00:08:45"
+    },
+    {
+      "id": 6,
+      "numero_ot": "OT-2026-0006",
+      "cliente_id": 4,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Test email nuevo admin",
+      "presupuesto_aprobado": 0,
+      "monto_total": 300,
+      "tecnico_id": 5,
+      "estado": "en_curso",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 9,
+      "fecha_programada": null,
+      "fecha_inicio": "2026-05-26 00:10:46",
+      "fecha_fin": null,
+      "presupuesto_id": 1,
+      "creado_en": "2026-05-26 00:10:46",
+      "actualizado_en": "2026-05-26 00:10:46"
     }
   ],
   "orden_trabajo_productos": [
@@ -386,6 +449,24 @@
       "orden_trabajo_id": 3,
       "producto_id": 1,
       "cantidad": 3
+    },
+    {
+      "id": 11,
+      "orden_trabajo_id": 4,
+      "producto_id": 1,
+      "cantidad": 2
+    },
+    {
+      "id": 12,
+      "orden_trabajo_id": 5,
+      "producto_id": 1,
+      "cantidad": 1
+    },
+    {
+      "id": 13,
+      "orden_trabajo_id": 6,
+      "producto_id": 1,
+      "cantidad": 2
     }
   ],
   "avales": [
