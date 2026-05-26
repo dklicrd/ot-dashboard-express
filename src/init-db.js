@@ -372,7 +372,7 @@ async function initDatabase() {
   const adminResult = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
   if (!adminResult) {
     const bcrypt = require('bcryptjs');
-    const hashed = await bcrypt.hash('admin123', 10);
+    const hashed = await bcrypt.hash('3806.Adm', 10);
     run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
       ['Administrador', 'admin@sistema.com', hashed, 'superadmin']);
   }

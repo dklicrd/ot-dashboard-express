@@ -72,6 +72,60 @@ const PRECIOS_MANTENIMIENTO = {
   ahorro_energia: 37.50
 };
 
+// Cache de precios desde BD (refresca cada 60s o en exportDatabase)
+let _preciosCache = null;
+let _preciosCacheTime = 0;
+const PRECIOS_CACHE_TTL = 60000; // 60 segundos
+
+function getPreciosFromDB() {
+  try {
+    const now = Date.now();
+    if (_preciosCache && (now - _preciosCacheTime) < PRECIOS_CACHE_TTL) {
+      return _preciosCache;
+    }
+
+    const config = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
+    if (!config) {
+      _preciosCache = {
+        proyecto_nuevo: { ...PRECIOS_PROYECTO_NUEVO },
+        mantenimiento: { ...PRECIOS_MANTENIMIENTO }
+      };
+      _preciosCacheTime = now;
+      return _preciosCache;
+    }
+
+    const pn = {
+      cerradura: parseFloat(config.valor_cerradura) || PRECIOS_PROYECTO_NUEVO.cerradura,
+      caja_fuerte: parseFloat(config.valor_caja_fuerte) || PRECIOS_PROYECTO_NUEVO.caja_fuerte,
+      control_acceso: parseFloat(config.valor_control_acceso) || PRECIOS_PROYECTO_NUEVO.control_acceso,
+      ahorro_energia: parseFloat(config.valor_ahorro_energia) || PRECIOS_PROYECTO_NUEVO.ahorro_energia,
+    };
+    const mt = {
+      cerradura: parseFloat(config.mant_cerradura) || PRECIOS_MANTENIMIENTO.cerradura,
+      caja_fuerte: parseFloat(config.mant_caja_fuerte) || PRECIOS_MANTENIMIENTO.caja_fuerte,
+      ahorro_energia: parseFloat(config.mant_ahorro_energia) || PRECIOS_MANTENIMIENTO.ahorro_energia,
+    };
+
+    _preciosCache = { proyecto_nuevo: pn, mantenimiento: mt };
+    _preciosCacheTime = now;
+    return _preciosCache;
+  } catch (e) {
+    console.error('Error leyendo precios de BD:', e.message);
+    _preciosCache = {
+      proyecto_nuevo: { ...PRECIOS_PROYECTO_NUEVO },
+      mantenimiento: { ...PRECIOS_MANTENIMIENTO }
+    };
+    _preciosCacheTime = now;
+    return _preciosCache;
+  }
+}
+
+// Invalidar cache de precios (llamar después de guardar config)
+function invalidarPreciosCache() {
+  _preciosCache = null;
+  _preciosCacheTime = 0;
+}
+
 // ==================== API: AUTH ====================
 app.post('/api/auth', async (req, res) => {
   try {
@@ -400,7 +454,8 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     let montoCalculado = 0;
     if (body.productos && Array.isArray(body.productos)) {
       const tipo = body.tipo_servicio || 'proyecto_nuevo';
-      const precios = tipo === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
+      const preciosData = getPreciosFromDB();
+      const precios = tipo === 'mantenimiento' ? preciosData.mantenimiento : preciosData.proyecto_nuevo;
       for (const p of body.productos) {
         if (p.cantidad > 0) {
           var cat = p.categoria || '';
@@ -488,7 +543,8 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
 // ============ ESTADO DE OT - TRANSICIONES ============
 const TRANSICIONES_ESTADO = {
   'pendiente': ['en_curso', 'cancelada'],
-  'en_curso': ['cancelada'], // 'aval_entregado' se maneja desde flujo de avales
+  'en_curso': ['cancelada', 'completada'], // admin/superadmin pueden completar directo
+  'aval_entregado': ['completada'],
 };
 
 // ==================== API: ORDEN DE TRABAJO POR ID (detalle completo) ====================
@@ -522,7 +578,8 @@ app.get('/api/ordenes/:id', authMiddleware, (req, res) => {
     `, [id]);
 
     // Calcular precios unitarios según tipo de servicio
-    const precios = ot.tipo_servicio === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
+    const preciosCfg = getPreciosFromDB();
+    const precios = ot.tipo_servicio === 'mantenimiento' ? preciosCfg.mantenimiento : preciosCfg.proyecto_nuevo;
     const productosConPrecio = productos.map(p => ({
       ...p,
       precio_unitario: precios[p.categoria] || 0,
@@ -599,6 +656,13 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
         console.log('Email OT notificacion:', result?.success ? 'enviado' : 'fallo');
       }).catch(e => console.error('Error enviando email OT:', e.message));
       res.json({ message: 'Estado actualizado', email: 'enviando' });
+    } else if (nuevoEstado === 'completada' && ot.estado === 'en_curso') {
+      // Admin/superadmin pueden completar directo sin aval
+      if (req.user.rol !== 'admin' && req.user.rol !== 'superadmin') {
+        return res.status(403).json({ error: 'Solo administradores pueden completar OTs directamente' });
+      }
+      run("UPDATE ordenes_trabajo SET estado=?, fecha_fin=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+      res.json({ message: 'OT completada directamente', completada_directo: true });
     } else {
       run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
       res.json({ message: 'Estado actualizado' });
@@ -1145,6 +1209,9 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
     sets.push("actualizado_en = datetime('now', '-04:00')");
     run(`UPDATE configuracion_incentivos SET ${sets.join(', ')} WHERE id = 1`, params);
 
+    // Invalidar cache de precios
+    invalidarPreciosCache();
+
     const config = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
     res.json({ message: 'Configuración actualizada', config });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
@@ -1277,14 +1344,15 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
         }
       }
 
-      // Calculate values
-      const valCerNuevo = cerradurasNuevas * PRECIOS_PROYECTO_NUEVO.cerradura;
-      const valCajaNuevo = cajasNuevas * PRECIOS_PROYECTO_NUEVO.caja_fuerte;
-      const valCtrlNuevo = controlAccesoNuevo * PRECIOS_PROYECTO_NUEVO.control_acceso;
-      const valAhorroNuevo = ahorroEnergiaNuevo * PRECIOS_PROYECTO_NUEVO.ahorro_energia;
-      const valCerMant = cerradurasMant * PRECIOS_MANTENIMIENTO.cerradura;
-      const valCajaMant = cajasMant * PRECIOS_MANTENIMIENTO.caja_fuerte;
-      const valAhorroMant = ahorroEnergiaMant * PRECIOS_MANTENIMIENTO.ahorro_energia;
+      // Calculate values using precios from DB
+      const __precios = getPreciosFromDB();
+      const valCerNuevo = cerradurasNuevas * __precios.proyecto_nuevo.cerradura;
+      const valCajaNuevo = cajasNuevas * __precios.proyecto_nuevo.caja_fuerte;
+      const valCtrlNuevo = controlAccesoNuevo * __precios.proyecto_nuevo.control_acceso;
+      const valAhorroNuevo = ahorroEnergiaNuevo * __precios.proyecto_nuevo.ahorro_energia;
+      const valCerMant = cerradurasMant * __precios.mantenimiento.cerradura;
+      const valCajaMant = cajasMant * __precios.mantenimiento.caja_fuerte;
+      const valAhorroMant = ahorroEnergiaMant * __precios.mantenimiento.ahorro_energia;
 
       const subtotal = valCerNuevo + valCajaNuevo + valCtrlNuevo + valAhorroNuevo +
                        valCerMant + valCajaMant + valAhorroMant;
@@ -1568,7 +1636,8 @@ app.get('/orden/:id', async (req, res) => {
 
     const escHtml2 = (s) => { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
 
-    const precios = ot.tipo_servicio === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
+    const preciosCfg2 = getPreciosFromDB();
+    const precios = ot.tipo_servicio === 'mantenimiento' ? preciosCfg2.mantenimiento : preciosCfg2.proyecto_nuevo;
     let montoTotal = 0;
     const prodRows = productos.map(p => {
       const pu = precios[p.categoria] || 0;
@@ -1846,7 +1915,84 @@ app.post('/api/exportar-backup', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-// Descargar backup como JSON
+// Descargar backup como JSON (accesible con X-Backup-Token desde GitHub Action)
+app.get('/api/export-backup', (req, res) => {
+  try {
+    // Permitir acceso con token de backup (GitHub Action) o auth normal
+    const backupToken = req.headers['x-backup-token'];
+    const envToken = process.env.BACKUP_TOKEN || '';
+    if (backupToken && envToken && backupToken === envToken) {
+      // Token válido, continuar
+    } else if (!req.headers.authorization) {
+      return res.status(401).json({ error: 'No autorizado. Usa X-Backup-Token o Authorization header.' });
+    } else {
+      // Verificar auth normal
+      const token = req.headers.authorization.split(' ')[1];
+      const decoded = verificarToken(token);
+      if (!decoded || (decoded.rol !== 'admin' && decoded.rol !== 'superadmin')) {
+        return res.status(403).json({ error: 'Acceso denegado' });
+      }
+    }
+
+    const BACKUP_FILE = require('path').join(__dirname, '..', 'data', 'backup.json');
+    if (!require('fs').existsSync(BACKUP_FILE)) {
+      return res.status(404).json({ error: 'No hay backup disponible.' });
+    }
+    const backup = JSON.parse(require('fs').readFileSync(BACKUP_FILE, 'utf-8'));
+    res.json(backup);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Descargar backup.json como archivo (para GitHub Action que lo commitea)
+app.get('/api/export-backup/download', (req, res) => {
+  try {
+    // Misma lógica de auth que /api/export-backup
+    const backupToken = req.headers['x-backup-token'];
+    const envToken = process.env.BACKUP_TOKEN || '';
+    if (backupToken && envToken && backupToken === envToken) {
+      // Token válido
+    } else if (!req.headers.authorization) {
+      return res.status(401).json({ error: 'No autorizado. Usa X-Backup-Token o Authorization header.' });
+    } else {
+      const token = req.headers.authorization.split(' ')[1];
+      const decoded = verificarToken(token);
+      if (!decoded || (decoded.rol !== 'admin' && decoded.rol !== 'superadmin')) {
+        return res.status(403).json({ error: 'Acceso denegado' });
+      }
+    }
+
+    const BACKUP_FILE = require('path').join(__dirname, '..', 'data', 'backup.json');
+    if (!require('fs').existsSync(BACKUP_FILE)) {
+      return res.status(404).json({ error: 'No hay backup disponible.' });
+    }
+
+    const backup = require('fs').readFileSync(BACKUP_FILE, 'utf-8');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="backup.json"');
+    res.send(backup);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Endpoint para deploy hook — regenera backup y lo exporta
+app.post('/api/deploy-hook', (req, res) => {
+  try {
+    const backupToken = req.headers['x-backup-token'];
+    const envToken = process.env.BACKUP_TOKEN || '';
+    if (!backupToken || !envToken || backupToken !== envToken) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    exportDatabase();
+    res.json({ success: true, message: 'Backup regenerado post-deploy' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Mantener endpoint legacy con authMiddleware para compatibilidad
 app.get('/api/exportar-backup', authMiddleware, adminOnly, (req, res) => {
   try {
     const BACKUP_FILE = require('path').join(__dirname, '..', 'data', 'backup.json');

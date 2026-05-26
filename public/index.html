@@ -156,6 +156,16 @@ async function cancelarOT(id) {
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
 
+// Completar OT directo desde en_curso (admin/superadmin)
+window.completarOTDirecto = async function(id) {
+  if (!confirm('¿Completar esta OT directamente? No se generará aval.')) return;
+  try {
+    const r = await api('PUT', '/api/ordenes/' + id + '/estado', { estado: 'completada' });
+    toast('OT completada directamente ✅');
+    render();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+};
+
 async function verAval(avalId, otId) {
   if (!avalId) {
     try {
@@ -427,6 +437,9 @@ async function renderOrdenes() {
       actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'en_curso') {
       actions += `<button onclick="showModal('entrega-aval', ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
+      if (state.user && (state.user.rol === 'admin' || state.user.rol === 'superadmin')) {
+        actions += `<button onclick="completarOTDirecto(${ot.id})" class="btn-icon bg-green-600 hover:bg-green-700 text-white border border-green-600" title="Completar OT directo (admin)">✅</button>`;
+      }
       actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'aval_entregado') {
       actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
