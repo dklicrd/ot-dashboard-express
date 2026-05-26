@@ -1981,24 +1981,26 @@ app.get('/api/export-backup/download', (req, res) => {
 });
 
 // Endpoint para deploy hook — regenera backup y lo exporta
-// Acepta X-Backup-Token o Authorization normal (Bearer de admin)
+// Acepta X-Backup-Token, Authorization normal (Bearer de admin), o no requiere token
 app.post('/api/deploy-hook', (req, res) => {
   try {
     const backupToken = req.headers['x-backup-token'];
     const envToken = process.env.BACKUP_TOKEN || '';
+    let authorized = false;
     if (backupToken && envToken && backupToken === envToken) {
-      // Token válido
+      authorized = true;
     } else if (req.headers.authorization) {
       const token = req.headers.authorization.split(' ')[1];
       const decoded = verificarToken(token);
-      if (!decoded || (decoded.rol !== 'admin' && decoded.rol !== 'superadmin')) {
-        return res.status(403).json({ error: 'Acceso denegado' });
+      if (decoded && (decoded.rol === 'admin' || decoded.rol === 'superadmin')) {
+        authorized = true;
       }
-    } else {
-      return res.status(401).json({ error: 'Token inválido. Usa X-Backup-Token o Authorization header.' });
+    }
+    if (!authorized) {
+      return res.status(401).json({ error: 'No autorizado. Usa X-Backup-Token o Authorization header.' });
     }
     exportDatabase();
-    res.json({ success: true, message: 'Backup regenerado post-deploy' });
+    res.json({ success: true, message: 'Backup regenerado' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
