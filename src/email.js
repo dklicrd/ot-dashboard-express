@@ -220,7 +220,7 @@ async function enviarViaResend({ to, subject, html, attachments }) {
 
   const recipients = Array.isArray(to) ? to : [to];
   const payload = {
-    from: process.env.RESEND_FROM || 'OT Dashboard <notificaciones@dklicrd.com>',
+    from: process.env.RESEND_FROM || 'OT Dashboard <a.plasencia@grupoarboleda.com>',
     to: recipients,
     subject: subject,
     html: html,
