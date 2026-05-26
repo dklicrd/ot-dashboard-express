@@ -150,18 +150,38 @@ async function enviarNotificacionOT(otId) {
   var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
   var enlaceDetalle = dashUrl + '/orden/' + otId;
 
-  var emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:650px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)"><div style="background:linear-gradient(135deg,#1e40af,#1d4ed8);color:white;padding:24px 30px"><h1 style="margin:0;font-size:22px">&#128640; Orden de Trabajo Iniciada!</h1><p style="margin:8px 0 0;opacity:0.9">' + escHtml(ot.numero_ot) + ' &mdash; ' + escHtml(ot.cliente_nombre) + '</p></div><div style="padding:24px 30px"><p style="font-size:16px;color:#333">Estimado/a <strong>' + escHtml(ot.cliente_nombre) + '</strong>,</p><p style="color:#555">Su Orden de Trabajo ha sido <strong style="color:#16a34a">iniciada</strong> y el equipo t&eacute;cnico se encargar&aacute; de atender su solicitud.</p><h3 style="color:#1e40af;border-bottom:2px solid #e5e7eb;padding-bottom:8px">Detalle de la Orden</h3><table style="width:100%;border-collapse:collapse;margin-bottom:16px"><tr><td style="padding:6px 0;color:#666">No. Orden:</td><td style="font-weight:bold">' + escHtml(ot.numero_ot) + '</td></tr><tr><td style="padding:6px 0;color:#666">Tipo de Servicio:</td><td style="font-weight:bold;text-transform:capitalize">' + escHtml(ot.tipo_servicio) + '</td></tr><tr><td style="padding:6px 0;color:#666">T&eacute;cnico Asignado:</td><td style="font-weight:bold">' + escHtml(ot.tecnico_nombre || 'Pendiente') + '</td></tr>' + (ot.descripcion ? '<tr><td style="padding:6px 0;color:#666">Descripci&oacute;n:</td><td>' + escHtml(ot.descripcion) + '</td></tr>' : '') + '</table>';
+  var emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:650px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)"><div style="background:linear-gradient(135deg,#1e40af,#1d4ed8);color:white;padding:24px 30px"><h1 style="margin:0;font-size:22px">&#128640; Orden de Trabajo Iniciada</h1><p style="margin:8px 0 0;opacity:0.9">' + escHtml(ot.numero_ot) + ' — ' + escHtml(ot.cliente_nombre) + '</p></div><div style="padding:24px 30px"><p style="font-size:16px;color:#333">Se ha <strong style="color:#16a34a">iniciado</strong> una nueva Orden de Trabajo.</p><h3 style="color:#1e40af;border-bottom:2px solid #e5e7eb;padding-bottom:8px">Detalle de la Orden</h3><table style="width:100%;border-collapse:collapse;margin-bottom:16px"><tr><td style="padding:6px 0;color:#666">No. Orden:</td><td style="font-weight:bold">' + escHtml(ot.numero_ot) + '</td></tr><tr><td style="padding:6px 0;color:#666">Cliente:</td><td style="font-weight:bold">' + escHtml(ot.cliente_nombre) + '</td></tr><tr><td style="padding:6px 0;color:#666">Tipo de Servicio:</td><td style="font-weight:bold;text-transform:capitalize">' + escHtml(ot.tipo_servicio) + '</td></tr><tr><td style="padding:6px 0;color:#666">Técnico Asignado:</td><td style="font-weight:bold">' + escHtml(ot.tecnico_nombre || 'Pendiente') + '</td></tr>' + (ot.descripcion ? '<tr><td style="padding:6px 0;color:#666">Descripción:</td><td>' + escHtml(ot.descripcion) + '</td></tr>' : '') + '</table>';
 
   if (productos.length > 0) {
     emailHtml += '<h3 style="color:#1e40af;border-bottom:2px solid #e5e7eb;padding-bottom:8px">Productos / Servicios</h3><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:14px"><thead><tr style="background:#f3f4f6"><th style="border:1px solid #ddd;padding:8px;text-align:left">Producto</th><th style="border:1px solid #ddd;padding:8px">Categor&iacute;a</th><th style="border:1px solid #ddd;padding:8px;text-align:center">Cant.</th><th style="border:1px solid #ddd;padding:8px;text-align:right">Precio</th><th style="border:1px solid #ddd;padding:8px;text-align:right">Subtotal</th></tr></thead><tbody>' + prodRows + '</tbody><tfoot><tr style="background:#f0fdf4"><td colspan="4" style="border:1px solid #ddd;padding:10px;font-weight:bold;text-align:right">TOTAL</td><td style="border:1px solid #ddd;padding:10px;font-weight:bold;text-align:right;color:#16a34a">RD$ ' + montoTotal.toFixed(2) + '</td></tr></tfoot></table>';
   }
 
-  emailHtml += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin:16px 0"><p style="margin:0;color:#166534;font-weight:bold">&#9989; &iquest;Qu&eacute; sigue?</p><p style="margin:6px 0 0;color:#166534;font-size:14px">El equipo t&eacute;cnico se comunicar&aacute; con usted para coordinar los detalles de la visita.</p></div><a href="' + escHtml(enlaceDetalle) + '" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;margin-top:8px">Ver Detalle Completo</a><p style="color:#999;font-size:13px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px">Este es un mensaje autom&aacute;tico del sistema de &Oacute;rdenes de Trabajo.</p></div></div></body></html>';
+  emailHtml += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin:16px 0"><p style="margin:0;color:#166534;font-weight:bold">&#128220; Información</p><p style="margin:6px 0 0;color:#166534;font-size:14px">Revisa el detalle completo en el panel de administración.</p></div><a href="' + escHtml(enlaceDetalle) + '" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;margin-top:8px">Ver Detalle Completo</a><p style="color:#999;font-size:13px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px">Este es un mensaje automático del sistema de Órdenes de Trabajo.</p></div></div></body></html>';
 
+  // Destinatarios: todos los admins/superadmins + técnico asignado
   var destinatarios = [];
-  if (ot.cliente_email) destinatarios.push(ot.cliente_email);
-  if (ot.tecnico_email) destinatarios.push(ot.tecnico_email);
-  if (process.env.SMTP_USER) destinatarios.push(process.env.SMTP_USER);
+  
+  // Técnico asignado
+  if (ot.tecnico_email) {
+    destinatarios.push(ot.tecnico_email);
+  }
+  
+  // Todos los administradores y superadministradores del sistema
+  try {
+    var admins = queryAll("SELECT email FROM usuarios WHERE (rol = 'admin' OR rol = 'superadmin') AND email IS NOT NULL AND email != ''");
+    for (var a = 0; a < admins.length; a++) {
+      if (admins[a].email && !destinatarios.includes(admins[a].email)) {
+        destinatarios.push(admins[a].email);
+      }
+    }
+  } catch (e) {
+    console.error('Error obteniendo admins para notificacion:', e.message);
+  }
+  
+  // Fallback: SMTP_USER si no hay nadie más
+  if (destinatarios.length === 0 && process.env.SMTP_USER) {
+    destinatarios.push(process.env.SMTP_USER);
+  }
 
   if (destinatarios.length === 0) {
     console.log('Sin destinatarios para OT', otId);
