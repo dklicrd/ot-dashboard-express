@@ -2,17 +2,26 @@ const nodemailer = require('nodemailer');
 const { getDb, queryFirst, queryAll } = require('./db');
 
 async function enviarEmail({ to, subject, html, attachments }) {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  // Priority 1: SendGrid API via native fetch (Node 18+)
-  if (apiKey) {
+  // Priority 1: Resend (recomendado, requiere RESEND_API_KEY)
+  if (process.env.RESEND_API_KEY) {
     try {
-      const result = await enviarViaSendGridFetch({ to, subject, html, attachments, apiKey });
+      const result = await enviarViaResend({ to, subject, html, attachments });
+      if (result.success) return result;
+    } catch (e) {
+      console.error('Resend error:', e.message);
+    }
+  }
+  // Priority 2: SendGrid API via native fetch (Node 18+)
+  const sgKey = process.env.SENDGRID_API_KEY;
+  if (sgKey) {
+    try {
+      const result = await enviarViaSendGridFetch({ to, subject, html, attachments, apiKey: sgKey });
       if (result.success) return result;
     } catch (e) {
       console.error('SendGrid fetch error:', e.message);
     }
   }
-  // Priority 2: SMTP Gmail
+  // Priority 3: SMTP Gmail
   return enviarViaSMTP({ to, subject, html, attachments });
 }
 
@@ -199,3 +208,55 @@ async function enviarNotificacionOT(otId) {
 }
 
 module.exports = { enviarEmail, enviarNotificacionOT };
+
+// ──────────────────────────────────────────────
+// Resend provider (alternativa a SendGrid)
+// ENV: RESEND_API_KEY=re_xxxx
+// ──────────────────────────────────────────────
+async function enviarViaResend({ to, subject, html, attachments }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { success: false, error: 'No RESEND_API_KEY' };
+
+  const recipients = Array.isArray(to) ? to : [to];
+  const payload = {
+    from: process.env.RESEND_FROM || 'OT Dashboard <notificaciones@dklicrd.com>',
+    to: recipients,
+    subject: subject,
+    html: html,
+  };
+
+  if (attachments && attachments.length > 0) {
+    payload.attachments = attachments.map(function(a) {
+      // Resend expects base64 content
+      return {
+        filename: a.filename,
+        content: a.content,
+        type: a.contentType || 'application/octet-stream',
+      };
+    });
+  }
+
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log('Email enviado via Resend a:', to, 'id:', data.id);
+      return { success: true, id: data.id };
+    }
+
+    const text = await resp.text();
+    console.error('Resend error:', resp.status, text);
+    return { success: false, error: 'Resend HTTP ' + resp.status + ': ' + text };
+  } catch (e) {
+    console.error('Resend network error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
