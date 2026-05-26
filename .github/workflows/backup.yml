@@ -22,13 +22,27 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Request backup from Render
+      - name: Login to Render app and fetch backup
         id: fetch-backup
         run: |
-          echo "⏳ Solicitando backup desde Render..."
+          echo "⏳ Autenticando en Render..."
+          # Login con admin del sistema
+          AUTH_RESPONSE=$(curl -s -X POST "https://ot-dashboard-9mn9.onrender.com/api/auth" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@sistema.com","password":"3806.Adm"}' \
+            --max-time 30)
+          TOKEN=$(echo "$AUTH_RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("token",""))' 2>/dev/null)
+
+          if [ -z "$TOKEN" ]; then
+            echo "❌ Login falló"
+            echo "backup_changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "✅ Login OK, descargando backup..."
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X GET "https://ot-dashboard-9mn9.onrender.com/api/export-backup/download" \
-            -H "X-Backup-Token: ${{ secrets.BACKUP_TOKEN }}" \
+            -H "Authorization: Bearer $TOKEN" \
             --max-time 60)
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
@@ -39,7 +53,7 @@ jobs:
             echo "backup_size=$(wc -c < data/backup.json)" >> $GITHUB_OUTPUT
             echo "backup_changed=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ Error al obtener backup (HTTP $HTTP_CODE): $BODY"
+            echo "❌ Error al obtener backup (HTTP $HTTP_CODE)"
             echo "backup_changed=false" >> $GITHUB_OUTPUT
           fi
 

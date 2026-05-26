@@ -7,8 +7,8 @@ services:
     name: ot-dashboard
     env: node
     region: ohio
-    plan: free # ⚠️ Free tier NO tiene disco persistente. Los datos en SQLite se pierden con cada deploy.
-    # Para persistencia real: cambiar a plan Starter ($7/mes) o descomentar disk:
+    plan: free # ⚠️ CAMBIAR a 'starter' para activar disco persistente y NO perder datos
+    # Cuando cambies al plan Starter ($7/mes), Render usara automaticamente el disco:
     # disk:
     #   name: data
     #   mountPath: /var/data
