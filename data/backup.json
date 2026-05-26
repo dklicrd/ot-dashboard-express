@@ -387,6 +387,27 @@
       "presupuesto_id": 1,
       "creado_en": "2026-05-26 00:10:46",
       "actualizado_en": "2026-05-26 00:10:46"
+    },
+    {
+      "id": 7,
+      "numero_ot": "OT-2026-0007",
+      "cliente_id": 1,
+      "tipo_servicio": "reparacion",
+      "descripcion": "Test post-deploy forzado",
+      "presupuesto_aprobado": 0,
+      "monto_total": 300,
+      "tecnico_id": 7,
+      "estado": "en_curso",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 9,
+      "fecha_programada": null,
+      "fecha_inicio": "2026-05-26 00:14:55",
+      "fecha_fin": null,
+      "presupuesto_id": 1,
+      "creado_en": "2026-05-26 00:14:54",
+      "actualizado_en": "2026-05-26 00:14:55"
     }
   ],
   "orden_trabajo_productos": [
@@ -465,6 +486,12 @@
     {
       "id": 13,
       "orden_trabajo_id": 6,
+      "producto_id": 1,
+      "cantidad": 2
+    },
+    {
+      "id": 14,
+      "orden_trabajo_id": 7,
       "producto_id": 1,
       "cantidad": 2
     }
