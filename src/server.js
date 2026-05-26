@@ -543,7 +543,7 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
 // ============ ESTADO DE OT - TRANSICIONES ============
 const TRANSICIONES_ESTADO = {
   'pendiente': ['en_curso', 'cancelada'],
-  'en_curso': ['cancelada', 'completada'], // admin/superadmin pueden completar directo
+  'en_curso': ['cancelada'], // 'aval_entregado' se maneja desde flujo de avales
   'aval_entregado': ['completada'],
 };
 
@@ -657,7 +657,7 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       }).catch(e => console.error('Error enviando email OT:', e.message));
       res.json({ message: 'Estado actualizado', email: 'enviando' });
     } else if (nuevoEstado === 'completada' && ot.estado === 'en_curso') {
-      // Admin/superadmin pueden completar directo sin aval
+      // Solo admin/superadmin pueden completar directo (sin aval)
       if (req.user.rol !== 'admin' && req.user.rol !== 'superadmin') {
         return res.status(403).json({ error: 'Solo administradores pueden completar OTs directamente' });
       }
