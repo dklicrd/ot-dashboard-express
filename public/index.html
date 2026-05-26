@@ -372,6 +372,9 @@ async function renderInicio() {
         <div class="card slide-up" style="animation-delay:0.3s"><div class="flex items-start justify-between"><div><p class="text-sm text-gray-500 font-medium">Tasa de Finalización</p><p class="text-3xl font-bold text-gray-900 mt-1">${tasa}%</p><p class="text-xs text-gray-400 mt-1">${pend} pendientes por resolver</p></div><div class="bg-purple-50 p-3 rounded-lg"><span class="text-2xl">📊</span></div></div></div>
       </div>
 
+      <!-- Alertas de Encuestas Pendientes -->
+      <div id="encuestas-alertas" class="mb-6 space-y-2"></div>
+
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="card">
           <h3 class="card-header">Acciones Rápidas</h3>
@@ -401,7 +404,53 @@ async function renderInicio() {
         </div>
       </div>
     </div>
+    <script>cargarAlertasEncuestas()</script>
   `;
+}
+
+async function cargarAlertasEncuestas() {
+  const container = document.getElementById('encuestas-alertas');
+  if (!container) return;
+  try {
+    const d = await api('GET', '/api/encuestas');
+    const encuestas = d.encuestas || [];
+    let alertasHtml = '';
+
+    const expiradas = encuestas.filter(function(e) { return e.estado === 'expirada' && !e.contactado_por; });
+    for (var i = 0; i < Math.min(expiradas.length, 5); i++) {
+      var e = expiradas[i];
+      alertasHtml += '<div class="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">' +
+        '<span class="text-xl">\u26a0\ufe0f</span>' +
+        '<div class="flex-1"><p class="text-sm font-medium text-red-800">Encuesta expirada: OT ' + escHtml(e.numero_ot) + '</p>' +
+        '<p class="text-xs text-red-600">Cliente: ' + escHtml(e.aval_cliente_nombre || e.cliente_nombre) + ' \u00b7 Vencida hace ' + Math.abs(e.dias_restantes) + ' d\u00edas</p></div>' +
+        '<div class="flex gap-2"><button onclick="showContactarEncuesta(' + e.id + ')" class="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700">Contactar</button>' +
+        '<button onclick="setState({view:\'ordenes\'});setTimeout(function(){abrirDetalleOT(' + e.orden_trabajo_id + ')},100)" class="px-3 py-1.5 text-xs font-medium bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50">Ver OT</button></div></div>';
+    }
+
+    const prontas = encuestas.filter(function(e) { return e.estado === 'pendiente' && e.dias_restantes <= 1 && e.dias_restantes > 0; });
+    for (var i = 0; i < Math.min(prontas.length, 5); i++) {
+      var e = prontas[i];
+      alertasHtml += '<div class="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">' +
+        '<span class="text-xl">\u23f0</span>' +
+        '<div class="flex-1"><p class="text-sm font-medium text-yellow-800">Recordatorio pendiente: OT ' + escHtml(e.numero_ot) + '</p>' +
+        '<p class="text-xs text-yellow-600">Vence en ' + e.dias_restantes + ' d\u00eda(s) h\u00e1bil(es)</p></div>' +
+        '<button onclick="setState({view:\'encuestas\'})" class="px-3 py-1.5 text-xs font-medium bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">Ver Encuestas</button></div>';
+    }
+
+    const nuevas = encuestas.filter(function(e) { return e.estado === 'pendiente' && e.dias_restantes > 1; });
+    for (var i = 0; i < Math.min(nuevas.length, 3); i++) {
+      var e = nuevas[i];
+      alertasHtml += '<div class="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">' +
+        '<span class="text-xl">\ud83d\udcdd</span>' +
+        '<div class="flex-1"><p class="text-sm font-medium text-blue-800">Encuesta pendiente: OT ' + escHtml(e.numero_ot) + '</p>' +
+        '<p class="text-xs text-blue-600">Vence en ' + e.dias_restantes + ' d\u00eda(s) h\u00e1bil(es)</p></div>' +
+        '<button onclick="setState({view:\'encuestas\'})" class="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">Ver Encuestas</button></div>';
+    }
+
+    container.innerHTML = alertasHtml || '<div class="text-center py-2 text-sm text-gray-400">Todos las encuestas est\u00e1n al d\u00eda</div>';
+  } catch (e) {
+    console.error('Error cargando alertas encuestas:', e);
+  }
 }
 
 function barraProgreso(label, val, total, color) {
@@ -568,6 +617,189 @@ async function uploadFirmado(id) {
 
 // ============ ENCUESTAS ============
 async function renderEncuestas() {
+  try {
+    const d = await api('GET', '/api/encuestas');
+    const encuestas = d.encuestas || [];
+
+    const rows = encuestas.map(e => {
+      let estadoBadge = '';
+      if (e.estado === 'completada') {
+        estadoBadge = '<span class="badge badge-success flex items-center gap-1">✅ ' + (e.porcentaje_final || 0) + '%</span>';
+      } else if (e.estado === 'expirada') {
+        estadoBadge = '<span class="badge badge-error flex items-center gap-1">❌ Expirada</span>';
+      } else {
+        estadoBadge = '<span class="badge badge-warning flex items-center gap-1">⏳ Pendiente</span>';
+      }
+
+      let diasBadge = '';
+      if (e.dias_restantes > 0 && e.estado === 'pendiente') {
+        diasBadge = '<span class="text-xs text-blue-600">' + e.dias_restantes + ' días</span>';
+      } else if (e.dias_restantes <= 0 && e.estado === 'pendiente') {
+        diasBadge = '<span class="text-xs text-red-600 font-semibold">⚠️ Vence hoy</span>';
+      } else if (e.estado === 'expirada') {
+        diasBadge = '<span class="text-xs text-red-600">Expirada</span>';
+      }
+
+      const accionesBtn = e.estado === 'expirada' || (e.estado === 'pendiente' && e.fecha_limite && e.fecha_limite < new Date().toISOString().split('T')[0])
+        ? '<button class="text-sm px-3 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100" onclick="renderModalContactarEncuesta(' + e.id + ')">📞 Contactar</button>'
+        : e.estado === 'pendiente'
+          ? '<span class="text-xs text-gray-400">Esperando respuesta...</span>'
+          : '<span class="text-xs text-green-600">' + (e.fecha_encuesta ? new Date(e.fecha_encuesta).toLocaleDateString() : 'Completada') + '</span>';
+
+      return '<tr>' +
+        '<td class="py-3 px-3">' + escHtml(e.numero_ot) + '</td>' +
+        '<td class="py-3 px-3">' + escHtml(e.cliente_nombre) + '</td>' +
+        '<td class="py-3 px-3">' + estadoBadge + '</td>' +
+        '<td class="py-3 px-3 text-sm">' + (e.fecha_limite || '-') + '</td>' +
+        '<td class="py-3 px-3">' + (e.numero_aval ? '<span class="text-sm">' + escHtml(e.numero_aval) + '</span>' : '<span class="text-xs text-gray-400">-</span>') + '</td>' +
+        '<td class="py-3 px-3">' + diasBadge + '</td>' +
+        '<td class="py-3 px-3">' + accionesBtn + '</td>' +
+        '</tr>';
+    }).join('');
+
+    return `
+      <div class="fade-in">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">⭐ Encuestas de Satisfacción</h2>
+          <button class="btn-primary flex items-center gap-2" onclick="renderModalNuevaEncuesta()">
+            <span>+</span> Nueva Encuesta
+          </button>
+        </div>
+
+        <div class="card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">OT</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Cliente</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Estado</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Fecha Límite</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Aval</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>
+                </tr>
+              </thead>
+              <tbody>${rows || '<tr><td colspan="7" class="text-center py-8 text-gray-400">No hay encuestas registradas</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    console.error('Error loading encuestas:', e);
+    return '<div class="text-center py-8 text-red-500">Error al cargar encuestas: ' + e.message + '</div>';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MODAL: Contactar Encuesta
+// ═══════════════════════════════════════════════
+async function renderModalContactarEncuesta(encuestaId) {
+  const container = document.getElementById('modal-content');
+  try {
+    const d = await api('GET', '/api/encuestas?id=' + encuestaId);
+    const e = (d.encuestas || [])[0];
+    if (!e) { toast('Encuesta no encontrada', 'error'); return; }
+
+    const diasVencido = Math.abs(e.dias_restantes || 0);
+    container.innerHTML = `
+      <div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()" id="contactar-enc-overlay">
+        <div class="modal-content max-w-lg">
+          <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+            <h2 class="text-xl font-bold flex items-center gap-2">📞 Contactar Cliente</h2>
+            <button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="bg-orange-50 rounded-xl p-4 text-sm space-y-2">
+              <p><strong>OT:</strong> ${escHtml(e.numero_ot)}</p>
+              <p><strong>Cliente:</strong> ${escHtml(e.cliente_nombre)}</p>
+              <p><strong>Fecha Límite:</strong> ${e.fecha_limite || 'N/A'}</p>
+              <p><strong>Días vencido:</strong> <span class="text-red-600 font-semibold">${diasVencido} días</span></p>
+              <p><strong>Email:</strong> ${escHtml(e.cliente_email) || 'No registrado'}</p>
+              <p><strong>Teléfono:</strong> ${escHtml(e.aval_cliente_telefono || e.cliente_telefono || 'No registrado')}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Notas de Contacto</label>
+              <textarea id="contactar-notas" class="input-field w-full" rows="3" placeholder="¿Cómo se contactó al cliente? ¿Qué respondió?"></textarea>
+            </div>
+            <div class="flex justify-end gap-3">
+              <button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>
+              <button class="btn-primary" onclick="submitContactarEncuesta(${encuestaId})">Marcar como Contactado</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function submitContactarEncuesta(encuestaId) {
+  try {
+    const notas = document.getElementById('contactar-notas').value;
+    await api('PUT', '/api/encuestas/' + encuestaId + '/contactar', { notas_contacto: notas });
+    toast('✅ Contacto registrado exitosamente', 'success');
+    closeAllModals();
+    if (state.view === 'encuestas') render();
+    if (state.view === 'inicio') initEncuestasAlertas();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ALERTAS de encuestas pendientes en inicio
+// ═══════════════════════════════════════════════
+async function initEncuestasAlertas() {
+  const container = document.getElementById('encuestas-alertas');
+  if (!container) return;
+  try {
+    const d = await api('GET', '/api/encuestas');
+    const todas = d.encuestas || [];
+    const pendientes = todas.filter(e => e.estado === 'pendiente' || e.estado === 'expirada');
+    if (pendientes.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const ahora = new Date().toISOString().split('T')[0];
+    const alertas = pendientes.map(e => {
+      let tipo = 'info';
+      let icono = '📝';
+      let color = 'bg-blue-50 border-blue-200 text-blue-800';
+
+      if (e.estado === 'expirada' || (e.fecha_limite && e.fecha_limite < ahora)) {
+        tipo = 'danger';
+        icono = '⚠️';
+        color = 'bg-red-50 border-red-200 text-red-800';
+      } else if (e.dias_restantes <= 0) {
+        tipo = 'warning';
+        icono = '⏰';
+        color = 'bg-yellow-50 border-yellow-200 text-yellow-800';
+      }
+
+      return `<div class="${color} border rounded-lg px-4 py-3 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <span class="text-lg">${icono}</span>
+          <div>
+            <p class="font-medium text-sm">${e.estado === 'expirada' ? 'Cliente sin contactar: ' : 'Encuesta pendiente: '} OT ${escHtml(e.numero_ot)}</p>
+            <p class="text-xs opacity-75">${escHtml(e.cliente_nombre)}${e.fecha_limite ? ' · Límite: ' + e.fecha_limite : ''}</p>
+          </div>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button class="text-xs px-3 py-1.5 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-100 transition-colors" onclick="setState({view:'ordenes'})">Ver OT</button>
+          ${tipo === 'danger' ? `<button class="text-xs px-3 py-1.5 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-100 transition-colors" onclick="renderModalContactarEncuesta(${e.id})">📞 Contactar</button>` : ''}
+        </div>
+      </div>`;
+    });
+
+    container.innerHTML = '<div class="space-y-2">' + alertas.join('') + '</div>';
+  } catch (e) {
+    console.error('Error loading encuesta alertas:', e);
+  }
+}
 
 // ============ AVAL NUEVO FLUJO: Actions ============
 // ============ MODAL: ENTREGA AVAL (técnico) ============
@@ -1808,6 +2040,14 @@ window.closeModal = function (id) {
   render();
 };
 
+window.closeAllModals = function () {
+  Object.keys(modals).forEach(function(k) { delete modals[k]; });
+  if (document.getElementById('contactar-enc-overlay')) {
+    document.getElementById('contactar-enc-overlay').remove();
+  }
+  render();
+};
+
 // ============ NUEVO PRESUPUESTO INLINE ============
 window.toggleNuevoPresupuesto = function () {
   const form = document.getElementById('ot-nuevo-presupuesto-form');
@@ -2086,7 +2326,7 @@ async function render() {
 
   try {
     switch (state.view) {
-      case 'inicio': content = await renderInicio(); break;
+      case 'inicio': content = await renderInicio(); initEncuestasAlertas(); break;
       case 'ordenes': content = await renderOrdenes(); break;
       case 'avales': content = await renderAvales(); break;
       case 'encuestas': content = await renderEncuestas(); break;
@@ -3140,6 +3380,8 @@ let _otsCompletadas = [];
       
       const d = await api('GET', '/api/ordenes?estado=completada');
       _otsCompletadas = d.ordenes || [];
+      // Cargar alertas de encuestas
+      initEncuestasAlertas();
     } catch (e) {
       console.warn('[init] Token inválido o servidor no disponible, redirigiendo a login:', e.message);
       localStorage.removeItem('token');

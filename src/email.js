@@ -364,7 +364,7 @@ async function enviarNotificacionFirmaCliente(avalId) {
   return result;
 }
 
-module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarNotificacionFirmaCliente };
+module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarNotificacionFirmaCliente, enviarRecordatorioEncuesta };
 
 // ──────────────────────────────────────────────
 // Resend provider (alternativa a SendGrid)
@@ -414,6 +414,158 @@ async function enviarViaResend({ to, subject, html, attachments }) {
     return { success: false, error: 'Resend HTTP ' + resp.status + ': ' + text };
   } catch (e) {
     console.error('Resend network error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════
+// NOTIFICACIONES: Recordatorios de encuestas
+// ═══════════════════════════════════════════════
+
+/**
+ * Enviar recordatorio de encuesta
+ * @param {number} encuestaId - ID de la encuesta
+ * @param {string} tipo - 'recordatorio_1', 'recordatorio_2', 'expirada'
+ * @param {object} datos - datos adicionales (opcional)
+ */
+async function enviarRecordatorioEncuesta(encuestaId, tipo, datos) {
+  try {
+    const { getDb, queryAll: qAll, queryFirst: qFirst } = require('./db');
+    await getDb();
+
+    const enc = qFirst(`
+      SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre, c.email as cliente_email, c.telefono as cliente_telefono,
+        a.numero_aval, a.cliente_telefono as aval_telefono, a.cliente_email as aval_email
+      FROM encuestas_satisfaccion e
+      JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
+      JOIN clientes c ON ot.cliente_id = c.id
+      LEFT JOIN avales a ON e.aval_id = a.id
+      WHERE e.id = ?
+    `, [encuestaId]);
+
+    if (!enc) {
+      console.error('Encuesta ' + encuestaId + ' no encontrada para recordatorio');
+      return { success: false, error: 'Encuesta no encontrada' };
+    }
+
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    const encuestaPublicUrl = dashUrl + '/encuesta-publica/' + (enc.token_publico || '');
+    const adminUrl = dashUrl + '/orden/' + enc.orden_trabajo_id;
+
+    if (tipo === 'recordatorio_1') {
+      // Email al cliente con enlace a encuesta pública
+      const emailCliente = datos?.email || enc.aval_email || enc.cliente_email;
+      if (!emailCliente) {
+        console.log('No hay email de cliente para recordatorio 1, encuesta ' + encuestaId);
+        return { success: false, error: 'Sin email de cliente' };
+      }
+
+      return await enviarEmail({
+        to: [emailCliente],
+        subject: 'Tu opinión nos importa — completa la encuesta de satisfacción',
+        html: [
+          '<!DOCTYPE html><html><head><meta charset="utf-8"></head>',
+          '<body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px">',
+          '<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">',
+          '<div style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:white;padding:24px 30px">',
+          '<h1 style="margin:0;font-size:22px">📝 ¿Cómo fue tu experiencia?</h1>',
+          '<p style="margin:8px 0 0;opacity:0.9">' + escHtml(enc.numero_ot || '') + '</p>',
+          '</div>',
+          '<div style="padding:24px 30px">',
+          '<p style="font-size:16px;color:#333">Hola <strong>' + escHtml(enc.cliente_nombre) + '</strong>,</p>',
+          '<p style="font-size:15px;color:#555">Queremos conocer tu opinión sobre el servicio recibido en la Orden de Trabajo <strong>' + escHtml(enc.numero_ot) + '</strong>.</p>',
+          '<p style="font-size:15px;color:#555">Tu feedback nos ayuda a mejorar la calidad de nuestro servicio.</p>',
+          '<div style="text-align:center;margin:24px 0">',
+          '<a href="' + escHtml(encuestaPublicUrl) + '" style="display:inline-block;background:#2563eb;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:16px">Completar Encuesta ⭐</a>',
+          '</div>',
+          '<p style="color:#6b7280;font-size:13px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:16px">',
+          'Este enlace expirará el <strong>' + escHtml(enc.fecha_limite || '') + '</strong>.</p>',
+          '</div></div></body></html>'
+        ].join('')
+      });
+
+    } else if (tipo === 'recordatorio_2') {
+      // Email a servicio_cliente y admin: cliente no ha respondido
+      const adminRows = qAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
+      const scRows = qAll("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' AND email IS NOT NULL");
+      const recipients = [...adminRows.map(a => a.email), ...scRows.map(s => s.email)].filter(Boolean);
+
+      if (recipients.length === 0) {
+        console.log('Sin destinatarios para recordatorio 2, encuesta ' + encuestaId);
+        return { success: false, error: 'Sin destinatarios' };
+      }
+
+      return await enviarEmail({
+        to: recipients,
+        subject: '⏰ Cliente no ha respondido encuesta — OT ' + enc.numero_ot,
+        html: [
+          '<!DOCTYPE html><html><head><meta charset="utf-8"></head>',
+          '<body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px">',
+          '<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">',
+          '<div style="background:linear-gradient(135deg,#f59e0b,#d97706);color:white;padding:20px 24px">',
+          '<h1 style="margin:0;font-size:20px">⏰ Recordatorio: Cliente no ha respondido</h1>',
+          '<p style="margin:6px 0 0;opacity:0.9">' + escHtml(enc.numero_ot) + ' — ' + escHtml(enc.cliente_nombre) + '</p>',
+          '</div>',
+          '<div style="padding:24px">',
+          '<p style="font-size:15px;color:#333">El cliente <strong>' + escHtml(enc.cliente_nombre) + '</strong> no ha respondido la encuesta de satisfacción.</p>',
+          '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:16px 0">',
+          '<table style="width:100%;font-size:13px">',
+          '<tr><td style="padding:4px 0;color:#666">OT:</td><td style="font-weight:bold">' + escHtml(enc.numero_ot || '#') + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Cliente:</td><td>' + escHtml(enc.cliente_nombre) + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Teléfono:</td><td>' + escHtml(enc.aval_telefono || enc.cliente_telefono || 'N/A') + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Fecha Límite:</td><td>' + escHtml(enc.fecha_limite || 'N/A') + '</td></tr>',
+          '</table>',
+          '</div>',
+          '<a href="' + escHtml(adminUrl) + '" style="display:inline-block;background:#2563eb;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px">Ver en Dashboard</a>',
+          '<p style="color:#999;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">Este es un mensaje automático del sistema de Órdenes de Trabajo.</p>',
+          '</div></div></body></html>'
+        ].join('')
+      });
+
+    } else if (tipo === 'expirada') {
+      // Email a admin: encuesta expirada, contactar al cliente
+      const adminRows2 = qAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
+      const scRows2 = qAll("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' AND email IS NOT NULL");
+      const recipients2 = [...adminRows2.map(a => a.email), ...scRows2.map(s => s.email)].filter(Boolean);
+
+      if (recipients2.length === 0) {
+        console.log('Sin destinatarios para alerta de expirada, encuesta ' + encuestaId);
+        return { success: false, error: 'Sin destinatarios' };
+      }
+
+      return await enviarEmail({
+        to: recipients2,
+        subject: '⚠️ Encuesta expirada para OT ' + enc.numero_ot + ' — contactar al cliente',
+        html: [
+          '<!DOCTYPE html><html><head><meta charset="utf-8"></head>',
+          '<body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px">',
+          '<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">',
+          '<div style="background:linear-gradient(135deg,#dc2626,#ef4444);color:white;padding:20px 24px">',
+          '<h1 style="margin:0;font-size:20px">⚠️ Encuesta Expirada</h1>',
+          '<p style="margin:6px 0 0;opacity:0.9">' + escHtml(enc.numero_ot) + ' — ' + escHtml(enc.cliente_nombre) + '</p>',
+          '</div>',
+          '<div style="padding:24px">',
+          '<p style="font-size:15px;color:#333">La encuesta de satisfacción para <strong>' + escHtml(enc.cliente_nombre) + '</strong> ha <strong style="color:#dc2626">expirado</strong>.</p>',
+          '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:16px 0">',
+          '<table style="width:100%;font-size:13px">',
+          '<tr><td style="padding:4px 0;color:#666">OT:</td><td style="font-weight:bold">' + escHtml(enc.numero_ot || '#') + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Cliente:</td><td>' + escHtml(enc.cliente_nombre) + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Teléfono:</td><td>' + escHtml(enc.aval_telefono || enc.cliente_telefono || 'N/A') + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Email:</td><td>' + escHtml(enc.aval_email || enc.cliente_email || 'N/A') + '</td></tr>',
+          '<tr><td style="padding:4px 0;color:#666">Fecha Límite:</td><td>' + escHtml(enc.fecha_limite || 'N/A') + '</td></tr>',
+          '</table>',
+          '</div>',
+          '<p style="font-size:14px;color:#374151"><strong>Acción requerida:</strong> Contacta al cliente para obtener su feedback manualmente.</p>',
+          '<a href="' + escHtml(adminUrl) + '" style="display:inline-block;background:#2563eb;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px">Contactar Cliente</a>',
+          '<p style="color:#999;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">Este es un mensaje automático del sistema de Órdenes de Trabajo.</p>',
+          '</div></div></body></html>'
+        ].join('')
+      });
+    }
+
+    return { success: false, error: 'Tipo de recordatorio no válido: ' + tipo };
+  } catch (e) {
+    console.error('Error enviando recordatorio encuesta:', e.message);
     return { success: false, error: e.message };
   }
 }

@@ -333,6 +333,63 @@ async function initDatabase() {
       creado_en TEXT DEFAULT (datetime('now', '-04:00'))
     );
   `);
+  // ═══════════════════════════════════════════════
+  // ENCUESTAS DE SATISFACCIÓN — migración columnas nuevas
+  // ═══════════════════════════════════════════════
+  const encCols = queryAll("PRAGMA table_info('encuestas_satisfaccion')");
+  const hasFechaLimite = encCols.some(c => c.name === 'fecha_limite');
+  if (!hasFechaLimite) {
+    run("ALTER TABLE encuestas_satisfaccion ADD COLUMN fecha_limite TEXT");
+    console.log('🔧 Columna fecha_limite agregada a encuestas_satisfaccion');
+  }
+  const hasEstadoEnc = encCols.some(c => c.name === 'estado');
+  if (!hasEstadoEnc) {
+    run("ALTER TABLE encuestas_satisfaccion ADD COLUMN estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente','completada','expirada'))");
+    console.log('🔧 Columna estado agregada a encuestas_satisfaccion');
+  }
+  const hasAvalId = encCols.some(c => c.name === 'aval_id');
+  if (!hasAvalId) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN aval_id INTEGER REFERENCES avales(id)');
+    console.log('🔧 Columna aval_id agregada a encuestas_satisfaccion');
+  }
+  const hasRec1 = encCols.some(c => c.name === 'recordatorio_1_enviado');
+  if (!hasRec1) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN recordatorio_1_enviado INTEGER DEFAULT 0');
+    console.log('🔧 Columna recordatorio_1_enviado agregada');
+  }
+  const hasRec2 = encCols.some(c => c.name === 'recordatorio_2_enviado');
+  if (!hasRec2) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN recordatorio_2_enviado INTEGER DEFAULT 0');
+    console.log('🔧 Columna recordatorio_2_enviado agregada');
+  }
+  const hasContactadoPor = encCols.some(c => c.name === 'contactado_por');
+  if (!hasContactadoPor) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN contactado_por INTEGER REFERENCES usuarios(id)');
+    console.log('🔧 Columna contactado_por agregada');
+  }
+  const hasFechaContacto = encCols.some(c => c.name === 'fecha_contacto');
+  if (!hasFechaContacto) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN fecha_contacto TEXT');
+    console.log('🔧 Columna fecha_contacto agregada');
+  }
+  const hasNotasContacto = encCols.some(c => c.name === 'notas_contacto');
+  if (!hasNotasContacto) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN notas_contacto TEXT');
+    console.log('🔧 Columna notas_contacto agregada');
+  }
+  // Token público para encuesta pública
+  const hasTokenEnc = encCols.some(c => c.name === 'token_publico');
+  if (!hasTokenEnc) {
+    run("ALTER TABLE encuestas_satisfaccion ADD COLUMN token_publico TEXT");
+    console.log('🔧 Columna token_publico agregada a encuestas_satisfaccion');
+  }
+  // respuestas JSON para encuesta pública
+  const hasRespuestasData = encCols.some(c => c.name === 'respuestas_data');
+  if (!hasRespuestasData) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN respuestas_data TEXT');
+    console.log('🔧 Columna respuestas_data agregada a encuestas_satisfaccion');
+  }
+
   run(`
     CREATE TABLE IF NOT EXISTS configuracion_incentivos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

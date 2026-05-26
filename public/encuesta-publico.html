@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Encuesta de Satisfacción</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
+  .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .btn-primary { background: #2563eb; color: white; padding: 12px 28px; border-radius: 10px; font-weight: 600; transition: all .15s; font-size: 15px; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { border: 1px solid #d1d5db; padding: 12px 28px; border-radius: 10px; font-weight: 500; transition: all .15s; }
+  .btn-secondary:hover { background: #f9fafb; }
+  .loading-spinner { border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; width: 32px; height: 32px; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .star-btn { width: 44px; height: 44px; border-radius: 50%; font-size: 14px; font-weight: 600; transition: all .15s; border: none; cursor: pointer; }
+  .star-btn:hover { transform: scale(1.1); }
+  .star-btn.active { background: #facc15; color: #92400e; box-shadow: 0 2px 4px rgba(250,204,21,0.4); }
+  .star-btn.inactive { background: #e5e7eb; color: #9ca3af; }
+  .star-btn.inactive:hover { background: #fde047; color: #a16207; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.3s ease-out; }
+</style>
+</head>
+<body class="min-h-screen py-8">
+
+<div class="max-w-xl mx-auto px-4" id="app">
+  <!-- Loading -->
+  <div id="loading" class="text-center py-20">
+    <div class="loading-spinner mx-auto mb-4"></div>
+    <p class="text-gray-500">Cargando encuesta...</p>
+  </div>
+
+  <!-- Error -->
+  <div id="error" class="hidden text-center py-20 fade-in">
+    <span class="text-6xl block mb-4">⚠️</span>
+    <h2 class="text-xl font-bold text-gray-800 mb-2" id="error-title">Encuesta no encontrada</h2>
+    <p class="text-gray-500" id="error-message">Este enlace no es válido o la encuesta ya fue completada.</p>
+    <p class="text-gray-400 text-sm mt-4">Si crees que es un error, contacta al departamento de servicio.</p>
+  </div>
+
+  <!-- Encuesta Form -->
+  <div id="encuesta-form" class="hidden fade-in">
+    <!-- Header -->
+    <div class="card overflow-hidden mb-6">
+      <div class="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-6">
+        <h1 class="text-2xl font-bold">📝 Encuesta de Satisfacción</h1>
+        <p class="mt-2 opacity-90" id="ot-info">Cargando información de la orden...</p>
+      </div>
+    </div>
+
+    <!-- Preguntas -->
+    <div class="card p-6 mb-6" id="preguntas-container">
+      <h2 class="text-base font-semibold text-gray-700 mb-1">Califica tu experiencia</h2>
+      <p class="text-sm text-gray-400 mb-6">1 = Muy Malo · 2 = Malo · 3 = Regular · 4 = Bueno · 5 = Excelente</p>
+      <div id="preguntas-list" class="space-y-5"></div>
+
+      <!-- Recomendación -->
+      <div class="mt-8 pt-6 border-t border-gray-200">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">¿Recomendarías nuestro servicio?</h3>
+        <div class="flex gap-4">
+          <button type="button" onclick="setRecomendacion(1)" id="rec-si" class="flex-1 py-3 px-4 rounded-xl font-medium transition-all text-sm border-2" style="border-color:#e5e7eb;color:#6b7280;background:#f9fafb">
+            👍 Sí, lo recomendaría
+          </button>
+          <button type="button" onclick="setRecomendacion(0)" id="rec-no" class="flex-1 py-3 px-4 rounded-xl font-medium transition-all text-sm border-2" style="border-color:#e5e7eb;color:#6b7280;background:#f9fafb">
+            👎 No lo recomendaría
+          </button>
+        </div>
+      </div>
+
+      <!-- Observaciones -->
+      <div class="mt-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Observaciones (opcional)</label>
+        <textarea id="enc-observaciones" class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" rows="3" placeholder="Comparte cualquier comentario adicional..."></textarea>
+      </div>
+
+      <!-- Submit -->
+      <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-end">
+        <button onclick="submitEncuesta()" id="btn-submit" class="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto">
+          <span>Enviar Encuesta</span>
+          <span>→</span>
+        </button>
+      </div>
+    </div>
+
+    <p class="text-xs text-gray-400 text-center">Tus respuestas son anónimas y nos ayudan a mejorar nuestro servicio.</p>
+  </div>
+
+  <!-- Success -->
+  <div id="success" class="hidden text-center py-20 fade-in">
+    <div class="text-7xl mb-6">🎉</div>
+    <h2 class="text-2xl font-bold text-gray-800 mb-3">¡Gracias por tu opinión!</h2>
+    <p class="text-gray-500 text-lg mb-2">Tu encuesta ha sido registrada exitosamente.</p>
+    <p class="text-gray-400">Tu feedback nos ayuda a mejorar cada día.</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIGURACIÓN
+// ═══════════════════════════════════════════════
+const PREGUNTAS = [
+  { key: 'satisfaccion_general', label: 'Satisfacción General', desc: 'Evaluación global del servicio recibido' },
+  { key: 'tiempo_entrega', label: 'Tiempo de Entrega', desc: 'Cumplimiento del plazo acordado para la instalación' },
+  { key: 'desempeno_equipo', label: 'Desempeño del Equipo', desc: 'Calidad del trabajo realizado por los técnicos' },
+  { key: 'presentacion_equipo', label: 'Presentación del Equipo', desc: 'Uniforme, puntualidad y trato del personal' },
+  { key: 'calidad_productos', label: 'Calidad de Productos', desc: 'Materiales y equipos instalados' },
+  { key: 'conocimientos_tecnicos', label: 'Conocimientos Técnicos', desc: 'Dominio técnico demostrado durante el servicio' },
+  { key: 'calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Capacitación recibida sobre el uso de los productos' },
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const state = {
+  token: null,
+  encuesta: null,
+  valores: {},
+  recomendaria: 1,
+};
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+async function init() {
+  const pathParts = window.location.pathname.split('/');
+  state.token = pathParts[pathParts.length - 1];
+
+  if (!state.token || state.token.length < 10) {
+    showError('Enlace inválido', 'El enlace proporcionado no es válido.');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/encuestas/public/' + state.token);
+    if (!resp.ok) {
+      const data = await resp.json();
+      if (data.yaCompletada) {
+        showSuccess();
+        return;
+      }
+      showError('Encuesta no disponible', data.error || 'No se pudo cargar la encuesta.');
+      return;
+    }
+
+    const data = await resp.json();
+    state.encuesta = data.encuesta;
+
+    // Mostrar formulario
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('encuesta-form').classList.remove('hidden');
+
+    // Info de OT
+    document.getElementById('ot-info').textContent = 'Orden de Trabajo: ' + (data.encuesta.numero_ot || 'N/A') + ' · ' + (data.encuesta.cliente_nombre || '');
+
+    // Cargar preguntas
+    renderPreguntas();
+
+    // Actualizar estado de fecha límite
+    if (data.encuesta.fecha_limite) {
+      const fechaHtml = '<p class="text-xs text-gray-400 mt-4">Encuesta disponible hasta: <strong>' + data.encuesta.fecha_limite + '</strong></p>';
+      document.getElementById('preguntas-container').insertAdjacentHTML('beforeend', fechaHtml);
+    }
+  } catch (e) {
+    showError('Error de conexión', 'No se pudo conectar con el servidor. Verifica tu conexión a internet.');
+    console.error('Init error:', e);
+  }
+}
+
+function showError(title, message) {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('error').classList.remove('hidden');
+  if (title) document.getElementById('error-title').textContent = title;
+  if (message) document.getElementById('error-message').textContent = message;
+}
+
+function showSuccess() {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('encuesta-form').classList.add('hidden');
+  document.getElementById('error').classList.add('hidden');
+  document.getElementById('success').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════
+// PREGUNTAS
+// ═══════════════════════════════════════════════
+function renderPreguntas() {
+  const container = document.getElementById('preguntas-list');
+
+  const html = PREGUNTAS.map(p => {
+    return '<div class="bg-gray-50 rounded-xl p-4">' +
+      '<div class="mb-3">' +
+        '<p class="text-sm font-medium text-gray-700">' + escHtml(p.label) + '</p>' +
+        '<p class="text-xs text-gray-400">' + escHtml(p.desc) + '</p>' +
+      '</div>' +
+      '<div class="flex gap-1.5 justify-center">' +
+        [1,2,3,4,5].map(v =>
+          '<button type="button" class="star-btn inactive" id="star-' + p.key + '-' + v + '" onclick="setValor(\'' + p.key + '\',' + v + ')">' + v + '</button>'
+        ).join('') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  container.innerHTML = html;
+
+  // Default all to 4
+  PREGUNTAS.forEach(p => setValor(p.key, 4));
+}
+
+window.setValor = function(key, val) {
+  state.valores[key] = val;
+  for (let v = 1; v <= 5; v++) {
+    const btn = document.getElementById('star-' + key + '-' + v);
+    if (btn) {
+      btn.className = 'star-btn ' + (v <= val ? 'active' : 'inactive');
+    }
+  }
+};
+
+window.setRecomendacion = function(val) {
+  state.recomendaria = val;
+  const siBtn = document.getElementById('rec-si');
+  const noBtn = document.getElementById('rec-no');
+  if (val === 1) {
+    siBtn.className = 'flex-1 py-3 px-4 rounded-xl font-medium transition-all text-sm border-2 border-green-500 bg-green-50 text-green-800';
+    noBtn.className = 'flex-1 py-3 px-4 rounded-xl font-medium transition-all text-sm border-2 border-gray-200 bg-gray-50 text-gray-500';
+  } else {
+    siBtn.className = 'flex-1 py-3 px-4 rounded-xl font-medium transition-all text-sm border-2 border-gray-200 bg-gray-50 text-gray-500';
+    noBtn.className = 'flex-1 py-3 px-4 rounded-xl font-medium transition-all text-sm border-2 border-red-500 bg-red-50 text-red-800';
+  }
+};
+
+// ═══════════════════════════════════════════════
+// SUBMIT
+// ═══════════════════════════════════════════════
+window.submitEncuesta = async function() {
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Enviando...';
+
+  try {
+    const body = {
+      ...state.valores,
+      recomendaria: state.recomendaria,
+      observaciones: document.getElementById('enc-observaciones').value || ''
+    };
+
+    const resp = await fetch('/api/encuestas/public/' + state.token + '/responder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+      const data = await resp.json();
+      throw new Error(data.error || 'Error al enviar encuesta');
+    }
+
+    showSuccess();
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span>Enviar Encuesta</span><span>→</span>';
+  }
+};
+
+// ═══════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>

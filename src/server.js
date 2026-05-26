@@ -36,6 +36,8 @@ async function start() {
 
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);
+      // Iniciar cron de encuestas
+      iniciarCronEncuestas();
     });
   } catch (e) {
     console.error('Error inicializando BD:', e.message);
@@ -56,6 +58,45 @@ function generarNumeroAval() {
   const row = queryFirst("SELECT COUNT(*) as cnt FROM avales WHERE strftime('%Y', creado_en) = ?", [String(year)]);
   const count = row?.cnt || 0;
   return `AV-NUEVO-${year}-${String(count + 1).padStart(4, '0')}`;
+}
+
+// ═══════════════════════════════════════════════
+// HELPERS: Días hábiles y encuestas
+// ═══════════════════════════════════════════════
+function sumarDiasHabiles(fechaStr, dias) {
+  const fecha = new Date(fechaStr + 'T12:00:00-04:00');
+  if (isNaN(fecha.getTime())) return fechaStr;
+  let contados = 0;
+  while (contados < dias) {
+    fecha.setDate(fecha.getDate() + 1);
+    const diaSem = fecha.getDay();
+    if (diaSem !== 0 && diaSem !== 6) contados++;
+  }
+  const y = fecha.getFullYear();
+  const m = String(fecha.getMonth() + 1).padStart(2, '0');
+  const d = String(fecha.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Calcular días hábiles entre dos fechas
+function diasHabilesEntre(fechaInicio, fechaFin) {
+  const inicio = new Date(fechaInicio + 'T12:00:00-04:00');
+  const fin = new Date(fechaFin + 'T12:00:00-04:00');
+  if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) return 0;
+  let count = 0;
+  const current = new Date(inicio);
+  while (current <= fin) {
+    const diaSem = current.getDay();
+    if (diaSem !== 0 && diaSem !== 6) count++;
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
+// Generar token único para encuesta pública
+function generarTokenEncuesta() {
+  const crypto = require('crypto');
+  return crypto.randomBytes(16).toString('hex');
 }
 
 // ============ PRECIOS ============
@@ -888,9 +929,24 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
       // Change OT to completada
       run("UPDATE ordenes_trabajo SET estado='completada', fecha_fin=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?",
         [aval.orden_trabajo_id]);
+
+      // Crear encuesta automática
+      const hoy = new Date().toISOString().split('T')[0];
+      const fechaLimite = sumarDiasHabiles(hoy, 3);
+      const tokenEnc = generarTokenEncuesta();
+      run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico)
+        VALUES (?, ?, 'pendiente', ?, ?, ?)`,
+        [aval.orden_trabajo_id, id, fechaLimite, req.user.userId, tokenEnc]);
     });
 
-    res.json({ message: 'Aval confirmado. OT marcada como completada.' });
+    const encuestaId = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_id = ?', [aval.orden_trabajo_id, id])?.id;
+
+    res.json({
+      message: 'Aval confirmado. OT marcada como completada.',
+      pendingSurvey: true,
+      encuestaId: encuestaId,
+      fechaLimite: encuestaId ? queryFirst('SELECT fecha_limite FROM encuestas_satisfaccion WHERE id = ?', [encuestaId])?.fecha_limite : null
+    });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error confirmando aval:', e);
@@ -1311,17 +1367,53 @@ function calcPorcentaje(r) {
 
 app.get('/api/encuestas', authMiddleware, (req, res) => {
   const otId = req.query.orden_trabajo_id;
+  const estadoFiltro = req.query.estado;
   let sql = `
-    SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre
+    SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre,
+      c.telefono as cliente_telefono, c.email as cliente_email,
+      a.numero_aval, a.cliente_nombre as aval_cliente_nombre, a.cliente_telefono as aval_cliente_telefono
     FROM encuestas_satisfaccion e
     JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
     JOIN clientes c ON ot.cliente_id = c.id
+    LEFT JOIN avales a ON e.aval_id = a.id
     WHERE 1=1
   `;
   const params = [];
   if (otId) { sql += ' AND e.orden_trabajo_id = ?'; params.push(Number(otId)); }
+  if (estadoFiltro) { sql += ' AND e.estado = ?'; params.push(estadoFiltro); }
   sql += ' ORDER BY e.creado_en DESC';
-  res.json({ encuestas: queryAll(sql, params) });
+
+  const encuestas = queryAll(sql, params);
+  const ahora = new Date().toISOString().split('T')[0];
+
+  const encuestasConDatos = encuestas.map(e => {
+    // Calcular estado dinámico si no se ha respondido
+    let estadoCalculado = e.estado;
+    if (e.fecha_encuesta) {
+      estadoCalculado = 'completada';
+    } else if (e.fecha_limite && e.fecha_limite < ahora) {
+      estadoCalculado = 'expirada';
+    } else {
+      estadoCalculado = 'pendiente';
+    }
+
+    let dias_restantes = 0;
+    if (e.fecha_limite) {
+      const lim = new Date(e.fecha_limite + 'T12:00:00-04:00');
+      const hoy = new Date();
+      const diffTime = lim.getTime() - hoy.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      dias_restantes = diffDays;
+    }
+
+    return {
+      ...e,
+      estado: estadoCalculado,
+      dias_restantes: dias_restantes
+    };
+  });
+
+  res.json({ encuestas: encuestasConDatos });
 });
 
 app.post('/api/encuestas', authMiddleware, async (req, res) => {
@@ -1341,8 +1433,8 @@ app.post('/api/encuestas', authMiddleware, async (req, res) => {
     run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, satisfaccion_general,
       tiempo_entrega, desempeno_equipo, presentacion_equipo, calidad_productos,
       conocimientos_tecnicos, calidad_entrenamientos, recomendaria, observaciones,
-      porcentaje_final, realizada_por, fecha_encuesta)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-04:00'))`,
+      porcentaje_final, realizada_por, fecha_encuesta, estado)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-04:00'), 'completada')`,
       [b.orden_trabajo_id, b.aval_legacy_id || null, respuestas.satisfaccion_general,
        respuestas.tiempo_entrega, respuestas.desempeno_equipo, respuestas.presentacion_equipo,
        respuestas.calidad_productos, respuestas.conocimientos_tecnicos, respuestas.calidad_entrenamientos,
@@ -1391,6 +1483,159 @@ app.post('/api/encuestas', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('Error creating encuesta:', e);
     res.status(500).json({ error: 'Error al registrar encuesta' });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// ENDPOINT: Contactar encuesta expirada
+// ═══════════════════════════════════════════════
+app.put('/api/encuestas/:id/contactar', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { notas_contacto } = req.body;
+
+    const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
+    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
+
+    // Si está pendiente y fecha_limite pasada, cambiar a expirada
+    const ahora = new Date().toISOString().split('T')[0];
+    let nuevoEstado = encuesta.estado;
+    if (encuesta.estado === 'pendiente' && encuesta.fecha_limite && encuesta.fecha_limite < ahora) {
+      nuevoEstado = 'expirada';
+    }
+
+    run(`UPDATE encuestas_satisfaccion SET
+      contactado_por = ?,
+      fecha_contacto = datetime('now', '-04:00'),
+      notas_contacto = COALESCE(?, notas_contacto),
+      estado = ?
+      WHERE id = ?`,
+      [req.user.userId, notas_contacto || null, nuevoEstado, id]);
+
+    res.json({ message: 'Contacto registrado', estado: nuevoEstado });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error contactando encuesta:', e);
+    res.status(500).json({ error: 'Error al registrar contacto' });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// ENDPOINTS PÚBLICOS: Encuesta pública (sin auth)
+// ═══════════════════════════════════════════════
+
+// GET /encuesta-publica/:token — servir página pública
+app.get('/encuesta-publica/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'encuesta-publico.html'));
+});
+
+// GET /api/encuestas/public/:token — datos públicos (sin auth)
+app.get('/api/encuestas/public/:token', (req, res) => {
+  try {
+    const encuesta = queryFirst(`
+      SELECT e.id, e.orden_trabajo_id, e.token_publico, e.fecha_limite, e.estado,
+        ot.numero_ot, ot.descripcion,
+        c.nombre as cliente_nombre, c.direccion as cliente_direccion,
+        a.numero_aval, a.cliente_nombre as aval_cliente_nombre
+      FROM encuestas_satisfaccion e
+      JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
+      JOIN clientes c ON ot.cliente_id = c.id
+      LEFT JOIN avales a ON e.aval_id = a.id
+      WHERE e.token_publico = ?
+    `, [req.params.token]);
+
+    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
+    if (encuesta.estado === 'completada') return res.status(400).json({ error: 'Esta encuesta ya fue completada', yaCompletada: true });
+
+    res.json({ encuesta });
+  } catch (e) {
+    console.error('Error fetching public encuesta:', e);
+    res.status(500).json({ error: 'Error al obtener encuesta' });
+  }
+});
+
+// POST /api/encuestas/public/:token/responder — cliente responde (sin auth)
+app.post('/api/encuestas/public/:token/responder', (req, res) => {
+  try {
+    const encuesta = queryFirst('SELECT id, estado FROM encuestas_satisfaccion WHERE token_publico = ?', [req.params.token]);
+    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
+    if (encuesta.estado === 'completada') return res.status(400).json({ error: 'Encuesta ya completada' });
+
+    const b = req.body;
+    const respuestas = {
+      satisfaccion_general: Math.min(5, Math.max(1, b.satisfaccion_general || 3)),
+      tiempo_entrega: Math.min(5, Math.max(1, b.tiempo_entrega || 3)),
+      desempeno_equipo: Math.min(5, Math.max(1, b.desempeno_equipo || 3)),
+      presentacion_equipo: Math.min(5, Math.max(1, b.presentacion_equipo || 3)),
+      calidad_productos: Math.min(5, Math.max(1, b.calidad_productos || 3)),
+      conocimientos_tecnicos: Math.min(5, Math.max(1, b.conocimientos_tecnicos || 3)),
+      calidad_entrenamientos: Math.min(5, Math.max(1, b.calidad_entrenamientos || 3)),
+      recomendaria: b.recomendaria ? 1 : 0,
+      observaciones: b.observaciones || null
+    };
+    const pct = calcPorcentaje(respuestas);
+
+    run(`UPDATE encuestas_satisfaccion SET
+      satisfaccion_general = ?,
+      tiempo_entrega = ?,
+      desempeno_equipo = ?,
+      presentacion_equipo = ?,
+      calidad_productos = ?,
+      conocimientos_tecnicos = ?,
+      calidad_entrenamientos = ?,
+      recomendaria = ?,
+      observaciones = ?,
+      porcentaje_final = ?,
+      fecha_encuesta = datetime('now', '-04:00'),
+      estado = 'completada'
+      WHERE id = ?`,
+      [respuestas.satisfaccion_general, respuestas.tiempo_entrega,
+       respuestas.desempeno_equipo, respuestas.presentacion_equipo,
+       respuestas.calidad_productos, respuestas.conocimientos_tecnicos,
+       respuestas.calidad_entrenamientos, respuestas.recomendaria,
+       respuestas.observaciones, pct, encuesta.id]);
+
+    // Enviar email de confirmación
+    const datosEnc = queryFirst(`
+      SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre
+      FROM encuestas_satisfaccion e
+      JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
+      JOIN clientes c ON ot.cliente_id = c.id
+      WHERE e.id = ?
+    `, [encuesta.id]);
+
+    if (datosEnc) {
+      const admins = queryAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
+      const recipients = admins.map(a => a.email).filter(Boolean);
+      const sc = queryFirst("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' LIMIT 1");
+      if (sc?.email) recipients.push(sc.email);
+
+      if (recipients.length > 0) {
+        enviarEmail({
+          to: recipients,
+          subject: `✅ Encuesta completada por cliente - OT ${datosEnc.numero_ot} (${pct}%)`,
+          html: `<h2>Encuesta completada por el cliente</h2>
+            <p><strong>OT:</strong> ${datosEnc.numero_ot}</p>
+            <p><strong>Resultado:</strong> ${pct}% de satisfacción</p>
+            <table border="1" cellpadding="8" style="border-collapse:collapse">
+              <tr><td>Satisfacción General</td><td>${respuestas.satisfaccion_general}/5</td></tr>
+              <tr><td>Tiempo de Entrega</td><td>${respuestas.tiempo_entrega}/5</td></tr>
+              <tr><td>Desempeño del Equipo</td><td>${respuestas.desempeno_equipo}/5</td></tr>
+              <tr><td>Presentación del Equipo</td><td>${respuestas.presentacion_equipo}/5</td></tr>
+              <tr><td>Calidad de Productos</td><td>${respuestas.calidad_productos}/5</td></tr>
+              <tr><td>Conocimientos Técnicos</td><td>${respuestas.conocimientos_tecnicos}/5</td></tr>
+              <tr><td>Calidad de Entrenamientos</td><td>${respuestas.calidad_entrenamientos}/5</td></tr>
+            </table>
+            ${respuestas.observaciones ? `<p><strong>Observaciones:</strong> ${respuestas.observaciones}</p>` : ''}`
+        }).catch(err => console.error('Error email confirmación encuesta:', err));
+      }
+    }
+
+    res.json({ message: 'Encuesta completada. ¡Gracias por tu opinión!', porcentaje: pct });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error responding to public encuesta:', e);
+    res.status(500).json({ error: 'Error al guardar respuestas' });
   }
 });
 
@@ -2462,5 +2707,128 @@ app.get('/api/avales/:id/compartir', authMiddleware, (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ═══════════════════════════════════════════════
+// CRON JOB: Timer de encuestas (cada hora)
+// ═══════════════════════════════════════════════
+function iniciarCronEncuestas() {
+  const INTERVALO = 60 * 60 * 1000; // cada hora
+
+  async function verificarEncuestas() {
+    try {
+      const hoy = new Date().toISOString().split('T')[0];
+      console.log(`⏰ Cron: Verificando encuestas pendientes (${hoy})...`);
+
+      const pendientes = queryAll(`
+        SELECT e.*, ot.numero_ot, ot.cliente_id, c.nombre as cliente_nombre, c.email as cliente_email, c.telefono as cliente_telefono,
+          a.numero_aval, a.cliente_nombre as aval_cliente_nombre, a.cliente_telefono as aval_cliente_telefono, a.cliente_email as aval_cliente_email
+        FROM encuestas_satisfaccion e
+        JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
+        JOIN clientes c ON ot.cliente_id = c.id
+        LEFT JOIN avales a ON e.aval_id = a.id
+        WHERE e.estado = 'pendiente' AND e.fecha_limite IS NOT NULL
+      `);
+
+      for (const enc of pendientes) {
+        if (!enc.fecha_limite) continue;
+
+        const diasRestantes = diasHabilesEntre(hoy, enc.fecha_limite);
+        const fechaLim = new Date(enc.fecha_limite + 'T12:00:00-04:00');
+        const hoyDate = new Date();
+        const diffTime = fechaLim.getTime() - hoyDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Caso 1: Expirada (fecha_limite pasó)
+        if (enc.fecha_limite < hoy && enc.estado === 'pendiente') {
+          run('UPDATE encuestas_satisfaccion SET estado = ? WHERE id = ?', ['expirada', enc.id]);
+          console.log(`⚠️ Encuesta #${enc.id} (OT ${enc.numero_ot}) marcada como expirada`);
+
+          // Enviar alerta a admin
+          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+          const adminEmails = queryAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
+          const scEmails = queryAll("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' AND email IS NOT NULL");
+          const recipients = [...adminEmails.map(a => a.email), ...scEmails.map(s => s.email)].filter(Boolean);
+
+          if (recipients.length > 0) {
+            const { enviarEmail: enviarEmailCron } = require('./email');
+            const emailCliente = enc.aval_cliente_email || enc.cliente_email || '';
+            const emailContacto = enc.aval_cliente_email || enc.cliente_email || '';
+            enviarEmailCron({
+              to: recipients,
+              subject: `⚠️ Encuesta expirada para OT ${enc.numero_ot} — contactar al cliente`,
+              html: `<h2>Encuesta Expirada</h2>
+                <p><strong>OT:</strong> ${enc.numero_ot}</p>
+                <p><strong>Cliente:</strong> ${enc.cliente_nombre}</p>
+                <p><strong>Fecha Límite:</strong> ${enc.fecha_limite}</p>
+                <p><strong>Días vencido:</strong> ${Math.abs(diffDays)}</p>
+                <p><strong>Email cliente:</strong> ${emailContacto || 'No registrado'}</p>
+                <p><strong>Teléfono cliente:</strong> ${enc.aval_cliente_telefono || enc.cliente_telefono || 'No registrado'}</p>
+                <p><a href="${dashUrl}">Ir al Dashboard</a></p>`
+            }).catch(err => console.error('Error email expirada:', err));
+          }
+          continue;
+        }
+
+        // Caso 2: Recordatorio 2 (fecha_limite - today == 0 días hábiles, o diffDays <= 0)
+        if (diffDays <= 0 && enc.recordatorio_2_enviado === 0) {
+          run('UPDATE encuestas_satisfaccion SET recordatorio_2_enviado = 1 WHERE id = ?', [enc.id]);
+          console.log(`⏰ Recordatorio 2 enviado para encuesta #${enc.id} (OT ${enc.numero_ot})`);
+
+          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+          const adminEmails = queryAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
+          const scEmails = queryAll("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' AND email IS NOT NULL");
+          const recipients = [...adminEmails.map(a => a.email), ...scEmails.map(s => s.email)].filter(Boolean);
+
+          if (recipients.length > 0) {
+            const { enviarEmail: enviarEmailCron } = require('./email');
+            enviarEmailCron({
+              to: recipients,
+              subject: `⏰ Cliente no ha respondido encuesta — OT ${enc.numero_ot}`,
+              html: `<h2>Recordatorio: Cliente no ha respondido la encuesta</h2>
+                <p><strong>OT:</strong> ${enc.numero_ot}</p>
+                <p><strong>Cliente:</strong> ${enc.cliente_nombre}</p>
+                <p><strong>Fecha Límite:</strong> ${enc.fecha_limite}</p>
+                <p><strong>Teléfono:</strong> ${enc.aval_cliente_telefono || enc.cliente_telefono || 'No registrado'}</p>
+                <p><a href="${dashUrl}">Ir al Dashboard</a></p>`
+            }).catch(err => console.error('Error email recordatorio 2:', err));
+          }
+          continue;
+        }
+
+        // Caso 3: Recordatorio 1 (al menos 1 día hábil antes del vencimiento)
+        if (diffDays >= 1 && enc.recordatorio_1_enviado === 0) {
+          // Enviar recordatorio al cliente
+          run(`UPDATE encuestas_satisfaccion SET recordatorio_1_enviado = 1 WHERE id = ${enc.id}`);
+
+          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+          const encuestaUrl = `${dashUrl}/encuesta-publica/${enc.token_publico}`;
+          const emailCliente = enc.aval_cliente_email || enc.cliente_email;
+
+          if (emailCliente) {
+            const { enviarEmail: enviarEmailCron2 } = require('./email');
+            enviarEmailCron2({
+              to: [emailCliente],
+              subject: 'Tu opinión nos importa — completa la encuesta de satisfacción',
+              html: `<h2>¿Cómo fue tu experiencia?</h2>
+                <p>Hola <strong>${enc.cliente_nombre}</strong>,</p>
+                <p>Queremos conocer tu opinión sobre el servicio recibido en la Orden de Trabajo <strong>${enc.numero_ot}</strong>.</p>
+                <p>Tu feedback nos ayuda a mejorar.</p>
+                <a href="${encuestaUrl}" style="display:inline-block;background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Completar Encuesta</a>
+                <p style="color:#999;font-size:12px;margin-top:16px">Este enlace expirará el ${enc.fecha_limite}.</p>`
+            }).catch(err => console.error('Error email recordatorio 1:', err));
+            console.log(`📧 Recordatorio 1 enviado a ${emailCliente} para encuesta #${enc.id}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error en cron de encuestas:', e);
+    }
+  }
+
+  // Ejecutar inmediatamente al iniciar, luego cada hora
+  verificarEncuestas();
+  setInterval(verificarEncuestas, INTERVALO);
+  console.log('⏰ Cron de encuestas iniciado (cada hora)');
+}
 
 start();
