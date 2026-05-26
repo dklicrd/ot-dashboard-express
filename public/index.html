@@ -427,11 +427,13 @@ async function renderOrdenes() {
       actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'en_curso') {
       actions += `<button onclick="showModal('entrega-aval', ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
+      if (ot.aval_id) {
+        actions += `<button onclick="compartirAval(${ot.aval_id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Compartir Aval">🔗</button>`;
+      }
       actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
     } else if (ot.estado === 'aval_entregado') {
       actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
-    } else if (ot.estado === 'completada') {
-      actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Ver Aval">📄</button>`;
+      actions += `<button onclick="compartirAval(${ot.aval_id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Compartir Aval">🔗</button>`;
     }
 
     return `
@@ -712,6 +714,8 @@ function renderModalDetalleAval(avalId) {
       const d = await api('GET', '/api/avales/' + avalId);
       const container = document.getElementById('detalle-aval-content');
       if (container) container.innerHTML = renderDetalleAvalContent(d.aval, d.productos || [], d.ot);
+      // Load compartir status
+      renderEstadoCompartir(avalId);
     } catch (e) {
       const container = document.getElementById('detalle-aval-content');
       if (container) container.innerHTML = '<p class="text-red-500 text-center">Error: ' + escHtml(e.message) + '</p>';
@@ -730,6 +734,74 @@ function renderModalDetalleAval(avalId) {
         </div>
       </div>
     </div>`;
+}
+
+// ============ COMPARTIR AVAL ============
+async function compartirAval(avalId) {
+  try {
+    const d = await api('POST', '/api/avales/' + avalId + '/compartir', {});
+    if (d.url) {
+      // Actualizar UI
+      renderEstadoCompartir(avalId);
+      // Copiar al portapapeles
+      try {
+        await navigator.clipboard.writeText(d.url);
+        toast('✅ Enlace copiado al portapapeles', 'success');
+      } catch(e) {
+        toast('✅ Enlace generado', 'success');
+      }
+    }
+  } catch (e) {
+    toast('Error al generar enlace: ' + e.message, 'error');
+  }
+}
+
+async function renderEstadoCompartir(avalId) {
+  try {
+    const d = await api('GET', '/api/avales/' + avalId + '/compartir', {});
+    const container = document.getElementById('compartir-estado-' + avalId);
+    if (!container) return;
+    
+    const tiempoEnviado = d.token_enviado_en ? new Date(d.token_enviado_en + 'Z').toLocaleString('es-DO', { timeZone: 'America/Santo_Domingo' }) : null;
+    const tiempoVisto = d.token_visto_en ? new Date(d.token_visto_en + 'Z').toLocaleString('es-DO', { timeZone: 'America/Santo_Domingo' }) : null;
+    const tiempoFirma = d.fecha_firma ? new Date(d.fecha_firma + 'Z').toLocaleString('es-DO', { timeZone: 'America/Santo_Domingo' }) : null;
+    
+    let statusHTML = '';
+    if (d.enlace) {
+      statusHTML += `
+        <div class="flex items-center gap-2 text-xs mb-2">
+          <span class="text-gray-500">🔗 Enlace:</span>
+          <code class="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs truncate max-w-[300px] inline-block">${escHtml(d.enlace)}</code>
+          <button onclick="navigator.clipboard.writeText('${escHtml(d.enlace)}'); toast('✅ Copiado', 'success')" class="text-blue-600 hover:text-blue-800 text-xs">📋</button>
+        </div>`;
+      
+      const steps = [
+        { label: 'Generado', done: !!d.token_enviado_en, time: tiempoEnviado },
+        { label: 'Visto por Cliente', done: !!d.token_visto_en, time: tiempoVisto },
+        { label: 'Firmado por Cliente', done: !!d.fecha_firma, time: tiempoFirma },
+      ];
+      
+      statusHTML += '<div class="flex items-center gap-4 mt-2">';
+      steps.forEach((s, i) => {
+        const icon = s.done ? '✅' : '⏳';
+        const color = s.done ? 'text-green-600' : 'text-gray-400';
+        statusHTML += `
+          <div class="flex items-center gap-1 ${color}">
+            <span>${icon}</span>
+            <span class="text-xs">${s.label}</span>
+            ${s.time ? `<span class="text-[10px] text-gray-400">(${s.time})</span>` : ''}
+            ${i < steps.length - 1 ? '<span class="text-gray-300 mx-1">→</span>' : ''}
+          </div>`;
+      });
+      statusHTML += '</div>';
+    } else {
+      statusHTML = '<p class="text-sm text-gray-400">Aún no se ha generado un enlace para compartir.</p>';
+    }
+    
+    container.innerHTML = statusHTML;
+  } catch (e) {
+    console.error('Error loading compartir status:', e);
+  }
 }
 
 function renderDetalleAvalContent(aval, productos, ot) {
@@ -794,6 +866,21 @@ function renderDetalleAvalContent(aval, productos, ot) {
       <div class="flex items-center justify-between text-sm text-gray-400">
         <span>Entrega: ${aval.fecha_entrega_tecnico || '-'}</span>
         ${aval.fecha_confirmacion_admin ? `<span>Confirmado: ${aval.fecha_confirmacion_admin}</span>` : ''}
+      </div>
+
+      <!-- Compartir enlace -->
+      <div class="border rounded-xl p-4" style="${aval.estado === 'confirmado' ? 'opacity:0.6;' : ''}">
+        <h3 class="font-semibold text-gray-700 text-sm mb-3">
+          <span>🔗 Compartir Aval</span>
+          ${aval.estado === 'confirmado' ? '<span class="text-xs text-gray-400 font-normal">(aval ya confirmado)</span>' : ''}
+        </h3>
+        <div id="compartir-estado-${aval.id}" class="mb-3">
+          <div class="flex items-center gap-2 text-sm text-gray-400">
+            <span class="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></span>
+            Cargando...
+          </div>
+        </div>
+        ${aval.estado !== 'confirmado' ? `<button onclick="compartirAval(${aval.id})" class="btn-secondary flex items-center gap-2 text-sm"><span>🔗</span> Generar Enlace</button>` : ''}
       </div>
 
       <div class="flex justify-end gap-3 pt-2 border-t">

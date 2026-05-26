@@ -210,6 +210,12 @@ async function initDatabase() {
         orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
         tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
 
+        -- Número de aval (relación con OT)
+        numero_aval TEXT UNIQUE,
+
+        -- Token público para compartir con el cliente
+        token_publico TEXT UNIQUE,
+
         -- Datos del cliente (quien recibe/firma)
         cliente_nombre TEXT NOT NULL,
         cliente_contacto TEXT,
@@ -225,10 +231,16 @@ async function initDatabase() {
         fecha_confirmacion_admin TEXT,
 
         -- Estado del aval
-        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'confirmado', 'rechazado')),
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'confirmado', 'rechazado', 'firmado_cliente')),
 
         -- Quién confirma
         confirmado_por INTEGER REFERENCES usuarios(id),
+
+        -- Firma del cliente
+        firma_cliente_data TEXT,
+        fecha_firma_cliente TEXT,
+        token_enviado_en TEXT,
+        token_visto_en TEXT,
 
         -- Auditoría: guardar el JSON que reportó el técnico vs lo que confirmó admin
         productos_tecnico TEXT, -- JSON array de {producto_id, nombre, cantidad_reportada}

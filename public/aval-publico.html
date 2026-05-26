@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Aval de Servicio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
+  .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .input-field { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; font-size: 14px; width: 100%; }
+  .input-field:focus { outline: none; border-color: #3b82f6; ring: 2px solid #93c5fd; }
+  .btn-primary { background: #2563eb; color: white; padding: 10px 20px; border-radius: 10px; font-weight: 600; transition: all .15s; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { border: 1px solid #d1d5db; padding: 10px 20px; border-radius: 10px; font-weight: 500; transition: all .15s; }
+  .btn-secondary:hover { background: #f9fafb; }
+  #signature-pad { border: 2px dashed #d1d5db; border-radius: 12px; background: #fafafa; cursor: crosshair; touch-action: none; }
+  #signature-pad.active { border-color: #3b82f6; }
+  .loading-spinner { border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; width: 32px; height: 32px; animation: spin .8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white !important; }
+    .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; break-inside: avoid; }
+  }
+  .print-only { display: none; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge-pendiente { background: #fef3c7; color: #92400e; }
+  .badge-firmado { background: #dbeafe; color: #1e40af; }
+  .badge-confirmado { background: #d1fae5; color: #065f46; }
+</style>
+</head>
+<body class="min-h-screen py-8">
+
+<div class="max-w-2xl mx-auto px-4" id="app">
+  <!-- Loading -->
+  <div id="loading" class="text-center py-20">
+    <div class="loading-spinner mx-auto mb-4"></div>
+    <p class="text-gray-500">Cargando aval...</p>
+  </div>
+
+  <!-- Error -->
+  <div id="error" class="hidden text-center py-20">
+    <span class="text-6xl block mb-4">⚠️</span>
+    <h2 class="text-xl font-bold text-gray-800 mb-2">Aval no encontrado</h2>
+    <p class="text-gray-500">Este enlace no es válido o el aval ya fue procesado.</p>
+    <p class="text-gray-400 text-sm mt-4">Si crees que es un error, contacta al departamento de servicio.</p>
+  </div>
+
+  <!-- Already signed -->
+  <div id="already-signed" class="hidden">
+    <div class="card p-8 text-center">
+      <span class="text-5xl block mb-4">✅</span>
+      <h2 class="text-xl font-bold text-gray-800 mb-2">Aval ya firmado</h2>
+      <p class="text-gray-500 mb-4">Este aval ya fue firmado digitalmente. Gracias por confirmar.</p>
+      <div id="signed-details" class="text-sm text-gray-400"></div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div id="aval-content" class="hidden">
+    <!-- Header -->
+    <div class="card p-6 mb-4 no-print">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-bold text-gray-800">Aval de Servicio</h1>
+          <p class="text-sm text-gray-500" id="numero-aval-display"></p>
+        </div>
+        <div id="estado-badge" class="badge badge-pendiente">Pendiente de Firma</div>
+      </div>
+    </div>
+
+    <!-- Print header -->
+    <div class="print-only mb-6 text-center">
+      <h1 class="text-2xl font-bold">Aval de Servicio</h1>
+      <p id="numero-aval-print" class="text-gray-500"></p>
+    </div>
+
+    <!-- OT Info -->
+    <div class="card p-6 mb-4">
+      <h2 class="font-semibold text-gray-700 text-sm mb-3">Información de la Orden de Trabajo</h2>
+      <table class="w-full text-sm">
+        <tr><td class="text-gray-500 w-36 py-1">OT Número:</td><td class="font-medium" id="ot-numero"></td></tr>
+        <tr><td class="text-gray-500 py-1">Descripción:</td><td id="ot-descripcion"></td></tr>
+        <tr><td class="text-gray-500 py-1">Técnico:</td><td id="tecnico-nombre"></td></tr>
+        <tr><td class="text-gray-500 py-1">Contacto Técnico:</td><td id="tecnico-telefono" class="text-blue-600"></td></tr>
+      </table>
+    </div>
+
+    <!-- Cliente Data -->
+    <div class="card p-6 mb-4">
+      <h2 class="font-semibold text-gray-700 text-sm mb-3">Datos del Cliente</h2>
+      <table class="w-full text-sm">
+        <tr><td class="text-gray-500 w-36 py-1">Nombre:</td><td class="font-medium" id="cliente-nombre-display"></td></tr>
+        <tr><td class="text-gray-500 py-1">Contacto:</td><td id="cliente-contacto"></td></tr>
+        <tr><td class="text-gray-500 py-1">Teléfono:</td><td id="cliente-telefono"></td></tr>
+      </table>
+    </div>
+
+    <!-- Productos Instalados -->
+    <div class="card p-6 mb-4">
+      <h2 class="font-semibold text-gray-700 text-sm mb-3">Productos Instalados</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50">
+              <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Producto</th>
+              <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Cantidad</th>
+            </tr>
+          </thead>
+          <tbody id="productos-list"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Observaciones -->
+    <div id="observaciones-section" class="card p-6 mb-4 hidden">
+      <h2 class="font-semibold text-gray-700 text-sm mb-2">Observaciones</h2>
+      <p id="observaciones-text" class="text-sm text-gray-600"></p>
+    </div>
+
+    <!-- Signature Section -->
+    <div id="signature-section" class="card p-6 mb-4 no-print">
+      <h2 class="font-semibold text-gray-700 text-sm mb-1">Firma Digital</h2>
+      <p class="text-xs text-gray-400 mb-4">Firme aquí para confirmar que los productos/servicios fueron entregados a su satisfacción.</p>
+      <canvas id="signature-pad" width="600" height="200" class="w-full mb-3"></canvas>
+      <div class="flex gap-2 mb-4">
+        <button onclick="clearSignature()" class="btn-secondary text-sm">🔄 Limpiar</button>
+        <button onclick="undoSignature()" class="btn-secondary text-sm">↩ Deshacer último</button>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Su nombre (opcional)</label>
+        <input type="text" id="cliente-firma-nombre" class="input-field" placeholder="Escriba su nombre completo" maxlength="100">
+      </div>
+      <div class="flex gap-3">
+        <button onclick="submitSignature()" class="btn-primary flex items-center gap-2" id="btn-firmar">
+          ✍️ Firmar Aval
+        </button>
+        <button onclick="downloadPDF()" class="btn-secondary flex items-center gap-2">
+          🖨️ Descargar / Imprimir
+        </button>
+      </div>
+    </div>
+
+    <!-- Signature result -->
+    <div id="firma-exitosa" class="hidden card p-8 text-center mb-4 no-print">
+      <span class="text-5xl block mb-4">✅</span>
+      <h2 class="text-xl font-bold text-gray-800 mb-2">¡Aval Firmado!</h2>
+      <p class="text-gray-500 mb-4">Su firma ha sido registrada correctamente. Puede descargar una copia del aval.</p>
+      <button onclick="downloadPDF()" class="btn-primary flex items-center gap-2 mx-auto">
+        🖨️ Descargar PDF
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-gray-400 py-6 no-print">
+      OT Dashboard — DKLIC PLUS INVESTMENT SRL
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let avalData = null;
+let signatureHistory = [];
+let isDrawing = false;
+
+// ============ INIT ============
+const token = window.location.pathname.split('/').pop();
+
+async function init() {
+  if (!token || token === 'aval-publico.html') {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('error').classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/avales/public/' + token);
+    if (!res.ok) throw new Error('Not found');
+    const data = await res.json();
+    avalData = data;
+
+    // Check if already signed
+    if (data.aval.estado === 'confirmado' || data.aval.estado === 'rechazado' || data.aval.fecha_firma_cliente) {
+      showAlreadySigned(data);
+      return;
+    }
+
+    renderAval(data);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('error').classList.remove('hidden');
+  }
+}
+
+function renderAval(data) {
+  const a = data.aval;
+  const prods = data.productos || [];
+
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('aval-content').classList.remove('hidden');
+
+  document.getElementById('numero-aval-display').textContent = a.numero_aval || ('Aval #' + a.id);
+  document.getElementById('numero-aval-print').textContent = a.numero_aval || ('Aval #' + a.id);
+  document.getElementById('ot-numero').textContent = a.numero_ot || ('OT #' + a.orden_trabajo_id);
+  document.getElementById('ot-descripcion').textContent = a.descripcion || '-';
+  document.getElementById('tecnico-nombre').textContent = a.tecnico_nombre || '-';
+  document.getElementById('tecnico-telefono').textContent = a.tecnico_telefono || '-';
+  document.getElementById('cliente-nombre-display').textContent = a.cliente_nombre || '-';
+  document.getElementById('cliente-contacto').textContent = a.cliente_contacto || '-';
+  document.getElementById('cliente-telefono').textContent = a.cliente_telefono || '-';
+
+  const tbody = document.getElementById('productos-list');
+  tbody.innerHTML = prods.map(p => `
+    <tr class="border-b border-gray-100">
+      <td class="py-2 px-3">${escHtml(p.producto_nombre)}</td>
+      <td class="py-2 px-3 text-center">${p.cantidad_reportada || 0}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="2" class="text-center py-4 text-gray-400">Sin productos registrados</td></tr>';
+
+  if (a.observaciones) {
+    document.getElementById('observaciones-section').classList.remove('hidden');
+    document.getElementById('observaciones-text').textContent = a.observaciones;
+  }
+
+  // Pre-fill nombre
+  if (a.cliente_nombre) {
+    document.getElementById('cliente-firma-nombre').value = a.cliente_nombre;
+  }
+
+  initSignaturePad();
+}
+
+function showAlreadySigned(data) {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('already-signed').classList.remove('hidden');
+  const d = data.aval;
+  document.getElementById('signed-details').innerHTML = `
+    <p>Número: ${d.numero_aval || ('#' + d.id)}</p>
+    <p>Firmado el: ${d.fecha_firma_cliente || '—'}</p>
+    <p>Estado: <strong>${d.estado === 'confirmado' ? 'Confirmado por administración' : d.estado}</strong></p>
+  `;
+}
+
+// ============ SIGNATURE PAD ============
+let canvas, ctx;
+let lastPoint = null;
+
+function initSignaturePad() {
+  canvas = document.getElementById('signature-pad');
+  ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Responsive canvas
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2; // 2x for retina
+    canvas.height = 200 * 2;
+    ctx.scale(2, 2);
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    redrawSignature();
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  // Mouse events
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', endDraw);
+  canvas.addEventListener('mouseleave', endDraw);
+
+  // Touch events
+  canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    startDraw({ offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top });
+  });
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    draw({ offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top });
+  });
+  canvas.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    endDraw();
+  });
+}
+
+function startDraw(e) {
+  isDrawing = true;
+  const offset = getOffset(e);
+  lastPoint = { x: offset.offsetX, y: offset.offsetY };
+  canvas.classList.add('active');
+  // Save state before this stroke
+  signatureHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  ctx.beginPath();
+  ctx.moveTo(offset.offsetX, offset.offsetY);
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+  const offset = getOffset(e);
+  ctx.lineTo(offset.offsetX, offset.offsetY);
+  ctx.stroke();
+}
+
+function endDraw() {
+  isDrawing = false;
+  canvas.classList.remove('active');
+}
+
+function getOffset(e) {
+  if (e.offsetX !== undefined) return e;
+  // Fallback for touch
+  const rect = canvas.getBoundingClientRect();
+  return { offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
+}
+
+function clearSignature() {
+  signatureHistory = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function undoSignature() {
+  if (signatureHistory.length === 0) return;
+  const prev = signatureHistory.pop();
+  ctx.putImageData(prev, 0, 0);
+}
+
+function redrawSignature() {
+  // If we have history, replay last state
+  if (signatureHistory.length > 0) {
+    ctx.putImageData(signatureHistory[signatureHistory.length - 1], 0, 0);
+  }
+}
+
+function isSignatureEmpty() {
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+  for (let i = 3; i < pixels.length; i += 4) {
+    if (pixels[i] !== 0) return false;
+  }
+  return true;
+}
+
+// ============ SUBMIT SIGNATURE ============
+async function submitSignature() {
+  if (isSignatureEmpty()) {
+    alert('Por favor, firme en el recuadro antes de continuar.');
+    return;
+  }
+
+  const nombre = document.getElementById('cliente-firma-nombre').value.trim();
+  const btn = document.getElementById('btn-firmar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner" style="width:16px;height:16px;border-width:2px;"></span> Firmando...';
+
+  try {
+    // Get signature as data URL
+    const firmaDataUrl = canvas.toDataURL('image/png');
+
+    const res = await fetch('/api/avales/public/' + token + '/firmar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firma_data: firmaDataUrl,
+        nombre_cliente: nombre || null
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Error al firmar');
+    }
+
+    // Success
+    document.getElementById('signature-section').classList.add('hidden');
+    document.getElementById('firma-exitosa').classList.remove('hidden');
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '✍️ Firmar Aval';
+  }
+}
+
+// ============ DOWNLOAD / PRINT ============
+function downloadPDF() {
+  window.print();
+}
+
+// ============ ESCAPE HTML ============
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============ START ============
+init();
+</script>
+</body>
+</html>

@@ -19,7 +19,7 @@ const { initDatabase, verificarYRestaurarBackup } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
-const { enviarEmail, enviarNotificacionOT } = require('./email');
+const { enviarEmail, enviarNotificacionOT, enviarNotificacionAval } = require('./email');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -790,17 +790,26 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
 
     const tecnicoId = body.tecnico_id || req.user.userId;
 
+    // Generar número de aval: AV-OT-{OTnumero}
+    const anio = new Date().getFullYear();
+    const conteo = queryFirst("SELECT COUNT(*) as cnt FROM avales WHERE strftime('%Y', creado_en) = ?", [String(anio)])?.cnt || 0;
+    const numeroAval = 'AV-' + anio + '-' + String(conteo + 1).padStart(4, '0');
+
+    // Generar token público único
+    const crypto = require('crypto');
+    const tokenPublico = crypto.randomBytes(16).toString('hex');
+
     // Guardar productos como JSON para auditoría
     const productosTecnico = JSON.stringify(body.productos || []);
 
     transaction(() => {
       const avalId = queryFirst(`
-        INSERT INTO avales (orden_trabajo_id, tecnico_id, cliente_nombre, cliente_contacto, cliente_cedula,
+        INSERT INTO avales (orden_trabajo_id, tecnico_id, numero_aval, token_publico, cliente_nombre, cliente_contacto, cliente_cedula,
           cliente_telefono, cliente_email, observaciones, productos_tecnico, estado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
         RETURNING id
       `, [
-        body.orden_trabajo_id, tecnicoId, body.cliente_nombre, body.cliente_contacto || null,
+        body.orden_trabajo_id, tecnicoId, numeroAval, tokenPublico, body.cliente_nombre, body.cliente_contacto || null,
         body.cliente_cedula || null, body.cliente_telefono || null, body.cliente_email || null,
         body.observaciones || null, productosTecnico
       ]);
@@ -818,8 +827,16 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
         [body.orden_trabajo_id]);
     });
 
-    res.status(201).json({ message: 'Aval entregado correctamente', aval_id: queryFirst(`SELECT id FROM avales WHERE orden_trabajo_id = ?`, [body.orden_trabajo_id]).id });
+    res.status(201).json({ message: 'Aval creado correctamente', aval_id: queryFirst(`SELECT id FROM avales WHERE orden_trabajo_id = ?`, [body.orden_trabajo_id]).id, numero_aval: numeroAval, token_publico: tokenPublico });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+
+    // Enviar notificación por email con enlace de aval
+    const avalCreado = queryFirst('SELECT id FROM avales WHERE orden_trabajo_id = ?', [body.orden_trabajo_id]);
+    if (avalCreado) {
+      enviarNotificacionAval(avalCreado.id).catch(function(err) {
+        console.error('Error enviando notificación de aval:', err);
+      });
+    }
   } catch (e) {
     console.error('Error creating aval de entrega:', e);
     res.status(500).json({ error: 'Error al registrar aval' });
@@ -1847,8 +1864,13 @@ app.get('/orden/:id', async (req, res) => {
 });
 
 // ============ FRONTEND (SPA) ============
+// Página pública de aval
+app.get('/aval-publico/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'aval-publico.html'));
+});
+
 // Para SPA: servir index.html en todas las rutas excepto API y archivos estáticos
-app.get(/^\/(?!api\/|uploads\/|orden\/).*/, (req, res) => {
+app.get(/^\/(?!api\/|uploads\/|orden\/|aval-publico\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
@@ -2078,6 +2100,120 @@ app.get('/api/diag-admins-email', authMiddleware, adminOnly, (req, res) => {
       tecnicos_disponibles: tecnicos,
       total_admins: admins.length,
       total_tecnicos: tecnicos.length,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// AVAL PÚBLICO — enlace para compartir con cliente
+// ═══════════════════════════════════════════════
+
+// GET /api/avales/public/:token — datos públicos del aval (sin auth)
+app.get('/api/avales/public/:token', (req, res) => {
+  try {
+    const aval = queryFirst(`
+      SELECT a.id, a.numero_aval, a.orden_trabajo_id, a.cliente_nombre, a.cliente_contacto,
+        a.cliente_telefono, a.observaciones, a.estado, a.fecha_firma_cliente,
+        ot.numero_ot, ot.descripcion,
+        u.nombre as tecnico_nombre, u.telefono as tecnico_telefono
+      FROM avales a
+      JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
+      LEFT JOIN usuarios u ON a.tecnico_id = u.id
+      WHERE a.token_publico = ?
+    `, [req.params.token]);
+
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    // Marcar como visto
+    if (!aval.fecha_firma_cliente) {
+      run("UPDATE avales SET token_visto_en = datetime('now', '-04:00') WHERE token_publico = ?", [req.params.token]);
+    }
+
+    const productos = queryAll(`
+      SELECT ap.*, p.nombre as producto_nombre
+      FROM aval_productos ap
+      JOIN productos p ON ap.producto_id = p.id
+      WHERE ap.aval_id = ?
+    `, [aval.id]);
+
+    res.json({ aval, productos });
+  } catch (e) {
+    console.error('Error fetching public aval:', e);
+    res.status(500).json({ error: 'Error al obtener aval' });
+  }
+});
+
+// POST /api/avales/public/:token/firmar — cliente firma el aval
+app.post('/api/avales/public/:token/firmar', (req, res) => {
+  try {
+    const aval = queryFirst('SELECT id, estado FROM avales WHERE token_publico = ?', [req.params.token]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (aval.estado === 'confirmado' || aval.estado === 'rechazado') {
+      return res.status(400).json({ error: 'Este aval ya fue procesado' });
+    }
+
+    const { firma_data, nombre_cliente } = req.body;
+    if (!firma_data) return res.status(400).json({ error: 'Firma requerida' });
+
+    run(`UPDATE avales SET 
+      firma_cliente_data = ?,
+      fecha_firma_cliente = datetime('now', '-04:00'),
+      estado = 'firmado_cliente',
+      cliente_nombre = COALESCE(?, cliente_nombre)
+      WHERE id = ?
+    `, [JSON.stringify(firma_data), nombre_cliente || null, aval.id]);
+
+    res.json({ message: 'Aval firmado por el cliente' });
+    try { exportDatabase(); } catch(e) {}
+  } catch (e) {
+    console.error('Error signing aval:', e);
+    res.status(500).json({ error: 'Error al firmar aval' });
+  }
+});
+
+// POST /api/avales/:id/compartir — genera/comparte enlace público
+app.post('/api/avales/:id/compartir', authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    let token = aval.token_publico;
+    if (!token) {
+      const crypto = require('crypto');
+      token = crypto.randomBytes(16).toString('hex');
+      run('UPDATE avales SET token_publico = ?, token_enviado_en = datetime(\'now\', \'-04:00\') WHERE id = ?', [token, id]);
+    }
+
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    const publicUrl = dashUrl + '/aval-publico/' + token;
+
+    res.json({
+      message: 'Enlace generado',
+      url: publicUrl,
+      token: token,
+      numero_aval: aval.numero_aval
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/avales/:id/compartir — ver enlace existente
+app.get('/api/avales/:id/compartir', authMiddleware, (req, res) => {
+  try {
+    const aval = queryFirst('SELECT id, numero_aval, token_publico, token_enviado_en, token_visto_en, fecha_firma_cliente FROM avales WHERE id = ?', [Number(req.params.id)]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    res.json({
+      numero_aval: aval.numero_aval,
+      enlace: aval.token_publico ? dashUrl + '/aval-publico/' + aval.token_publico : null,
+      token_enviado_en: aval.token_enviado_en,
+      token_visto_en: aval.token_visto_en,
+      fecha_firma: aval.fecha_firma_cliente,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -217,7 +217,81 @@ async function enviarNotificacionOT(otId) {
   return result;
 }
 
-module.exports = { enviarEmail, enviarNotificacionOT };
+async function enviarNotificacionAval(avalId) {
+  await getDb();
+
+  var aval = queryFirst([
+    'SELECT a.*, ot.numero_ot, ot.cliente_nombre, ot.descripcion,',
+    'u.nombre as tecnico_nombre, u.email as tecnico_email, u.telefono as tecnico_telefono',
+    'FROM avales a',
+    'JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id',
+    'LEFT JOIN usuarios u ON a.tecnico_id = u.id',
+    'WHERE a.id = ?'
+  ].join(' '), [avalId]);
+
+  if (!aval) {
+    console.error('Aval ' + avalId + ' no encontrado');
+    return { success: false, error: 'Aval no encontrado' };
+  }
+
+  var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+  var avalPublicUrl = dashUrl + '/aval-publico/' + aval.token_publico;
+  var enlaceAdmin = dashUrl + '/orden/' + aval.orden_trabajo_id;
+
+  var emailHtml = [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"></head>',
+    '<body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px">',
+    '<div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">',
+    '<div style="background:linear-gradient(135deg,#16a34a,#22c55e);color:white;padding:20px 24px">',
+    '<h1 style="margin:0;font-size:20px">✅ Aval de Servicio Generado</h1>',
+    '<p style="margin:6px 0 0;opacity:0.9">' + escHtml(aval.numero_ot || '#') + ' — ' + escHtml(aval.cliente_nombre) + '</p>',
+    '</div>',
+    '<div style="padding:24px">',
+    '<p style="font-size:15px;color:#333">Se ha generado el aval de servicio para la OT <strong>' + escHtml(aval.numero_ot) + '</strong>.</p>',
+    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">',
+    '<p style="margin:0 0 8px;color:#166534;font-weight:bold">🔗 Enlace público para el cliente</p>',
+    '<p style="margin:0;font-size:13px;color:#166534">Comparte este enlace con el cliente para que pueda firmar digitalmente el aval:</p>',
+    '<a href="' + escHtml(avalPublicUrl) + '" style="display:block;margin-top:10px;word-break:break-all;color:#2563eb;font-size:13px">' + escHtml(avalPublicUrl) + '</a>',
+    '<p style="margin:8px 0 0;font-size:12px;color:#6b7280">El cliente podrá ver los productos instalados y firmar digitalmente.</p>',
+    '</div>',
+    '<div style="background:#f9fafb;border-radius:8px;padding:12px 16px;margin:16px 0">',
+    '<table style="width:100%;font-size:13px">',
+    '<tr><td style="padding:4px 0;color:#666">Aval No.:</td><td style="font-weight:bold">' + escHtml(aval.numero_aval || '#') + '</td></tr>',
+    '<tr><td style="padding:4px 0;color:#666">Técnico:</td><td>' + escHtml(aval.tecnico_nombre || '') + '</td></tr>',
+    (aval.descripcion ? '<tr><td style="padding:4px 0;color:#666">Descripción:</td><td>' + escHtml(aval.descripcion) + '</td></tr>' : ''),
+    '</table>',
+    '</div>',
+    '<a href="' + escHtml(enlaceAdmin) + '" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:bold;font-size:13px;margin-top:4px">Ver en Administración</a>',
+    '<p style="color:#999;font-size:12px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px">Este es un mensaje automático del sistema de Órdenes de Trabajo.</p>',
+    '</div></div></body></html>'
+  ].join('');
+
+  // Destinatarios: técnico asignado + admins
+  var destinatarios = [];
+  if (aval.tecnico_email) destinatarios.push(aval.tecnico_email);
+
+  try {
+    var admins = queryAll('SELECT email FROM usuarios WHERE rol IN (?,?) AND activo = 1 AND email IS NOT NULL', ['admin', 'superadmin']);
+    admins.forEach(function(a) {
+      if (destinatarios.indexOf(a.email) === -1) destinatarios.push(a.email);
+    });
+  } catch (e) {
+    console.error('Error fetching admins for aval email:', e.message);
+  }
+
+  if (destinatarios.length === 0) {
+    console.error('No hay destinatarios para notificación de aval');
+    return { success: false, error: 'Sin destinatarios' };
+  }
+
+  return await enviarEmail({
+    to: destinatarios,
+    subject: '✅ Aval de Servicio — ' + aval.numero_ot + ' — ' + aval.cliente_nombre,
+    html: emailHtml
+  });
+}
+
+module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval };
 
 // ──────────────────────────────────────────────
 // Resend provider (alternativa a SendGrid)
