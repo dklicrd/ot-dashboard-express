@@ -28,8 +28,17 @@ async function enviarEmail({ to, subject, html, attachments }) {
 async function enviarViaSendGridFetch({ to, subject, html, attachments, apiKey }) {
   const recipients = Array.isArray(to) ? to : [to];
   const fromEmail = 'a.plasencia@grupoarboleda.com';
+  
+  // Destinatario principal: el tecnico asignado (primero de la lista)
+  const mainTo = recipients[0];
+  // CC: los admins (resto de la lista)
+  const ccList = recipients.slice(1).map(function(email) { return { email: email }; });
+  
   const payload = {
-    personalizations: recipients.map(function(email) { return { to: [{ email: email }] }; }),
+    personalizations: [{
+      to: [{ email: mainTo }],
+      cc: ccList.length > 0 ? ccList : undefined,
+    }],
     from: { email: fromEmail, name: 'OT Dashboard' },
     subject: subject,
     content: [{ type: 'text/html', value: html }],
