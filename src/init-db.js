@@ -381,6 +381,8 @@ async function initDatabase() {
         ['Administrador', 'admin@sistema.com', hashed, 'superadmin']);
     }
 
+  } // else de adminRestored > 0
+
   // ═══════════════════════════════════════════════
   // RESTAURAR BACKUP si existe — antes de insertar seeds
   // ═══════════════════════════════════════════════
