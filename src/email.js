@@ -81,15 +81,9 @@ async function enviarViaSMTP({ to, subject, html, attachments }) {
   }
 }
 
-var PRECIOS_PROYECTO_NUEVO = {
-  cerradura: 4500, control_acceso: 6500, caja_fuerte: 8500,
-  ahorro_energia: 3500, instalacion: 2000, otro: 1500
-};
-
-var PRECIOS_MANTENIMIENTO = {
-  cerradura: 1500, control_acceso: 2000, caja_fuerte: 2500,
-  ahorro_energia: 1200, instalacion: 1000, otro: 800
-};
+// Precios por defecto (fallback si getPreciosFromDB() no está disponible)
+var PRECIOS_FALLBACK_PROYECTO = { cerradura: 150, caja_fuerte: 60, control_acceso: 300, ahorro_energia: 105 };
+var PRECIOS_FALLBACK_MANT = { cerradura: 82.50, caja_fuerte: 30, ahorro_energia: 37.50 };
 
 function escHtml(s) {
   if (!s) return '';
@@ -121,7 +115,30 @@ async function enviarNotificacionOT(otId) {
     'WHERE otp.orden_trabajo_id = ?',
   ].join(' '), [otId]);
 
-  var precios = ot.tipo_servicio === 'mantenimiento' ? PRECIOS_MANTENIMIENTO : PRECIOS_PROYECTO_NUEVO;
+  // Leer precios desde la BD
+  var precios;
+  try {
+    var configRow = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
+    if (configRow) {
+      precios = ot.tipo_servicio === 'mantenimiento'
+        ? {
+            cerradura: parseFloat(configRow.mant_cerradura) || PRECIOS_FALLBACK_MANT.cerradura,
+            caja_fuerte: parseFloat(configRow.mant_caja_fuerte) || PRECIOS_FALLBACK_MANT.caja_fuerte,
+            ahorro_energia: parseFloat(configRow.mant_ahorro_energia) || PRECIOS_FALLBACK_MANT.ahorro_energia
+          }
+        : {
+            cerradura: parseFloat(configRow.valor_cerradura) || PRECIOS_FALLBACK_PROYECTO.cerradura,
+            caja_fuerte: parseFloat(configRow.valor_caja_fuerte) || PRECIOS_FALLBACK_PROYECTO.caja_fuerte,
+            control_acceso: parseFloat(configRow.valor_control_acceso) || PRECIOS_FALLBACK_PROYECTO.control_acceso,
+            ahorro_energia: parseFloat(configRow.valor_ahorro_energia) || PRECIOS_FALLBACK_PROYECTO.ahorro_energia
+          };
+    } else {
+      precios = ot.tipo_servicio === 'mantenimiento' ? { ...PRECIOS_FALLBACK_MANT } : { ...PRECIOS_FALLBACK_PROYECTO };
+    }
+  } catch (e) {
+    console.error('Error obteniendo precios de BD para email:', e.message);
+    precios = ot.tipo_servicio === 'mantenimiento' ? { ...PRECIOS_FALLBACK_MANT } : { ...PRECIOS_FALLBACK_PROYECTO };
+  }
   var montoTotal = 0;
   var prodRows = productos.map(function(p) {
     var pu = precios[p.categoria] || 0;

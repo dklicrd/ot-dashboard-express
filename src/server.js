@@ -662,6 +662,10 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
         return res.status(403).json({ error: 'Solo administradores pueden completar OTs directamente' });
       }
       run("UPDATE ordenes_trabajo SET estado=?, fecha_fin=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
+      // Notificar completada
+      enviarNotificacionOT(id).then(result => {
+        console.log('Email OT completada:', result?.success ? 'enviado' : 'fallo');
+      }).catch(e => console.error('Error enviando email OT completada:', e.message));
       res.json({ message: 'OT completada directamente', completada_directo: true });
     } else {
       run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
