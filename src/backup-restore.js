@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getDb, queryAll, queryFirst, run, transaction } = require('./db');
+const { descargarBackupFTP, subirBackupFTP } = require('./ftp-backup');
 
 const BACKUP_FILE = path.join(__dirname, '..', 'data', 'backup.json');
 
@@ -60,10 +61,10 @@ function exportDatabase() {
     fs.writeFileSync(BACKUP_FILE, JSON.stringify(backup, null, 2), 'utf-8');
     console.log(`💾 Backup guardado en ${BACKUP_FILE} (${Object.keys(backup).length} tablas)`);
 
-    // ⚠️ Render no tiene credenciales Git — el backup queda en disco efímero
-    // Para persistencia real: Render Starter (/mes) + disco persistente
-    // Mientras, el workflow: crear datos > descargar backup.json desde Render
-    // > subirlo manualmente al repo
+    // Subir a FTP para persistencia entre deploys
+    try { subirBackupFTP(); } catch(ftpErr) {
+      console.error('⚠️ No se pudo subir backup a FTP:', ftpErr.message);
+    }
 
     return true;
   } catch (e) {
@@ -77,9 +78,23 @@ function exportDatabase() {
  */
 function needsRestore() {
   try {
+    // PASO 1: Intentar descargar backup desde FTP si no hay local válido
+    const localExiste = fs.existsSync(BACKUP_FILE);
+    let localValido = false;
+    if (localExiste) {
+      try {
+        const c = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
+        if (Object.keys(c).length > 0) localValido = true;
+      } catch(e) {}
+    }
+    if (!localValido) {
+      console.log('🔍 Backup local no disponible, intentando descargar desde FTP...');
+      descargarBackupFTP();
+    }
+
     const numOrdenes = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0;
     const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
-    const hasBackup = fs.existsSync(BACKUP_FILE);
+    const hasBackup = fs.existsSync(BACKUP_FILE) && fs.statSync(BACKUP_FILE).size > 0;
     const limpiadoFlag = fs.existsSync(path.join(path.dirname(BACKUP_FILE), '.limpiado'));
 
     // Si se hizo una limpieza intencional, NO restaurar
