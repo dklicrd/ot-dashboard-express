@@ -33,7 +33,6 @@ async function start() {
   try {
     await getDb();
     await initDatabase();
-    await verificarYRestaurarBackup();
 
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);

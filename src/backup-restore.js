@@ -90,10 +90,6 @@ function needsRestore() {
       return false;
     }
 
-    // Si la BD está vacía o tiene solo datos seed (max 7 OTs y 5 clientes)
-    // y hay backup disponible con datos reales, restaurar
-    const isSeedData = numOrdenes <= 8 && numClientes <= 6;
-
     if (hasBackup) {
       try {
         const backupContent = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
@@ -104,15 +100,16 @@ function needsRestore() {
           return false;
         }
 
-        // Restaurar SIEMPRE que el backup tenga datos y la BD sea semilla
-        if (isSeedData) {
-          // Verificar que no sea el backup de semilla (sin productos ni clientes reales)
-          const numBackupClientes = (backupContent.clientes || []).length;
-          const numBackupOTs = (backupContent.ordenes_trabajo || []).length;
-          if (numBackupClientes > 5 || numBackupOTs > 7) {
-            console.log('🔄 Backup con datos reales detectado (' + numBackupClientes + ' clientes, ' + numBackupOTs + ' OTs) — restaurando...');
-            return true;
-          }
+        // Restaurar SIEMPRE que el backup tenga datos reales
+        // (al menos clientes, OTs o usuarios fuera del seed mínimo)
+        const numBackupClientes = (backupContent.clientes || []).length;
+        const numBackupOTs = (backupContent.ordenes_trabajo || []).length;
+        const numBackupUsuarios = (backupContent.usuarios || []).length;
+
+        // Restaurar si el backup tiene datos que no sean solo el seed vacío
+        if (numBackupClientes > 0 || numBackupOTs > 0 || numBackupUsuarios > 0) {
+          console.log('🔄 Backup con datos detectado (' + numBackupClientes + ' clientes, ' + numBackupOTs + ' OTs, ' + numBackupUsuarios + ' usuarios) — restaurando...');
+          return true;
         }
       } catch (e) {
         console.log('⚠️ Backup inválido, saltando restauración.');
@@ -120,9 +117,9 @@ function needsRestore() {
       return false;
     }
 
-    // Si hay datos reales pero backup no existe, crear backup
-    if (!isSeedData && !hasBackup) {
-      console.log('📦 BD con datos reales, creando backup...');
+    // Si hay datos pero backup no existe, crear backup
+    if (!hasBackup) {
+      console.log('📦 BD con datos detectada sin backup, creando backup...');
       exportDatabase();
     }
 

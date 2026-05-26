@@ -368,16 +368,25 @@ async function initDatabase() {
     run("INSERT INTO configuracion_documentos (id, nombre_empresa) VALUES (1, 'DKLIC PLUS INVESTMENT')");
   }
 
-  // Admin por defecto
-  const adminResult = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
-  if (!adminResult) {
-    const bcrypt = require('bcryptjs');
-    const hashed = await bcrypt.hash('3806.Adm', 10);
-    run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
-      ['Administrador', 'admin@sistema.com', hashed, 'superadmin']);
-  }
+  // Admin por defecto — solo si no hay backup que restaurar
+  const adminRestored = queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0;
+  if (adminRestored > 0) {
+    console.log('👤 Usuarios ya restaurados desde backup, saltando seed de admin.');
+  } else {
+    const adminResult = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
+    if (!adminResult) {
+      const bcrypt = require('bcryptjs');
+      const hashed = await bcrypt.hash('3806.Adm', 10);
+      run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
+        ['Administrador', 'admin@sistema.com', hashed, 'superadmin']);
+    }
 
-  // Productos por defecto si están vacíos
+  // ═══════════════════════════════════════════════
+  // RESTAURAR BACKUP si existe — antes de insertar seeds
+  // ═══════════════════════════════════════════════
+  await verificarYRestaurarBackup();
+
+  // Productos por defecto si están vacíos (después de posible restore)
   const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
   
   // ═══════════════════════════════════════════════
