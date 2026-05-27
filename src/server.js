@@ -2656,7 +2656,44 @@ app.post('/api/avales/public/:token/firmar', (req, res) => {
   }
 });
 
-// POST /api/avales/:id/compartir — genera/comparte enlace público
+// POST /api/avales/:id/enviar — envía el enlace del aval por email o prepara para WhatsApp
+app.post('/api/avales/:id/enviar', authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT a.*, ot.numero_ot, c.nombre as cliente_nombre, c.email as cliente_email, c.telefono as cliente_telefono FROM avales a JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id LEFT JOIN clientes c ON ot.cliente_id = c.id WHERE a.id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    let token = aval.token_publico;
+    if (!token) {
+      const crypto = require('crypto');
+      token = crypto.randomBytes(16).toString('hex');
+      run('UPDATE avales SET token_publico = ?, token_enviado_en = datetime(\'now\', \'-04:00\') WHERE id = ?', [token, id]);
+    }
+
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    const publicUrl = dashUrl + '/aval-publico/' + token;
+    const { metodo, destinatario } = req.body;
+
+    if (metodo === 'email') {
+      if (!destinatario) return res.status(400).json({ error: 'Debes especificar un correo' });
+      const { enviarNotificacionAval } = require('./email');
+      // Forzar envío al destinatario especificado
+      await enviarNotificacionAval(id, destinatario);
+      res.json({ message: '✅ Enlace enviado por email a ' + destinatario, url: publicUrl, token: token });
+    } else if (metodo === 'whatsapp') {
+      if (!destinatario) return res.status(400).json({ error: 'Debes especificar un número' });
+      const telefono = destinatario.replace(/[^\d]/g, '');
+      const waUrl = 'https://wa.me/' + telefono + '?text=' + encodeURIComponent('Hola, aquí está el enlace para firmar el aval de instalación.\n\nOT: ' + aval.numero_ot + '\nAval: ' + aval.numero_aval + '\n\n' + publicUrl);
+      res.json({ message: '✅ Enlace listo para WhatsApp', whatsapp_url: waUrl, url: publicUrl, token: token });
+    } else {
+      return res.status(400).json({ error: 'Método no válido. Usa "email" o "whatsapp"' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/avales/:id/compartir — genera/comparte enlace público (legacy)
 app.post('/api/avales/:id/compartir', authMiddleware, async (req, res) => {
   try {
     const id = Number(req.params.id);

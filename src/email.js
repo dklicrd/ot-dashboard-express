@@ -217,7 +217,7 @@ async function enviarNotificacionOT(otId) {
   return result;
 }
 
-async function enviarNotificacionAval(avalId) {
+async function enviarNotificacionAval(avalId, destinatarioExterno) {
   await getDb();
 
   var aval = queryFirst([
@@ -266,17 +266,21 @@ async function enviarNotificacionAval(avalId) {
     '</div></div></body></html>'
   ].join('');
 
-  // Destinatarios: técnico asignado + admins
+  // Destinatarios: si se especificó un destinatario externo, enviar solo a ese
   var destinatarios = [];
-  if (aval.tecnico_email) destinatarios.push(aval.tecnico_email);
+  if (destinatarioExterno) {
+    destinatarios.push(destinatarioExterno);
+  } else {
+    if (aval.tecnico_email) destinatarios.push(aval.tecnico_email);
 
-  try {
-    var admins = queryAll('SELECT email FROM usuarios WHERE rol IN (?,?) AND activo = 1 AND email IS NOT NULL', ['admin', 'superadmin']);
-    admins.forEach(function(a) {
-      if (destinatarios.indexOf(a.email) === -1) destinatarios.push(a.email);
-    });
-  } catch (e) {
-    console.error('Error fetching admins for aval email:', e.message);
+    try {
+      var admins = queryAll('SELECT email FROM usuarios WHERE rol IN (?,?) AND activo = 1 AND email IS NOT NULL', ['admin', 'superadmin']);
+      admins.forEach(function(a) {
+        if (destinatarios.indexOf(a.email) === -1) destinatarios.push(a.email);
+      });
+    } catch (e) {
+      console.error('Error fetching admins for aval email:', e.message);
+    }
   }
 
   if (destinatarios.length === 0) {

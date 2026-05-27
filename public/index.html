@@ -941,15 +941,60 @@ window.submitEntregaAval = async function (otId) {
   btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Entregando...';
 
   try {
-    await api('POST', '/api/avales', body);
+    const r = await api('POST', '/api/avales', body);
     closeModal('entrega-aval');
     toast('Aval entregado correctamente. OT pasa a "Aval Entregado".');
     render();
+    // Mostrar modal de compartir justo después de entregar
+    if (r && r.aval_id) {
+      setTimeout(function() { mostrarCompartirAvalPostEntrega(r.aval_id, body.cliente_email, body.cliente_telefono); }, 500);
+    }
   } catch (e) {
     toast('Error: ' + e.message, 'error');
     btn.disabled = false; btn.textContent = 'Entregar Aval ✅';
   }
 };
+
+function mostrarCompartirAvalPostEntrega(avalId, email, telefono) {
+  window._lastAvalClienteEmail = email || '';
+  window._lastAvalClienteTelefono = telefono || '';
+  const modal = document.getElementById('modal');
+  if (!modal) return;
+  modal.innerHTML = `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal()">
+      <div class="modal-content max-w-lg">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold flex items-center gap-2">📨 Compartir Aval</h2>
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+          <p class="text-sm text-gray-600">Selecciona cómo quieres compartir el enlace del aval con el cliente:</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button onclick="compartirAvalEmailModal(${avalId}); setTimeout(closeModal,100)" class="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all">
+              <span class="text-3xl">📧</span>
+              <span class="font-medium text-sm">Email</span>
+              ${email ? '<span class="text-xs text-gray-400 truncate max-w-full">' + escHtml(email) + '</span>' : '<span class="text-xs text-gray-400">Escribir correo</span>'}
+            </button>
+            <button onclick="compartirAvalWhatsAppModal(${avalId}); setTimeout(closeModal,100)" class="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all">
+              <span class="text-3xl">📱</span>
+              <span class="font-medium text-sm">WhatsApp</span>
+              ${telefono ? '<span class="text-xs text-gray-400">' + escHtml(telefono) + '</span>' : '<span class="text-xs text-gray-400">Escribir número</span>'}
+            </button>
+            <a href="/api/avales/${avalId}/pdf" target="_blank" onclick="closeModal()" class="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer">
+              <span class="text-3xl">📄</span>
+              <span class="font-medium text-sm">PDF</span>
+              <span class="text-xs text-gray-400">Descargar / Imprimir</span>
+            </a>
+          </div>
+          <div class="flex justify-center">
+            <button onclick="closeModal()" class="text-sm text-gray-400 hover:text-gray-600">Ahora no, gracias</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
 
 // ============ MODAL: DETALLE AVAL (admin) ============
 function renderModalDetalleAval(avalId) {
@@ -958,6 +1003,9 @@ function renderModalDetalleAval(avalId) {
       const d = await api('GET', '/api/avales/' + avalId);
       const container = document.getElementById('detalle-aval-content');
       if (container) container.innerHTML = renderDetalleAvalContent(d.aval, d.productos || [], d.ot);
+      // Guardar datos del cliente para compartir
+      window._lastAvalClienteEmail = d.aval.cliente_email || d.ot?.cliente_email || '';
+      window._lastAvalClienteTelefono = d.aval.cliente_telefono || d.ot?.cliente_telefono || '';
       // Load compartir status
       renderEstadoCompartir(avalId);
     } catch (e) {
@@ -981,6 +1029,111 @@ function renderModalDetalleAval(avalId) {
 }
 
 // ============ COMPARTIR AVAL ============
+// ============ COMPARTIR AVAL: 3 métodos ============
+
+async function generarEnlaceAval(avalId) {
+  // Solo genera el enlace sin modal (ya existente)
+  await compartirAval(avalId, false);
+}
+
+function compartirAvalEmailModal(avalId) {
+  const modal = document.getElementById('modal');
+  if (!modal) return;
+  modal.innerHTML = `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal()">
+      <div class="modal-content max-w-md">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold flex items-center gap-2">📧 Enviar Aval por Email</h2>
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Correo del destinatario</label>
+            <input type="email" id="email-destino" class="input-field w-full" placeholder="cliente@ejemplo.com" value="${escHtml(window._lastAvalClienteEmail || '')}">
+          </div>
+          <div class="flex justify-end gap-3">
+            <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+            <button class="btn-primary" onclick="enviarAvalEmail(${avalId})">📧 Enviar</button>
+          </div>
+          <div id="email-aval-result" class="text-sm"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.style.display = 'flex';
+  document.getElementById('email-destino').focus();
+}
+
+async function enviarAvalEmail(avalId) {
+  const destinatario = document.getElementById('email-destino').value.trim();
+  if (!destinatario) {
+    toast('Escribe un correo electrónico', 'error');
+    return;
+  }
+  const btn = document.querySelector('#email-aval-result').parentElement.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    const r = await api('POST', '/api/avales/' + avalId + '/enviar', { metodo: 'email', destinatario: destinatario });
+    document.getElementById('email-aval-result').innerHTML = '<p class="text-green-600 mt-2">✅ ' + r.message + '</p>';
+    toast('✅ ' + r.message, 'success');
+    renderEstadoCompartir(avalId);
+    setTimeout(closeModal, 2000);
+  } catch(e) {
+    document.getElementById('email-aval-result').innerHTML = '<p class="text-red-600 mt-2">❌ ' + e.message + '</p>';
+    btn.disabled = false;
+    btn.textContent = '📧 Enviar';
+  }
+}
+
+function compartirAvalWhatsAppModal(avalId) {
+  const modal = document.getElementById('modal');
+  if (!modal) return;
+  modal.innerHTML = `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal()">
+      <div class="modal-content max-w-md">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold flex items-center gap-2">📱 Enviar por WhatsApp</h2>
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Número de teléfono (con código de país, ej: 1829XXXXXXX)</label>
+            <input type="tel" id="wa-destino" class="input-field w-full" placeholder="18295559999" value="${escHtml(window._lastAvalClienteTelefono || '').replace(/[^\d]/g, '')}">
+          </div>
+          <div class="flex justify-end gap-3">
+            <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+            <button class="btn-success" onclick="enviarAvalWhatsApp(${avalId})">📱 Abrir WhatsApp</button>
+          </div>
+          <div id="wa-aval-result" class="text-sm text-gray-500">
+            Al hacer clic se abrirá WhatsApp con el enlace del aval precargado.
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+async function enviarAvalWhatsApp(avalId) {
+  const telefono = document.getElementById('wa-destino').value.trim().replace(/[^\d]/g, '');
+  if (!telefono) {
+    toast('Escribe un número de teléfono', 'error');
+    return;
+  }
+  try {
+    const r = await api('POST', '/api/avales/' + avalId + '/enviar', { metodo: 'whatsapp', destinatario: telefono });
+    document.getElementById('wa-aval-result').innerHTML = '<p class="text-green-600">✅ Abriendo WhatsApp...</p>';
+    // Abrir WhatsApp en nueva pestaña
+    window.open(r.whatsapp_url, '_blank');
+    toast('✅ Enlace preparado para WhatsApp', 'success');
+    renderEstadoCompartir(avalId);
+    setTimeout(closeModal, 1500);
+  } catch(e) {
+    document.getElementById('wa-aval-result').innerHTML = '<p class="text-red-600">❌ ' + e.message + '</p>';
+  }
+}
+
 async function compartirAval(avalId, renovar) {
   try {
     let url = '/api/avales/' + avalId + '/compartir';
@@ -1141,7 +1294,15 @@ function renderDetalleAvalContent(aval, productos, ot) {
             Cargando...
           </div>
         </div>
-        ${aval.estado !== 'confirmado' ? `<div class="flex gap-2"><button onclick="compartirAval(${aval.id})" class="btn-secondary flex items-center gap-2 text-sm"><span>🔗</span> Generar Enlace</button><button onclick="compartirAval(${aval.id}, true)" class="btn-secondary flex items-center gap-2 text-sm"><span>🔄</span> Renovar Token</button></div>` : ''}
+        ${aval.estado !== 'confirmado' ? `
+          <div class="flex flex-wrap gap-2 mt-2">
+            <button onclick="generarEnlaceAval(${aval.id})" class="btn-secondary flex items-center gap-2 text-sm"><span>🔗</span> Generar Enlace</button>
+            <button onclick="compartirAvalEmailModal(${aval.id})" class="btn-secondary flex items-center gap-2 text-sm"><span>📧</span> Enviar por Email</button>
+            <button onclick="compartirAvalWhatsAppModal(${aval.id})" class="btn-secondary flex items-center gap-2 text-sm"><span>📱</span> WhatsApp</button>
+            <a href="/api/avales/${aval.id}/pdf" target="_blank" class="btn-secondary flex items-center gap-2 text-sm"><span>📄</span> PDF</a>
+            <button onclick="compartirAval(${aval.id}, true)" class="btn-secondary flex items-center gap-2 text-sm"><span>🔄</span> Renovar</button>
+          </div>
+        ` : ''}
       </div>
 
       <div class="flex justify-end gap-3 pt-2 border-t">
