@@ -1556,47 +1556,6 @@ function renderBonoResultado(r) {
     '<p class="text-xs text-gray-400 text-center">Período: ' + r.periodo.inicio + ' a ' + r.periodo.fin + '</p></div>';
 }
 
-  let encuestas = [];
-  try { const d = await api('GET', '/api/encuestas'); encuestas = d.encuestas || []; } catch (e) { /* ignore */ }
-
-  const rows = encuestas.map(e => {
-    const pctColor = e.porcentaje_final >= 80 ? 'text-green-600' : e.porcentaje_final >= 60 ? 'text-yellow-600' : 'text-red-600';
-    return `<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-      <td class="py-3 px-4 font-medium text-blue-600">${e.numero_ot}</td>
-      <td class="py-3 px-4">${escHtml(e.cliente_nombre)}</td>
-      <td class="py-3 px-4 text-center font-semibold">${e.satisfaccion_general}/5</td>
-      <td class="py-3 px-4 text-center">${e.tiempo_entrega}/5</td>
-      <td class="py-3 px-4 text-center">${e.desempeno_equipo}/5</td>
-      <td class="py-3 px-4 text-center font-bold ${pctColor}">${e.porcentaje_final}%</td>
-      <td class="py-3 px-4 text-center text-gray-500 text-sm">${formatFecha(e.fecha_encuesta)}</td>
-    </tr>`;
-  }).join('');
-
-  return `
-    <div class="fade-in">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">Encuestas de Satisfacción</h1>
-        ${state.user?.rol !== 'tecnico' ? `<button onclick="showModal('nueva-encuesta')" class="btn-primary flex items-center gap-2"><span class="text-lg">+</span> Nueva Encuesta</button>` : ''}
-      </div>
-      <div class="card overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
-              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
-              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
-              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">General</th>
-              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">T. Entrega</th>
-              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Desempeño</th>
-              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">% Final</th>
-              <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Fecha</th>
-            </tr></thead>
-            <tbody>${encuestas.length === 0 ? '<tr><td colspan="7" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">⭐</span>No hay encuestas registradas</td></tr>' : rows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  `;
-}
 
 // ============ REPORTES ============
 async function renderReportes() {
