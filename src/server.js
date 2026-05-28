@@ -2395,7 +2395,7 @@ app.get('/api/solicitar-cambio-ot/:token', async function(req, res) {
     var numOT = ot ? escHtml(ot.numero_ot) : 'desconocida';
 
     // Redirigir a pagina publica con el token en query param
-    res.redirect('/cambio-fecha?token=' + encodeURIComponent(token) + '&ot=' + encodeURIComponent(numOT));
+    res.redirect('/cambio-fecha.html?token=' + encodeURIComponent(token) + '&ot=' + encodeURIComponent(numOT));
   } catch (e) {
     console.error('Error en solicitar-cambio-ot:', e);
     res.status(500).send('Error interno');
