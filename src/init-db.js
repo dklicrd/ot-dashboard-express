@@ -531,6 +531,21 @@ async function initDatabase() {
     console.log('👤 Admin re-creado post-restore');
   }
 
+  // ============ TABLA: confirmacion_tokens (flujo OT via email) ============
+  run(`
+    CREATE TABLE IF NOT EXISTS confirmacion_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      tipo TEXT NOT NULL CHECK(tipo IN ('confirmar_fecha', 'solicitar_cambio')),
+      orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+      tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
+      fecha_propuesta TEXT,
+      usado INTEGER DEFAULT 0,
+      expira_en TEXT NOT NULL,
+      creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+    );
+  `);
+
   console.log('✅ Base de datos lista');
 }
 

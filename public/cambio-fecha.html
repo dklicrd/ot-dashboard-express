@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solicitar Cambio de Fecha</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f4f4f4; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+  .card { max-width: 480px; width: 100%; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.12); }
+  .header { background: linear-gradient(135deg,#f59e0b,#d97706); color: white; padding: 28px 30px; text-align: center; }
+  .header h1 { font-size: 22px; margin: 0 0 4px; }
+  .header p { font-size: 14px; opacity: 0.9; margin: 0; }
+  .body { padding: 28px 30px; }
+  .body p { color: #555; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; color: #333; font-size: 14px; margin-bottom: 6px; }
+  input[type="datetime-local"] { width: 100%; padding: 12px 14px; border: 2px solid #d1d5db; border-radius: 8px; font-size: 16px; color: #333; outline: none; transition: border-color 0.2s; }
+  input[type="datetime-local"]:focus { border-color: #f59e0b; }
+  .btn { display: block; width: 100%; padding: 14px; background: #f59e0b; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: background 0.2s; }
+  .btn:hover { background: #d97706; }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-loading { position: relative; color: transparent; }
+  .btn-loading::after { content: ''; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; transform: translate(-50%,-50%); }
+  @keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+  .msg { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; display: none; }
+  .msg-success { display: block; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+  .msg-error { display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .detail { font-size: 13px; color: #666; margin-top: 16px; text-align: center; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card" id="app">
+  <div class="header">
+    <h1>🔄 Solicitar Cambio de Fecha</h1>
+    <p id="ot-numero">OT —</p>
+  </div>
+  <div class="body">
+    <div id="msg" class="msg"></div>
+    <div id="form-section">
+      <p>Propón una nueva fecha y hora en la que puedas realizar el trabajo. Los administradores recibirán tu solicitud y la procesarán.</p>
+      <label for="nueva-fecha">Nueva fecha y hora:</label>
+      <input type="datetime-local" id="nueva-fecha" required>
+      <button class="btn" id="btn-enviar" onclick="enviarSolicitud()">📨 Enviar Solicitud</button>
+      <p class="detail">Tu token de confirmación es de un solo uso.</p>
+    </div>
+    <div id="success-section" class="hidden">
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:56px;margin-bottom:12px">📨</div>
+        <h2 style="color:#d97706;margin:0 0 8px">¡Solicitud Enviada!</h2>
+        <p style="color:#555;font-size:15px;line-height:1.5">Los administradores han sido notificados de tu solicitud de cambio de fecha. Te contactarán para coordinar la nueva fecha.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var token = new URLSearchParams(window.location.search).get('token');
+var otNum = new URLSearchParams(window.location.search).get('ot');
+
+document.getElementById('ot-numero').textContent = otNum || 'OT —';
+
+// Validar token
+if (!token) {
+  document.getElementById('msg').className = 'msg msg-error';
+  document.getElementById('msg').textContent = '❌ Token no encontrado. Usa el enlace del email.';
+  document.getElementById('form-section').classList.add('hidden');
+} else {
+  // Set min datetime to tomorrow
+  var tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  var minStr = tomorrow.toISOString().slice(0, 16);
+  document.getElementById('nueva-fecha').min = minStr;
+}
+
+async function enviarSolicitud() {
+  var fecha = document.getElementById('nueva-fecha').value;
+  if (!fecha) {
+    document.getElementById('msg').className = 'msg msg-error';
+    document.getElementById('msg').textContent = '❌ Selecciona una fecha y hora.';
+    return;
+  }
+
+  var btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.className = 'btn btn-loading';
+
+  try {
+    var resp = await fetch('/api/solicitar-cambio-ot/' + encodeURIComponent(token), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fecha: fecha })
+    });
+    var data = await resp.json();
+
+    if (data.success) {
+      document.getElementById('form-section').classList.add('hidden');
+      document.getElementById('success-section').classList.remove('hidden');
+    } else {
+      document.getElementById('msg').className = 'msg msg-error';
+      document.getElementById('msg').textContent = '❌ ' + (data.error || 'Error al enviar solicitud');
+      btn.disabled = false;
+      btn.className = 'btn';
+    }
+  } catch (e) {
+    document.getElementById('msg').className = 'msg msg-error';
+    document.getElementById('msg').textContent = '❌ Error de conexión. Intenta de nuevo.';
+    btn.disabled = false;
+    btn.className = 'btn';
+  }
+}
+</script>
+</body>
+</html>

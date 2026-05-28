@@ -19,7 +19,8 @@ const { initDatabase, verificarYRestaurarBackup } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
-const { enviarEmail, enviarNotificacionOT, enviarNotificacionAval } = require('./email');
+const { v4: uuidv4 } = require('uuid');
+const { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarEmailConfirmacionOT, enviarNotificacionCambioFecha } = require('./email');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -97,6 +98,11 @@ function diasHabilesEntre(fechaInicio, fechaFin) {
 function generarTokenEncuesta() {
   const crypto = require('crypto');
   return crypto.randomBytes(16).toString('hex');
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ============ PRECIOS ============
@@ -543,6 +549,25 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
           }
         }
       }
+    }
+
+    // Si la OT se crea con tecnico asignado y estado pendiente, generar tokens y enviar email de confirmacion
+    if (otRow && body.tecnico_id && (body.estado || 'pendiente') === 'pendiente') {
+      var tokenConfirmar = uuidv4();
+      var tokenCambio = uuidv4();
+      var expiraEn = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').split('.')[0];
+
+      run("INSERT INTO confirmacion_tokens (token, tipo, orden_trabajo_id, tecnico_id, expira_en) VALUES (?, 'confirmar_fecha', ?, ?, ?)",
+        [tokenConfirmar, otRow.id, body.tecnico_id, expiraEn]);
+      run("INSERT INTO confirmacion_tokens (token, tipo, orden_trabajo_id, tecnico_id, expira_en) VALUES (?, 'solicitar_cambio', ?, ?, ?)",
+        [tokenCambio, otRow.id, body.tecnico_id, expiraEn]);
+
+      // Enviar email en segundo plano
+      enviarEmailConfirmacionOT(otRow.id, tokenConfirmar, tokenCambio).then(function(r) {
+        console.log('Email confirmacion OT', num, ':', r.success ? 'enviado' : 'fallo (' + (r.error || '') + ')');
+      }).catch(function(e) {
+        console.error('Error enviando email confirmacion OT', num, ':', e.message);
+      });
     }
 
     res.status(201).json({ numero_ot: num, monto_incentivo: montoCalculado, message: 'OT creada' });
@@ -2307,6 +2332,111 @@ app.get('/orden/:id', async (req, res) => {
   }
 });
 
+// ============ FLUJO CONFIRMACION OT (ENDPOINTS PUBLICOS CON TOKEN) ============
+
+// Pagina publica para cambio de fecha
+app.get('/cambio-fecha', function(req, res) {
+  res.sendFile(path.join(__dirname, '..', 'public', 'cambio-fecha.html'));
+});
+
+// Endpoint publico: Confirmar fecha (token de un solo uso)
+app.get('/api/confirmar-ot/:token', async function(req, res) {
+  try {
+    await getDb();
+    var token = req.params.token;
+    var row = queryFirst('SELECT * FROM confirmacion_tokens WHERE token = ? AND tipo = ? AND usado = 0 AND expira_en > datetime(\'now\', \'-04:00\')', [token, 'confirmar_fecha']);
+
+    if (!row) {
+      return res.send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Enlace inválido</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#f4f4f4;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:20px}.card{max-width:480px;background:white;border-radius:12px;padding:32px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.1)}.icon{font-size:48px;margin-bottom:12px}h2{color:#333;margin:0 0 8px}p{color:#666;font-size:14px;line-height:1.5}</style></head><body><div class="card"><div class="icon">&#10060;</div><h2>Enlace inválido o expirado</h2><p>Este enlace de confirmaci&oacute;n ya fue usado o ha expirado. Contacta a tu administrador si necesitas ayuda.</p></div></body></html>');
+    }
+
+    // Marcar token como usado y actualizar OT
+    run('UPDATE confirmacion_tokens SET usado = 1 WHERE id = ?', [row.id]);
+    run("UPDATE ordenes_trabajo SET estado = 'en_curso', fecha_inicio = datetime('now', '-04:00'), actualizado_en = datetime('now', '-04:00') WHERE id = ?", [row.orden_trabajo_id]);
+
+    var ot = queryFirst('SELECT ot.numero_ot, c.nombre as cliente_nombre FROM ordenes_trabajo ot JOIN clientes c ON ot.cliente_id = c.id WHERE ot.id = ?', [row.orden_trabajo_id]);
+
+    // Notificar admins
+    var admins = queryAll("SELECT email FROM usuarios WHERE (rol = 'admin' OR rol = 'superadmin') AND activo = 1 AND email IS NOT NULL");
+    var adminEmails = admins.map(function(a) { return a.email; }).filter(Boolean);
+
+    if (adminEmails.length > 0) {
+      var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+      var htmlNotif = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:20px"><div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;padding:24px"><h2 style="color:#16a34a">&#9989; Fecha Confirmada por T&eacute;cnico</h2><p>El t&eacute;cnico ha <strong style="color:#16a34a">confirmado la fecha</strong> para la OT <strong>' + escHtml(ot.numero_ot) + '</strong>.</p><p>La OT ha pasado autom&aacute;ticamente a <strong>En Curso</strong>.</p><a href="' + escHtml(dashUrl) + '/orden/' + row.orden_trabajo_id + '" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold">Ver OT</a></div></body></html>';
+      enviarEmail({ to: adminEmails, subject: '✅ Fecha confirmada - OT ' + ot.numero_ot, html: htmlNotif }).catch(function(e) {
+        console.error('Error notificando admins:', e.message);
+      });
+    }
+
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+
+    var cliente = ot ? escHtml(ot.cliente_nombre) : '';
+    var numOT = ot ? escHtml(ot.numero_ot) : '';
+
+    res.send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Fecha Confirmada</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#f4f4f4;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:20px}.card{max-width:480px;background:white;border-radius:12px;padding:32px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.1)}.icon{font-size:56px;margin-bottom:12px}h2{color:#16a34a;margin:0 0 8px}p{color:#555;font-size:15px;line-height:1.5;margin:4px 0}.detail{color:#666;font-size:13px;margin-top:16px}</style></head><body><div class="card"><div class="icon">&#9989;</div><h2>&iexcl;Fecha Confirmada!</h2><p>La Orden de Trabajo <strong>' + numOT + '</strong> ha pasado a <strong>En Curso</strong>.</p><p class="detail">Cliente: ' + cliente + '<br>Los administradores han sido notificados.</p></div></body></html>');
+  } catch (e) {
+    console.error('Error en confirmar-ot:', e);
+    res.status(500).send('Error interno');
+  }
+});
+
+// Endpoint publico: Mostrar formulario de cambio de fecha (redirect a pagina)
+app.get('/api/solicitar-cambio-ot/:token', async function(req, res) {
+  try {
+    await getDb();
+    var token = req.params.token;
+    var row = queryFirst('SELECT * FROM confirmacion_tokens WHERE token = ? AND tipo = ? AND usado = 0 AND expira_en > datetime(\'now\', \'-04:00\')', [token, 'solicitar_cambio']);
+
+    if (!row) {
+      return res.send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Enlace inválido</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#f4f4f4;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:20px}.card{max-width:480px;background:white;border-radius:12px;padding:32px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.1)}.icon{font-size:48px;margin-bottom:12px}h2{color:#333;margin:0 0 8px}p{color:#666;font-size:14px}</style></head><body><div class="card"><div class="icon">&#10060;</div><h2>Enlace inválido o expirado</h2><p>Este enlace ya fue usado o ha expirado.</p></div></body></html>');
+    }
+
+    var ot = queryFirst('SELECT ot.numero_ot, u.nombre as tecnico_nombre FROM ordenes_trabajo ot JOIN usuarios u ON ot.tecnico_id = u.id WHERE ot.id = ?', [row.orden_trabajo_id]);
+    var numOT = ot ? escHtml(ot.numero_ot) : 'desconocida';
+
+    // Redirigir a pagina publica con el token en query param
+    res.redirect('/cambio-fecha?token=' + encodeURIComponent(token) + '&ot=' + encodeURIComponent(numOT));
+  } catch (e) {
+    console.error('Error en solicitar-cambio-ot:', e);
+    res.status(500).send('Error interno');
+  }
+});
+
+// Endpoint publico: Procesar cambio de fecha (POST)
+app.post('/api/solicitar-cambio-ot/:token', async function(req, res) {
+  try {
+    await getDb();
+    var token = req.params.token;
+    var nuevaFecha = req.body.fecha;
+
+    if (!nuevaFecha) {
+      return res.status(400).json({ error: 'Fecha requerida' });
+    }
+
+    var row = queryFirst('SELECT * FROM confirmacion_tokens WHERE token = ? AND tipo = ? AND usado = 0 AND expira_en > datetime(\'now\', \'-04:00\')', [token, 'solicitar_cambio']);
+
+    if (!row) {
+      return res.status(400).json({ error: 'Token invalido o expirado' });
+    }
+
+    // Marcar token como usado y guardar fecha propuesta
+    run('UPDATE confirmacion_tokens SET usado = 1, fecha_propuesta = ? WHERE id = ?', [nuevaFecha, row.id]);
+
+    var ot = queryFirst('SELECT ot.numero_ot, u.nombre as tecnico_nombre FROM ordenes_trabajo ot JOIN usuarios u ON ot.tecnico_id = u.id WHERE ot.id = ?', [row.orden_trabajo_id]);
+    var tecnicoNombre = ot ? ot.tecnico_nombre : 'Técnico';
+
+    // Notificar a admins
+    await enviarNotificacionCambioFecha(row.orden_trabajo_id, nuevaFecha, tecnicoNombre);
+
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+
+    res.json({ success: true, message: 'Solicitud enviada' });
+  } catch (e) {
+    console.error('Error procesando cambio fecha:', e);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 // ============ FRONTEND (SPA) ============
 // Página pública de aval
 app.get('/aval-publico/:token', (req, res) => {
@@ -2314,7 +2444,7 @@ app.get('/aval-publico/:token', (req, res) => {
 });
 
 // Para SPA: servir index.html en todas las rutas excepto API y archivos estáticos
-app.get(/^\/(?!api\/|uploads\/|orden\/|aval-publico\/).*/, (req, res) => {
+app.get(/^\/(?!api\/|uploads\/|orden\/|aval-publico\/|cambio-fecha\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 

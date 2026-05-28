@@ -573,3 +573,84 @@ async function enviarRecordatorioEncuesta(encuestaId, tipo, datos) {
     return { success: false, error: e.message };
   }
 }
+
+async function enviarEmailConfirmacionOT(otId, tokenConfirmar, tokenCambio) {
+  await getDb();
+  var ot = queryFirst([
+    'SELECT ot.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono,',
+    'c.email as cliente_email, c.direccion as cliente_direccion,',
+    'c.cedula_rnc as cliente_cedula_rnc, c.tipo as cliente_tipo,',
+    'u.nombre as tecnico_nombre, u.email as tecnico_email, u.telefono as tecnico_telefono',
+    'FROM ordenes_trabajo ot',
+    'JOIN clientes c ON ot.cliente_id = c.id',
+    'LEFT JOIN usuarios u ON ot.tecnico_id = u.id',
+    'WHERE ot.id = ?',
+  ].join(' '), [otId]);
+
+  if (!ot) {
+    console.error('OT ' + otId + ' no encontrada para email confirmacion');
+    return { success: false, error: 'OT no encontrada' };
+  }
+
+  var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+  var enlaceConfirmar = dashUrl + '/api/confirmar-ot/' + tokenConfirmar;
+  var enlaceCambio = dashUrl + '/api/solicitar-cambio-ot/' + tokenCambio;
+  var fechaProg = ot.fecha_programada ? new Date(ot.fecha_programada + 'T12:00:00-04:00').toLocaleDateString('es-DO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Por definir';
+
+  var emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px;margin:0"><div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.12)"><div style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;padding:28px 30px;text-align:center"><p style="margin:0 0 6px;font-size:14px;opacity:0.9">Nueva Orden de Trabajo</p><h1 style="margin:0;font-size:24px">' + escHtml(ot.numero_ot) + '</h1></div><div style="padding:28px 30px"><p style="font-size:16px;color:#333">Hola <strong>' + escHtml(ot.tecnico_nombre) + '</strong>,</p><p style="color:#555;line-height:1.6">Se te ha asignado una nueva Orden de Trabajo. Revisa los detalles a continuaci&oacute;n y <strong>confirma la fecha programada</strong> para comenzar.</p><table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:8px;overflow:hidden"><tr><td style="padding:10px 14px;color:#64748b;border-bottom:1px solid #e2e8f0;font-size:13px">Cliente</td><td style="padding:10px 14px;font-weight:bold;border-bottom:1px solid #e2e8f0;font-size:14px">' + escHtml(ot.cliente_nombre) + '</td></tr><tr><td style="padding:10px 14px;color:#64748b;border-bottom:1px solid #e2e8f0;font-size:13px">Tipo Servicio</td><td style="padding:10px 14px;font-weight:bold;border-bottom:1px solid #e2e8f0;font-size:14px;text-transform:capitalize">' + escHtml(ot.tipo_servicio) + '</td></tr><tr><td style="padding:10px 14px;color:#64748b;border-bottom:1px solid #e2e8f0;font-size:13px">Cliente Contacto</td><td style="padding:10px 14px;font-weight:bold;border-bottom:1px solid #e2e8f0;font-size:14px">' + escHtml(ot.cliente_telefono || 'N/A') + '</td></tr><tr><td style="padding:10px 14px;color:#64748b;border-bottom:1px solid #e2e8f0;font-size:13px">Direcci&oacute;n</td><td style="padding:10px 14px;font-weight:bold;border-bottom:1px solid #e2e8f0;font-size:14px">' + escHtml(ot.cliente_direccion || 'N/A') + '</td></tr><tr><td style="padding:10px 14px;color:#64748b;font-size:13px">Fecha Programada</td><td style="padding:10px 14px;font-weight:bold;font-size:14px;color:#2563eb">' + fechaProg + '</td></tr></table>' + (ot.descripcion ? '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:12px 0"><p style="margin:0;font-size:13px;color:#92400e"><strong>Descripci&oacute;n:</strong> ' + escHtml(ot.descripcion) + '</p></div>' : '') + '<div style="text-align:center;margin:24px 0"><p style="color:#555;font-size:15px;margin-bottom:16px"><strong>&iquest;Puedes realizar este trabajo en la fecha indicada?</strong></p><table style="margin:0 auto;border-collapse:collapse" cellpadding="0" cellspacing="0"><tr><td style="padding:0 8px"><a href="' + escHtml(enlaceConfirmar) + '" style="display:inline-block;background:#16a34a;color:white;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:bold;font-size:16px;white-space:nowrap">&#9989; Confirmar Fecha</a></td><td style="padding:0 8px"><a href="' + escHtml(enlaceCambio) + '" style="display:inline-block;background:#f59e0b;color:white;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:bold;font-size:16px;white-space:nowrap">&#128260; Solicitar Cambio</a></td></tr></table></div><hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"><p style="color:#999;font-size:13px;text-align:center">Este enlace es de un solo uso y expira en 7 d&iacute;as.<br>Si tienes problemas, contacta a tu administrador.</p></div></div></body></html>';
+
+  var destinatarios = [];
+  if (ot.tecnico_email) destinatarios.push(ot.tecnico_email);
+
+  if (destinatarios.length === 0) {
+    console.log('Sin email de tecnico para confirmacion OT', otId);
+    return { success: false, error: 'Tecnico sin email' };
+  }
+
+  var result = await enviarEmail({
+    to: destinatarios,
+    subject: '🔧 Confirma tu fecha - OT ' + ot.numero_ot + ' - ' + ot.cliente_nombre,
+    html: emailHtml,
+  });
+
+  console.log('Email confirmacion OT', ot.numero_ot, 'enviado a:', destinatarios.join(', '));
+  return result;
+}
+
+async function enviarNotificacionCambioFecha(otId, nuevaFecha, tecnicoNombre) {
+  await getDb();
+  var ot = queryFirst([
+    'SELECT ot.*, c.nombre as cliente_nombre',
+    'FROM ordenes_trabajo ot',
+    'JOIN clientes c ON ot.cliente_id = c.id',
+    'WHERE ot.id = ?',
+  ].join(' '), [otId]);
+
+  if (!ot) return { success: false, error: 'OT no encontrada' };
+
+  var fechaFormateada = new Date(nuevaFecha + 'T12:00:00-04:00').toLocaleDateString('es-DO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  var admins = queryAll("SELECT email FROM usuarios WHERE (rol = 'admin' OR rol = 'superadmin') AND activo = 1 AND email IS NOT NULL");
+  var adminEmails = admins.map(function(a) { return a.email; }).filter(Boolean);
+
+  var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+  var enlaceDetalle = dashUrl + '/orden/' + otId;
+
+  var emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)"><div style="background:linear-gradient(135deg,#ea580c,#c2410c);color:white;padding:24px 30px"><h1 style="margin:0;font-size:20px">&#128260; Solicitud de Cambio de Fecha</h1><p style="margin:8px 0 0;opacity:0.9">' + escHtml(ot.numero_ot) + '</p></div><div style="padding:24px 30px"><p style="color:#555">El t&eacute;cnico <strong>' + escHtml(tecnicoNombre) + '</strong> ha solicitado un cambio de fecha para la OT <strong>' + escHtml(ot.numero_ot) + '</strong>.</p><table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:8px"><tr><td style="padding:10px 14px;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0">OT</td><td style="padding:10px 14px;font-weight:bold;font-size:14px;border-bottom:1px solid #e2e8f0">' + escHtml(ot.numero_ot) + '</td></tr><tr><td style="padding:10px 14px;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0">Cliente</td><td style="padding:10px 14px;font-weight:bold;font-size:14px;border-bottom:1px solid #e2e8f0">' + escHtml(ot.cliente_nombre) + '</td></tr><tr><td style="padding:10px 14px;color:#64748b;font-size:13px">Nueva Fecha Propuesta</td><td style="padding:10px 14px;font-weight:bold;font-size:14px;color:#ea580c">' + fechaFormateada + '</td></tr></table><a href="' + escHtml(enlaceDetalle) + '" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold">Ver OT en Dashboard</a><p style="color:#999;font-size:13px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:16px">Notificaci&oacute;n autom&aacute;tica del sistema de &Oacute;rdenes de Trabajo.</p></div></div></body></html>';
+
+  if (adminEmails.length === 0) {
+    console.log('Sin admins para notificar cambio de fecha OT', otId);
+    return { success: false, error: 'Sin admins' };
+  }
+
+  var result = await enviarEmail({
+    to: adminEmails,
+    subject: '🔄 Solicitud cambio de fecha - OT ' + ot.numero_ot + ' - ' + ot.cliente_nombre,
+    html: emailHtml,
+  });
+
+  console.log('Notificacion cambio fecha OT', ot.numero_ot, 'enviada a admins:', adminEmails.join(', '));
+  return result;
+}
+
+module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarNotificacionFirmaCliente, enviarRecordatorioEncuesta, enviarEmailConfirmacionOT, enviarNotificacionCambioFecha };
