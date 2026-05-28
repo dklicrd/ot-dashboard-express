@@ -3017,7 +3017,7 @@ window.submitNuevaOT = async function (e) {
       tecnico_id: Number(document.getElementById('ot-tecnico').value) || null,
       fecha_programada: document.getElementById('ot-fecha').value || null,
       presupuesto_aprobado: 1,
-      estado: 'pendiente',
+      estado: origen === 'presupuesto' ? 'en_curso' : 'pendiente',
       fuente: origen,
       productos: productos,
     };

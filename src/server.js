@@ -547,6 +547,14 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
 
     res.status(201).json({ numero_ot: num, monto_incentivo: montoCalculado, message: 'OT creada' });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+
+    // Enviar notificacion por email si la OT se crea en curso
+    const estadoFinal = body.estado || 'pendiente';
+    if (otRow && estadoFinal === 'en_curso') {
+      enviarNotificacionOT(otRow.id).then(result => {
+        console.log('[creacion] Email OT enviado:', result?.success ? 'OK' : 'fallo');
+      }).catch(e => console.error('[creacion] Error email OT:', e.message));
+    }
   } catch (e) {
     console.error('Error creating OT:', e);
     res.status(500).json({ error: 'Error al crear OT' });
