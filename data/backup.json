@@ -321,6 +321,27 @@
       "presupuesto_id": 4,
       "creado_en": "2026-05-27 22:32:31",
       "actualizado_en": "2026-05-27 22:32:31"
+    },
+    {
+      "id": 3,
+      "numero_ot": "OT-2026-0003",
+      "cliente_id": 2,
+      "tipo_servicio": "cerradura",
+      "descripcion": "PRUEBA TECNICA - Confirmacion fecha email",
+      "presupuesto_aprobado": 0,
+      "monto_total": 0,
+      "tecnico_id": 4,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 9,
+      "fecha_programada": "2026-06-02",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:39:24",
+      "actualizado_en": "2026-05-28 14:39:24"
     }
   ],
   "orden_trabajo_productos": [
