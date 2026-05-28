@@ -9,11 +9,12 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; }
-  .sidebar { width: 260px; min-width: 260px; }
+  .sidebar { width: 260px; min-width: 260px; background: var(--sidebar-bg, #111827); color:white; display:flex; flex-direction:column; }
+  .hamburger { background: var(--sidebar-bg, #1e40af); }
   @media (max-width: 767px) {
     .sidebar { position: fixed; left: -100%; top: 0; bottom: 0; z-index: 50; transition: left 0.25s ease-in-out; width: 280px; min-width: 280px; }
     .sidebar.open { left: 0; }
-    .sidebar-overlay { position: fixed; inset:0; background:rgba(0,0,0,0.4); z-index:49; opacity:0; pointer-events:none; transition: opacity 0.25s ease-in-out; }
+    .sidebar-overlay { position: fixed; inset:0; background:#000000dd; z-index:49; opacity:0; pointer-events:none; transition: opacity 0.25s ease-in-out; }
     .sidebar-overlay.open { opacity:1; pointer-events:auto; }
     .hamburger { display: flex !important; }
   }
@@ -324,7 +325,7 @@ function renderLayout() {
   `).join("");
 
   return '<div class="md:flex" style="min-height:100vh">'
-    + '<div class="sidebar">'
+    + '<div class="sidebar" style="background:var(--sidebar-bg,#111827);color:white;display:flex;flex-direction:column">'
     + '<div class="sidebar-header" style="padding:16px 16px 12px">'
     + '<div style="display:flex;align-items:center;gap:10px">'
     + '<div style="width:32px;height:32px;background:rgba(255,255,255,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.1)"><span style="font-size:16px">🔧</span></div>'
@@ -3510,6 +3511,13 @@ let _otsCompletadas = [];
       const authCheck = await api('GET', '/api/auth');
       if (!authCheck.user) throw new Error('Token inválido');
       
+            // Cargar config de documentos para el color del sidebar
+      try {
+        const docResp = await api('GET', '/api/config/documentos');
+        if (docResp.configuracion?.color_primario) {
+          aplicarColorSidebar(docResp.configuracion.color_primario);
+        }
+      } catch(e) { /* ignore */ }
       const d = await api('GET', '/api/ordenes?estado=completada');
       _otsCompletadas = d.ordenes || [];
       // Cargar alertas de encuestas
@@ -3530,6 +3538,21 @@ let _otsCompletadas = [];
 
 // Override render's enc-ot select population after modal opens
 const origRender = render;
+function aplicarColorSidebar(color) {
+  const c = color || '#1e40af';
+  document.documentElement.style.setProperty('--sidebar-bg', c);
+  document.querySelector('.hamburger')?.style.setProperty('background', c, 'important');
+  document.querySelectorAll('.sidebar-header').forEach(el => {
+    el.style.background = 'linear-gradient(135deg, ' + c + ' 0%, ' + lighterColor(c, 30) + ' 100%)';
+  });
+}
+function lighterColor(hex, percent) {
+  const num = parseInt(hex.replace('#',''), 16);
+  const r = Math.min(255, (num >> 16) + Math.round(255 * percent / 100));
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + Math.round(255 * percent / 100));
+  const b = Math.min(255, (num & 0x0000FF) + Math.round(255 * percent / 100));
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
 render = async function () {
   await origRender();
   // Populate enc-ot select if modal is open
