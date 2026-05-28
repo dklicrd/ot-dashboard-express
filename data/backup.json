@@ -146,6 +146,17 @@
       "tipo": "particular",
       "referencias_ubicacion": null,
       "creado_en": "2026-05-25 22:49:55"
+    },
+    {
+      "id": 6,
+      "nombre": "Prueba de Cliente",
+      "telefono": "8292924524",
+      "email": null,
+      "direccion": "RAFAEL AUGUSTO SANCHEZ NO 75",
+      "cedula_rnc": null,
+      "tipo": "particular",
+      "referencias_ubicacion": null,
+      "creado_en": "2026-05-27 22:31:04"
     }
   ],
   "productos": [
@@ -238,6 +249,36 @@
       "creado_en": "2026-05-25 22:49:55"
     }
   ],
+  "presupuestos": [
+    {
+      "id": 1,
+      "cliente_id": 1,
+      "nombre_proyecto": "SECRETS AND DREAMS MICHES",
+      "aprobado": 1,
+      "creado_en": "2026-05-27 22:23:23"
+    },
+    {
+      "id": 2,
+      "cliente_id": 2,
+      "nombre_proyecto": "CASA MARINA REEF - FASE 2",
+      "aprobado": 1,
+      "creado_en": "2026-05-27 22:23:23"
+    },
+    {
+      "id": 3,
+      "cliente_id": 3,
+      "nombre_proyecto": "HYATT VIVID - MANTENIMIENTO Q1",
+      "aprobado": 1,
+      "creado_en": "2026-05-27 22:23:23"
+    },
+    {
+      "id": 4,
+      "cliente_id": 6,
+      "nombre_proyecto": "Prueba ",
+      "aprobado": 1,
+      "creado_en": "2026-05-27 22:31:40"
+    }
+  ],
   "ordenes_trabajo": [
     {
       "id": 1,
@@ -256,9 +297,30 @@
       "fecha_programada": null,
       "fecha_inicio": "2026-05-26 14:23:15",
       "fecha_fin": null,
-      "presupuesto_id": null,
+      "presupuesto_id": 1,
       "creado_en": "2026-05-26 14:22:09",
       "actualizado_en": "2026-05-26 14:24:07"
+    },
+    {
+      "id": 2,
+      "numero_ot": "OT-2026-0002",
+      "cliente_id": 6,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Prueba ",
+      "presupuesto_aprobado": 1,
+      "monto_total": 300,
+      "tecnico_id": 3,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": "2026-05-29",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": 4,
+      "creado_en": "2026-05-27 22:32:31",
+      "actualizado_en": "2026-05-27 22:32:31"
     }
   ],
   "orden_trabajo_productos": [
@@ -267,6 +329,12 @@
       "orden_trabajo_id": 1,
       "producto_id": 3,
       "cantidad": 2
+    },
+    {
+      "id": 17,
+      "orden_trabajo_id": 2,
+      "producto_id": 6,
+      "cantidad": 1
     }
   ],
   "avales": [
@@ -290,6 +358,7 @@
       "fecha_firma_cliente": "2026-05-26 14:24:26",
       "token_enviado_en": null,
       "token_visto_en": "2026-05-26 14:24:25",
+      "historial_firmas": null,
       "productos_tecnico": "[{\"producto_id\":3,\"cantidad\":2,\"comentario\":\"Instaladas en habitaciones 201 y 202\"}]",
       "productos_admin": null,
       "creado_en": "2026-05-26 14:24:07"
