@@ -10,6 +10,15 @@
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; }
   .sidebar { width: 260px; min-width: 260px; }
+  @media (max-width: 767px) {
+    .sidebar { position: fixed; left: -100%; top: 0; bottom: 0; z-index: 50; transition: left 0.25s ease-in-out; width: 280px; min-width: 280px; }
+    .sidebar.open { left: 0; }
+    .sidebar-overlay { position: fixed; inset:0; background:rgba(0,0,0,0.4); z-index:49; opacity:0; pointer-events:none; transition: opacity 0.25s ease-in-out; }
+    .sidebar-overlay.open { opacity:1; pointer-events:auto; }
+    .hamburger { display: flex !important; }
+  }
+  .hamburger { display: none; position:fixed; top:12px; left:12px; z-index:60; width:38px; height:38px; background:#1e40af; color:white; border:none; border-radius:10px; align-items:center; justify-content:center; font-size:20px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+  @media (min-width: 768px) { main { min-height:100vh; } }
   .sidebar-header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); }
   .sidebar-item { @apply flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer relative; }
   .sidebar-item.active { @apply bg-blue-600 text-white; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
@@ -304,43 +313,45 @@ const navItems = {
 
 function renderLayout() {
   const items = navItems[state.user?.rol] || navItems.admin;
-  const rolLabel = { superadmin: 'Super Administrador', admin: 'Administrador', tecnico: 'Técnico', servicio_cliente: 'Servicio al Cliente' }[state.user?.rol] || '';
+  const rolLabel = { superadmin: "Super Administrador", admin: "Administrador", tecnico: "Técnico", servicio_cliente: "Servicio al Cliente" }[state.user?.rol] || "";
 
   const navHtml = items.map((i, idx) => `
-    <a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item group ${state.view === i.id ? 'active' : ''}">
+    <a href="#" onclick="setState({view:'${i.id}'});closeSidebar()" class="sidebar-item group ${state.view === i.id ? "active" : ""}">
       <span class="sidebar-item-icon">${i.icon}</span>
       <span>${i.label}</span>
-      ${i.badge ? '<span class="sidebar-item-badge">' + i.badge + '</span>' : ''}
+      ${i.badge ? '<span class="sidebar-item-badge">' + i.badge + '<\/span>' : ""}
     </a>
-  `).join('');
+  `).join("");
 
-  return '<div style="display:flex;min-height:100vh">'
-    + '<div style="width:260px;min-width:260px;background:#111827;color:white;display:flex;flex-direction:column">'
+  return '<div class="md:flex" style="min-height:100vh">'
+    + '<div class="sidebar">'
     + '<div class="sidebar-header" style="padding:16px 16px 12px">'
     + '<div style="display:flex;align-items:center;gap:10px">'
     + '<div style="width:32px;height:32px;background:rgba(255,255,255,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.1)"><span style="font-size:16px">🔧</span></div>'
     + '<div><div style="font-size:13px;font-weight:700;color:white">OT Dashboard</div>'
     + '<div style="font-size:10px;color:rgba(191,219,254,0.8);text-transform:capitalize">' + rolLabel + '</div></div></div></div>'
     + '<div style="padding:8px 12px;background:#111827;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:6px">'
-    + '<span style="width:20px;height:20px;border-radius:50%;background:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;flex-shrink:0">' + (state.user?.nombre || '?')[0].toUpperCase() + '</span>'
-    + '<span style="font-size:11px;font-weight:500;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (state.user?.nombre || '') + '</span></div>'
+    + '<span style="width:20px;height:20px;border-radius:50%;background:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;flex-shrink:0">' + (state.user?.nombre || "?")[0].toUpperCase() + '</span>'
+    + '<span style="font-size:11px;font-weight:500;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (state.user?.nombre || "") + '</span></div>'
     + '<div style="flex:1;overflow-y:auto;padding:8px 10px">'
     + '<div style="display:flex;flex-direction:column;gap:2px">'
     + navHtml
     + '</div></div>'
     + '<div style="border-top:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:8px 10px">'
-    + '<a href="#" onclick="setState({view:\'perfil\'});closeSidebar()" class="sidebar-item group" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;font-size:13px;color:#d1d5db;cursor:pointer;text-decoration:none">'
+    + '<a href="#" onclick="setState({view:&apos;perfil&apos;});closeSidebar()" class="sidebar-item group" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;font-size:13px;color:#d1d5db;cursor:pointer;text-decoration:none">'
     + '<span style="flex-shrink:0;font-size:14px">👤</span><span>Perfil</span></a>'
     + '<a href="#" onclick="handleLogout()" class="sidebar-item group" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;font-size:13px;color:#9ca3af;cursor:pointer;text-decoration:none">'
-    + '<span style="flex-shrink:0;font-size:14px">🚪</span><span>Cerrar Sesión</span></a></div></div>'
+    + '<span style="flex-shrink:0;font-size:14px">🚪</span><span>Cerrar Sesión</span></a></div>'
+    + '</div>'
+    + '<div class="sidebar-overlay" onclick="closeSidebar()"></div>'
+    + '<button class="hamburger" onclick="toggleSidebar()">☰</button>'
     + '<div style="flex:1;min-width:0">'
-    + '<main style="padding:24px 32px" id="main-content">'
+    + '<main class="p-3 md:p-6 lg:p-8" style="padding-top:64px" id="main-content">'
     + '<div style="display:flex;align-items:center;justify-content:center;padding:80px 0"><div class="loading-spinner border-blue-600 border-4 w-8 h-8"></div></div>'
     + '</main></div></div>';
 }
-
-function toggleSidebar() {}
-function closeSidebar() {}
+function toggleSidebar() { document.querySelector('.sidebar')?.classList.toggle('open'); document.querySelector('.sidebar-overlay')?.classList.toggle('open'); }
+function closeSidebar() { document.querySelector('.sidebar')?.classList.remove('open'); document.querySelector('.sidebar-overlay')?.classList.remove('open'); }
 
 function handleLogout() {
   localStorage.removeItem('token');
