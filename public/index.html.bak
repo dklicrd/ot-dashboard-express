@@ -1507,54 +1507,17 @@ function renderBonoResultado(r) {
       '<td class="py-2 px-3 text-right font-semibold">' + fm(p.total) + '</td></tr>';
   }).join('');
 
-  // Bono Liderazgo section
-  var liderHtml = '';
-  if (r.bono_liderazgo && r.bono_liderazgo.activo && r.bono_liderazgo.extra_lider !== undefined) {
-    liderHtml = '<div class="card bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200">' +
-      '<h3 class="card-header">🏅 Bono de Liderazgo Técnico</h3>' +
-      '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">' +
-      '<div class="text-center p-3 bg-white rounded-xl shadow-sm"><p class="text-xs text-gray-500 uppercase">Líder</p><p class="text-lg font-bold text-gray-900 mt-1">' + escHtml(r.bono_liderazgo.lider_nombre || '—') + '</p></div>' +
-      '<div class="text-center p-3 bg-white rounded-xl shadow-sm"><p class="text-xs text-gray-500 uppercase">Evaluación Prom.</p><p class="text-lg font-bold ' + (r.bono_liderazgo.evaluacion_promedio >= 4 ? 'text-green-600' : r.bono_liderazgo.evaluacion_promedio >= 3 ? 'text-yellow-600' : 'text-red-600') + ' mt-1">' + (r.bono_liderazgo.evaluacion_promedio || 0).toFixed(2) + '/5</p></div>' +
-      '<div class="text-center p-3 bg-white rounded-xl shadow-sm"><p class="text-xs text-gray-500 uppercase">Fondo</p><p class="text-lg font-bold text-yellow-600 mt-1">' + fm(r.bono_liderazgo.fondo) + '</p></div>' +
-      '<div class="text-center p-3 bg-white rounded-xl shadow-sm"><p class="text-xs text-gray-500 uppercase">Extra del Líder</p><p class="text-lg font-bold text-amber-600 mt-1">' + fm(r.bono_liderazgo.extra_lider) + '</p></div>' +
-      '</div>' +
-      '<div class="mt-3 p-3 bg-yellow-100/50 rounded-xl text-sm text-center">' +
-      '<span class="text-yellow-800">📐 Fondo = Total × ' + (r.bono_liderazgo.fondo > 0 ? (Math.round((r.bono_liderazgo.fondo / (r.resumen.total_a_distribuir || 1)) * 10000) / 100) : 0).toFixed(1) + '%. Extra = Fondo × (Eval. / 5)</span>' +
-      '</div></div>';
-  } else if (r.bono_liderazgo && r.bono_liderazgo.error) {
-    liderHtml = '<div class="card bg-yellow-50 border border-yellow-200">' +
-      '<h3 class="card-header">🏅 Bono de Liderazgo</h3>' +
-      '<p class="text-sm text-yellow-700">⚠️ ' + escHtml(r.bono_liderazgo.error) + '</p></div>';
-  }
-
-  // Check if any distribution entry has bono_lider
-  var hasBonoLider = r.distribucion.some(function(t) { return t.bono_lider > 0; });
-
   var distRows = r.distribucion.map(function(t) {
-    var row = '<tr class="border-b border-gray-100 hover:bg-gray-50">' +
+    return '<tr class="border-b border-gray-100 hover:bg-gray-50">' +
       '<td class="py-3 px-4 font-medium">' + escHtml(t.tecnico) + '</td>' +
-      '<td class="py-3 px-4 text-center font-semibold">' + (t.porcentaje * 100).toFixed(1) + '%</td>' +
-      '<td class="py-3 px-4 text-right">' + fm(t.base) + '</td>';
-    if (hasBonoLider) {
-      row += '<td class="py-3 px-4 text-right">' + (t.bono_lider > 0 ? fm(t.bono_lider) : '—') + '</td>';
-    }
-    row += '<td class="py-3 px-4 text-right font-bold text-green-700">' + fm(t.total) + '</td></tr>';
-    return row;
+      '<td class="py-3 px-4 text-center font-semibold">' + (t.porcentaje * 100).toFixed(0) + '%</td>' +
+      '<td class="py-3 px-4 text-right">' + fm(t.valor_bruto) + '</td>' +
+      '<td class="py-3 px-4 text-right">' + fm(t.adicionales) + '</td>' +
+      '<td class="py-3 px-4 text-right font-bold text-green-700">' + fm(t.total) + '</td></tr>';
   }).join('');
 
   var evalProm = r.resumen.evaluacion_promedio_general;
   var evalClass = evalProm >= 4 ? 'text-green-600' : (evalProm >= 3 ? 'text-yellow-600' : 'text-red-600');
-
-  // Distribution table header
-  var distHeader = '<th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Técnico</th>' +
-    '<th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">%</th>' +
-    '<th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Base</th>';
-  if (hasBonoLider) {
-    distHeader += '<th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase">🏅 Líder</th>';
-  }
-  distHeader += '<th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Total</th>';
-
-  var sumaTotal = r.distribucion.reduce(function(s, t) { return s + (t.total || 0); }, 0);
 
   return '<div class="space-y-6 fade-in">' +
     '<div class="card overflow-hidden">' +
@@ -1591,19 +1554,24 @@ function renderBonoResultado(r) {
     '<div class="text-center"><p class="text-sm text-gray-500">Total a Distribuir</p><p class="text-2xl font-bold text-green-700">' + fm(r.resumen.total_a_distribuir) + '</p></div>' +
     '</div></div>' +
 
-    liderHtml +
-
     '<div class="card"><h3 class="card-header">Distribución del Bono</h3>' +
     '<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b-2 border-gray-200 bg-gray-50">' +
-    distHeader +
+    '<th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Técnico</th>' +
+    '<th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">%</th>' +
+    '<th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Valor Bruto</th>' +
+    '<th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Adicionales</th>' +
+    '<th class="text-right py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Total</th>' +
     '</tr></thead><tbody>' +
     distRows +
-    '<tr class="bg-gray-50 font-bold border-t-2 border-gray-300"><td class="py-3 px-4">Total</td><td class="py-3 px-4 text-center">100%</td>' +
-    '<td class="py-3 px-4 text-right" colspan="' + (hasBonoLider ? 2 : 1) + '"></td><td class="py-3 px-4 text-right">' + fm(sumaTotal) + '</td></tr>' +
+    '<tr class="bg-gray-50 font-bold border-t-2 border-gray-300"><td class="py-3 px-4">Total</td><td class="py-3 px-4 text-center">100%</td><td class="py-3 px-4 text-right" colspan="2"></td><td class="py-3 px-4 text-right">' + fm(r.resumen.total_a_distribuir) + '</td></tr>' +
     '</tbody></table></div>' +
     '<div class="mt-4 flex justify-end gap-3"><button onclick="window.print()" class="btn-secondary flex items-center gap-2"><span>🖨️</span> Imprimir</button></div></div>' +
     '<p class="text-xs text-gray-400 text-center">Período: ' + r.periodo.inicio + ' a ' + r.periodo.fin + '</p></div>';
-};
+}
+
+
+// ============ REPORTES ============
+async function renderReportes() {
   const anio = new Date().getFullYear();
   const trim = Math.ceil((new Date().getMonth() + 1) / 3);
 
@@ -1868,434 +1836,137 @@ async function renderConfig() {
 
   return `
     <div class="fade-in">
-  return `
-    <div class="fade-in">
       <h1 class="text-2xl font-bold text-gray-900 mb-6">Configuración del Sistema</h1>
 
-      <!-- Tabs internas de configuración -->
-      <div class="flex gap-2 mb-6 border-b border-gray-200 pb-2">
-        <button onclick="cfgTab('incentivos')" id="cfg-tab-incentivos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn bg-blue-100 text-blue-700">💰 Incentivos</button>
-        <button onclick="cfgTab('documentos')" id="cfg-tab-documentos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">📄 Documentos</button>
-        <button onclick="cfgTab('equipo')" id="cfg-tab-equipo" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">👷 Equipo Técnico</button>
-        ${state.user?.rol === 'superadmin' ? '<button onclick="cfgTab('sistema')" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
-      </div>
-
-      <div id="cfg-tab-content">
-        <!-- Cargado dinámicamente por cfgTab() -->
-      </div>
-    </div>
-  `;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CFG TABS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-window.cfgTab = async function (tab) {
-  document.querySelectorAll('.cfg-tab-btn').forEach(b => b.classList.remove('bg-blue-100', 'text-blue-700'));
-  const btn = document.getElementById('cfg-tab-' + tab);
-  if (btn) btn.classList.add('bg-blue-100', 'text-blue-700');
-
-  const contentDiv = document.getElementById('cfg-tab-content');
-  contentDiv.innerHTML = '<div class="text-center py-12"><div class="loading-spinner mx-auto mb-3"></div><p class="text-gray-400">Cargando...</p></div>';
-
-  if (tab === 'incentivos') {
-    contentDiv.innerHTML = await renderCfgIncentivos();
-  } else if (tab === 'documentos') {
-    contentDiv.innerHTML = await renderCfgDocumentos();
-  } else if (tab === 'equipo') {
-    contentDiv.innerHTML = await renderCfgEquipo();
-  } else if (tab === 'sistema') {
-    contentDiv.innerHTML = renderCfgSistema();
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Render Incentivos (ponderaciones + valores + bono liderazgo)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function renderCfgIncentivos() {
-  let config = null;
-  try {
-    const d = await api('GET', '/api/config');
-    config = d.config;
-  } catch (e) { /* ignore */ }
-
-  const pondFields = [
-    { key: 'ponderacion_tiempo_entrega', label: 'Tiempo de Entrega', desc: '¿Qué tan rápido se completó el servicio?', icon: '⏱️' },
-    { key: 'ponderacion_desempeno', label: 'Desempeño del Equipo', desc: 'Calidad del trabajo del equipo técnico', icon: '👷' },
-    { key: 'ponderacion_conocimientos', label: 'Conocimientos Técnicos', desc: 'Nivel técnico demostrado en el servicio', icon: '📚' },
-    { key: 'ponderacion_presentacion', label: 'Presentación del Equipo', desc: 'Uniforme, puntualidad y trato al cliente', icon: '👔' },
-    { key: 'ponderacion_calidad_productos', label: 'Calidad de Productos', desc: 'Calidad de materiales y equipos instalados', icon: '🏆' },
-    { key: 'ponderacion_calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Capacitación al cliente sobre el uso', icon: '🎓' },
-  ];
-
-  const valorFields = [
-    { key: 'valor_cerradura', label: 'Cerradura Electrónica', icon: '🔒' },
-    { key: 'valor_control_acceso', label: 'Control de Acceso', icon: '🛡️' },
-    { key: 'valor_caja_fuerte', label: 'Caja Fuerte', icon: '🔐' },
-    { key: 'valor_ahorro_energia', label: 'Ahorro de Energía', icon: '💡' },
-    { key: 'mant_cerradura', label: 'Mant. Cerradura Elect.', icon: '🔧' },
-    { key: 'mant_caja_fuerte', label: 'Mant. Caja Fuerte', icon: '🔩' },
-    { key: 'mant_ahorro_energia', label: 'Mant. Ahorro de Energía', icon: '⚡' },
-  ];
-
-  const defaultVals = {
-    ponderacion_tiempo_entrega: 1.5, ponderacion_desempeno: 1.5, ponderacion_conocimientos: 1.5,
-    ponderacion_presentacion: 1.0, ponderacion_calidad_productos: 1.0, ponderacion_calidad_entrenamientos: 1.0,
-    valor_cerradura: 150, valor_control_acceso: 300, valor_caja_fuerte: 150, valor_ahorro_energia: 105,
-    mant_cerradura: 82.5, mant_caja_fuerte: 30, mant_ahorro_energia: 37.5,
-    bono_liderazgo_activo: 0, porcentaje_fondo_liderazgo: 5.0, evaluacion_minima_extra: 3.0,
-  };
-  const vals = config || defaultVals;
-
-  return `
-    <div class="space-y-6">
-      <!-- Bono Liderazgo -->
-      <div class="card bg-gradient-to-r from-yellow-50 to-yellow-100/50 border border-yellow-200">
-        <h3 class="card-header">🏅 Bono de Liderazgo Técnico</h3>
-        <p class="text-sm text-gray-500 mb-4">Configuración del bono trimestral para el líder del equipo técnico.</p>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-white rounded-xl p-4 shadow-sm">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Bono Liderazgo</label>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" class="sr-only peer" id="cfg-bono-activo" ${vals.bono_liderazgo_activo === 1 || vals.bono_liderazgo_activo === true ? 'checked' : ''}>
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-              <span class="ms-3 text-sm font-medium text-gray-600" id="cfg-bono-label">${vals.bono_liderazgo_activo ? 'Activado' : 'Desactivado'}</span>
-            </label>
-          </div>
-          <div class="bg-white rounded-xl p-4 shadow-sm">
-            <label class="block text-sm font-semibold text-gray-700 mb-1">% Fondo Liderazgo</label>
-            <div class="flex items-center gap-2">
-              <input type="number" min="0" max="20" step="0.5" value="${vals.porcentaje_fondo_liderazgo || 5.0}"
-                id="cfg-bono-fondo" class="w-24 px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
-              <span class="text-sm text-gray-500">% del total</span>
-            </div>
-          </div>
-          <div class="bg-white rounded-xl p-4 shadow-sm">
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Eval. Mínima para Extra</label>
-            <div class="flex items-center gap-2">
-              <input type="number" min="1" max="5" step="0.1" value="${vals.evaluacion_minima_extra || 3.0}"
-                id="cfg-bono-eval-min" class="w-24 px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
-              <span class="text-sm text-gray-500">/ 5.0</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Ponderaciones -->
-      <div class="card">
-        <h3 class="card-header">Ponderaciones de Evaluación</h3>
-        <p class="text-sm text-gray-500 mb-4">Estos pesos determinan cuánto influye cada criterio en la evaluación general y el cálculo de incentivos.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          ${pondFields.map(f => `
-            <div class="bg-gray-50 rounded-xl p-4">
-              <div class="flex items-start gap-3">
-                <span class="text-xl mt-1">${f.icon}</span>
-                <div class="flex-1">
-                  <label class="block text-sm font-semibold text-gray-700">${f.label}</label>
-                  <p class="text-xs text-gray-400 mb-2">${f.desc}</p>
-                  <div class="flex items-center gap-2">
-                    <input type="range" min="0.5" max="3.0" step="0.1" value="${vals[f.key]}"
-                      oninput="document.getElementById('cfg-val-${f.key}').textContent = this.value"
-                      class="flex-1 accent-blue-600 h-2 rounded-full">
-                    <span id="cfg-val-${f.key}" class="text-sm font-bold text-blue-600 w-10 text-right">${vals[f.key]}</span>
-                    <span class="text-xs text-gray-400">x</span>
+      <div class="space-y-6">
+        <!-- Ponderaciones -->
+        <div class="card">
+          ${pondHeader}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            ${pondFields.map(f => `
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                  <span class="text-xl mt-1">${f.icon}</span>
+                  <div class="flex-1">
+                    <label class="block text-sm font-semibold text-gray-700">${f.label}</label>
+                    <p class="text-xs text-gray-400 mb-2">${f.desc}</p>
+                    <div class="flex items-center gap-2">
+                      <input type="range" min="0.5" max="3.0" step="0.1" value="${vals[f.key]}"
+                        oninput="document.getElementById('cfg-val-${f.key}').textContent = this.value"
+                        class="flex-1 accent-blue-600 h-2 rounded-full">
+                      <span id="cfg-val-${f.key}" class="text-sm font-bold text-blue-600 w-10 text-right">${vals[f.key]}</span>
+                      <span class="text-xs text-gray-400">x</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <!-- Valores -->
-      <div class="card">
-        <h3 class="card-header">Valores por Tipo de Servicio (RD$)</h3>
-        <p class="text-sm text-gray-500 mb-4">Monto bruto que se paga por cada tipo de servicio completado en el trimestre.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          ${valorFields.map(f => `
-            <div class="bg-gray-50 rounded-xl p-4">
-              <div class="flex items-center gap-3 mb-2">
-                <span class="text-lg">${f.icon}</span>
-                <span class="text-sm font-semibold text-gray-700">${f.label}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-sm text-gray-500">RD$</span>
-                <input type="number" min="0" max="99999" step="0.01" value="${vals[f.key]}"
-                  id="cfg-valnum-${f.key}"
-                  class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <!-- Save button -->
-      <div class="flex justify-end gap-3">
-        <button onclick="render()" class="btn-secondary flex items-center gap-2"><span>🔄</span> Recargar</button>
-        <button onclick="saveConfig()" class="btn-primary flex items-center gap-2" id="cfg-save-btn"><span>💾</span> Guardar Configuración</button>
-      </div>
-    </div>
-  `;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Render Documentos
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function renderCfgDocumentos() {
-  let docConfig = {};
-  try {
-    const d = await api('GET', '/api/config/documentos');
-    docConfig = d.configuracion;
-    window.docConfig = docConfig;
-  } catch (e) { /* ignore */ }
-
-  return `
-    <div class="card">
-      <h3 class="card-header">Personalización de Documentos</h3>
-      <p class="text-sm text-gray-500 mb-4">Estos datos aparecerán en los PDFs y páginas de detalle de OT.</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Nombre de la Empresa</label>
-          <input type="text" id="doc-nombre-empresa" class="input-field" value="${escHtml(docConfig?.nombre_empresa || 'Mi Empresa')}">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Eslogan</label>
-          <input type="text" id="doc-eslogan" class="input-field" value="${escHtml(docConfig?.eslogan || '')}" placeholder="Opcional">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Dirección</label>
-          <input type="text" id="doc-direccion" class="input-field" value="${escHtml(docConfig?.direccion || '')}" placeholder="Opcional">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Teléfono</label>
-          <input type="text" id="doc-telefono" class="input-field" value="${escHtml(docConfig?.telefono || '')}" placeholder="Opcional">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-          <input type="email" id="doc-email" class="input-field" value="${escHtml(docConfig?.email || '')}" placeholder="Opcional">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Sitio Web</label>
-          <input type="text" id="doc-website" class="input-field" value="${escHtml(docConfig?.website || '')}" placeholder="Opcional">
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Pie de Página</label>
-          <input type="text" id="doc-pie-pagina" class="input-field" value="${escHtml(docConfig?.pie_pagina || '')}" placeholder="Texto que aparece al pie de los documentos">
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Color Primario</label>
-          <div class="flex items-center gap-3">
-            <input type="color" id="doc-color" class="w-12 h-10 rounded-lg border border-gray-300 cursor-pointer" value="${docConfig?.color_primario || '#1e40af'}">
-            <span class="text-sm text-gray-500" id="doc-color-label">${docConfig?.color_primario || '#1e40af'}</span>
+            `).join('')}
           </div>
         </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-2">Logo de la Empresa</label>
-          ${docConfig?.logo_base64
-            ? '<div class="flex items-center gap-4 mb-3"><img src="' + escHtml(docConfig.logo_base64) + '" class="h-20 w-auto rounded-lg border border-gray-200 p-1 bg-white" alt="Logo actual"><button onclick="this.parentElement.parentElement.querySelector('#doc-logo-input').value='';this.parentElement.parentElement.querySelector('#doc-logo-preview').innerHTML='';this.parentElement.remove()" class="text-sm text-red-600 hover:text-red-800 ml-2">Eliminar logo</button></div>'
-            : ''}
-          <div id="doc-logo-preview" class="mb-2"></div>
-          <div class="flex items-center gap-3">
-            <input type="file" id="doc-logo-input" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewLogo(this)">
-            <span class="text-xs text-gray-400">PNG, JPG o WEBP (máx 2MB)</span>
+
+        <!-- Valores -->
+        <div class="card">
+          ${valorHeader}
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            ${valorFields.map(f => `
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="text-lg">${f.icon}</span>
+                  <span class="text-sm font-semibold text-gray-700">${f.label}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm text-gray-500">RD$</span>
+                  <input type="number" min="0" max="99999" step="0.01" value="${vals[f.key]}"
+                    id="cfg-valnum-${f.key}"
+                    class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+              </div>
+            `).join('')}
           </div>
         </div>
+
+        <!-- Save button -->
+        <div class="flex justify-end gap-3">
+          <button onclick="reloadConfig()" class="btn-secondary flex items-center gap-2"><span>🔄</span> Restaurar</button>
+          <button onclick="saveConfig()" class="btn-primary flex items-center gap-2" id="cfg-save-btn"><span>💾</span> Guardar Configuración</button>
+        </div>
       </div>
-      <div class="flex justify-end mt-6">
-        <button onclick="saveDocConfig()" class="btn-primary flex items-center gap-2" id="doc-save-btn"><span>📄</span> Guardar Documentos</button>
-      </div>
-    </div>
-  `;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Render Equipo Técnico
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function renderCfgEquipo() {
-  let tecnicos = [];
-  let disponibles = [];
-  let cfg = {};
-  try {
-    const d = await api('GET', '/api/tecnicos-config');
-    tecnicos = d.tecnicos || [];
-  } catch (e) { /* ignore */ }
-  try {
-    const d = await api('GET', '/api/tecnicos-config/disponibles');
-    disponibles = d.disponibles || [];
-  } catch (e) { /* ignore */ }
-  try {
-    const d = await api('GET', '/api/config');
-    cfg = d.config || {};
-  } catch (e) { /* ignore */ }
-
-  const lider = tecnicos.find(t => t.es_lider === 1);
-
-  return `
-    <div class="space-y-6">
-      <div class="card bg-gradient-to-r from-yellow-50 to-yellow-100/50 border border-yellow-200">
-        <h3 class="card-header">👷 Equipo Técnico</h3>
-        <p class="text-sm text-gray-500 mb-4">Gestiona los técnicos, sus porcentajes de distribución y quién es el líder del equipo.</p>
-
-        ${lider ? `
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl">🏅</span>
+          <!-- Personalización de Documentos -->
+        <div class="card">
+          <h3 class="card-header">Personalización de Documentos</h3>
+          <p class="text-sm text-gray-500 mb-4">Estos datos aparecerán en los PDFs y páginas de detalle de OT.</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <p class="text-sm font-bold text-blue-800">Líder Técnico: <span class="text-lg">${escHtml(lider.nombre)}</span></p>
-              <p class="text-xs text-blue-600">Recibe bono extra según evaluación del trimestre</p>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Nombre de la Empresa</label>
+              <input type="text" id="doc-nombre-empresa" class="input-field" value="${escHtml(docConfig?.nombre_empresa || 'Mi Empresa')}">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Eslogan</label>
+              <input type="text" id="doc-eslogan" class="input-field" value="${escHtml(docConfig?.eslogan || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Dirección</label>
+              <input type="text" id="doc-direccion" class="input-field" value="${escHtml(docConfig?.direccion || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Teléfono</label>
+              <input type="text" id="doc-telefono" class="input-field" value="${escHtml(docConfig?.telefono || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+              <input type="email" id="doc-email" class="input-field" value="${escHtml(docConfig?.email || '')}" placeholder="Opcional">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Sitio Web</label>
+              <input type="text" id="doc-website" class="input-field" value="${escHtml(docConfig?.website || '')}" placeholder="Opcional">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Pie de Página</label>
+              <input type="text" id="doc-pie-pagina" class="input-field" value="${escHtml(docConfig?.pie_pagina || '')}" placeholder="Texto que aparece al pie de los documentos">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Color Primario</label>
+              <div class="flex items-center gap-3">
+                <input type="color" id="doc-color" class="w-12 h-10 rounded-lg border border-gray-300 cursor-pointer" value="${docConfig?.color_primario || '#1e40af'}">
+                <span class="text-sm text-gray-500" id="doc-color-label">${docConfig?.color_primario || '#1e40af'}</span>
+              </div>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-semibold text-gray-700 mb-2">Logo de la Empresa</label>
+              ${docConfig?.logo_base64
+                ? '<div class="flex items-center gap-4 mb-3"><img src="' + escHtml(docConfig.logo_base64) + '" class="h-20 w-auto rounded-lg border border-gray-200 p-1 bg-white" alt="Logo actual"><button onclick="this.parentElement.parentElement.querySelector(\'#doc-logo-input\').value=\'\';this.parentElement.parentElement.querySelector(\'#doc-logo-preview\').innerHTML=\'\';this.parentElement.remove()" class="text-sm text-red-600 hover:text-red-800 ml-2">Eliminar logo</button></div>'
+                : ''}
+              <div id="doc-logo-preview" class="mb-2"></div>
+              <div class="flex items-center gap-3">
+                <input type="file" id="doc-logo-input" accept="image/png,image/jpeg,image/webp" class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewLogo(this)">
+                <span class="text-xs text-gray-400">PNG, JPG o WEBP (máx 2MB)</span>
+              </div>
             </div>
           </div>
-        </div>
-        ` : `
-        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-          <p class="text-sm text-gray-500">⚠️ No hay líder técnico asignado. Marca un técnico como líder en la tabla.</p>
-        </div>
-        `}
-
-        <!-- Tabla de técnicos -->
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Técnico</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">% Base</th>
-                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Líder</th>
-                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Activo</th>
-                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Acción</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 bg-white">
-              ${tecnicos.map((t, i) => `
-              <tr class="${t.es_lider === 1 ? 'bg-yellow-50' : ''} hover:bg-gray-50 transition-colors">
-                <td class="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
-                  <div class="flex items-center gap-2">
-                    ${t.es_lider === 1 ? '<span class="text-lg">🏅</span>' : '<span class="text-gray-400">👷</span>'}
-                    ${escHtml(t.nombre)}
-                  </div>
-                </td>
-                <td class="px-4 py-3 whitespace-nowrap">
-                  <div class="flex items-center gap-1">
-                    <input type="number" min="0" max="100" step="0.5" value="${Math.round((t.porcentaje_base || 0) * 10000) / 100}"
-                      id="tc-pct-${t.id}" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-center">
-                    <span class="text-sm text-gray-500">%</span>
-                  </div>
-                </td>
-                <td class="px-4 py-3 text-center whitespace-nowrap">
-                  <input type="radio" name="tc-lider" value="${t.id}" ${t.es_lider === 1 ? 'checked' : ''}
-                    onchange="asignarLider(${t.id})"
-                    class="w-4 h-4 text-yellow-500 focus:ring-yellow-500">
-                </td>
-                <td class="px-4 py-3 text-center whitespace-nowrap">
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" class="sr-only peer" ${t.activo === 1 ? 'checked' : ''}
-                      onchange="toggleTecnicoActivo(${t.id}, this.checked)">
-                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-                  </label>
-                </td>
-                <td class="px-4 py-3 text-right whitespace-nowrap">
-                  <button onclick="guardarPctTecnico(${t.id}, '${escHtml(t.nombre)}')" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-3 py-1.5 rounded-lg transition-all">💾 Guardar</button>
-                </td>
-              </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Agregar técnico -->
-        ${disponibles.length > 0 ? `
-        <div class="mt-6 pt-4 border-t border-gray-200">
-          <h4 class="text-sm font-semibold text-gray-700 mb-3">➕ Agregar Técnico al Equipo</h4>
-          <div class="flex items-center gap-3 flex-wrap">
-            <select id="tc-agregar-select" class="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[200px]">
-              <option value="">Seleccionar técnico...</option>
-              ${disponibles.map(d => `<option value="${d.id}">${escHtml(d.nombre)}</option>`).join('')}
-            </select>
-            <input type="number" id="tc-agregar-pct" placeholder="% Base" min="0" max="100" step="0.5"
-              class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <button onclick="agregarTecnico()" class="btn-primary text-sm px-4 py-2">➕ Agregar</button>
+          <div class="flex justify-end mt-6">
+            <button onclick="saveDocConfig()" class="btn-primary flex items-center gap-2" id="doc-save-btn"><span>📄</span> Guardar Documentos</button>
           </div>
+        </div>
+
+        ${state.user?.rol === 'superadmin' ? `
+        <!-- Herramientas de sistema -->
+        <div class="bg-red-50 border border-red-200 rounded-2xl p-6 mt-8">
+          <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Herramientas del Sistema</h3>
+          <p class="text-sm text-red-600 mb-4">Elimina todos los datos demo del sistema (OTs, avales, encuestas, clientes, productos). <strong>Esta acción no se puede deshacer.</strong></p>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="limpiarBD()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-bd">
+              <span>🗑️</span> Eliminar todos los datos demo
+            </button>
+            <button onclick="limpiarOTs()" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-ots">
+              <span>🧹</span> Limpiar solo OTs, Avales y Encuestas
+            </button>
+          </div>
+          <div id="limpiar-bd-result" class="mt-3 text-sm"></div>
         </div>
         ` : ''}
-      </div>
-    </div>
+
   `;
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Render Sistema (solo superadmin)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function renderCfgSistema() {
-  return `
-    <div class="bg-red-50 border border-red-200 rounded-2xl p-6">
-      <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Herramientas del Sistema</h3>
-      <p class="text-sm text-red-600 mb-4">Elimina todos los datos demo del sistema (OTs, avales, encuestas, clientes, productos). <strong>Esta acción no se puede deshacer.</strong></p>
-      <div class="flex flex-wrap gap-3">
-        <button onclick="limpiarBD()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-bd">
-          <span>🗑️</span> Eliminar todos los datos demo
-        </button>
-        <button onclick="limpiarOTs()" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-150" id="btn-limpiar-ots">
-          <span>🧹</span> Limpiar solo OTs, Avales y Encuestas
-        </button>
-      </div>
-      <div id="limpiar-bd-result" class="mt-3 text-sm"></div>
-    </div>
-  `;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Helpers de Equipo Técnico
-// ═══════════════════════════════════════════════════════════════════════════════
-
-window.guardarPctTecnico = async function (id, nombre) {
-  const pctEl = document.getElementById('tc-pct-' + id);
-  const pct = parseFloat(pctEl?.value || 0) / 100;
-  if (pct < 0 || pct > 1) { toast('El porcentaje debe ser entre 0% y 100%', 'error'); return; }
-  try {
-    await api('PUT', '/api/tecnicos-config/' + id, { porcentaje_base: pct });
-    toast('✅ ' + nombre + ': % actualizado a ' + Math.round(pct * 100) + '%');
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
-  }
-};
-
-window.asignarLider = async function (id) {
-  try {
-    await api('PUT', '/api/tecnicos-config/' + id, { es_lider: 1 });
-    toast('✅ Líder técnico actualizado');
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
-  }
-};
-
-window.toggleTecnicoActivo = async function (id, activo) {
-  try {
-    await api('PUT', '/api/tecnicos-config/' + id, { activo: activo ? 1 : 0 });
-    toast(activo ? '✅ Técnico activado' : '⛔ Técnico desactivado');
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
-  }
-};
-
-window.agregarTecnico = async function () {
-  const select = document.getElementById('tc-agregar-select');
-  const pctInput = document.getElementById('tc-agregar-pct');
-  const usuario_id = parseInt(select?.value || 0);
-  const pct = parseFloat(pctInput?.value || 0) / 100;
-  if (!usuario_id) { toast('Selecciona un técnico', 'error'); return; }
-  if (pct < 0 || pct > 1) { toast('Porcentaje inválido (0-100%)', 'error'); return; }
-  try {
-    await api('POST', '/api/tecnicos-config', { usuario_id, porcentaje_base: pct });
-    toast('✅ Técnico agregado al equipo');
-    cfgTab('equipo');
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
-  }
-};
 
 
 window.limpiarBD = async function () {
@@ -2341,10 +2012,8 @@ window.limpiarOTs = async function () {
 
 window.saveConfig = async function () {
   const btn = document.getElementById('cfg-save-btn');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Guardando...';
-  }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Guardando...';
 
   const pondKeys = ['ponderacion_tiempo_entrega', 'ponderacion_desempeno', 'ponderacion_conocimientos', 'ponderacion_presentacion', 'ponderacion_calidad_productos', 'ponderacion_calidad_entrenamientos'];
   const valKeys = ['valor_cerradura', 'valor_control_acceso', 'valor_caja_fuerte', 'valor_ahorro_energia', 'mant_cerradura', 'mant_caja_fuerte', 'mant_ahorro_energia'];
@@ -2353,38 +2022,28 @@ window.saveConfig = async function () {
 
   for (const k of pondKeys) {
     const el = document.getElementById(`cfg-val-${k}`);
-    if (el) body[k] = parseFloat(el?.textContent || 1.5);
+    body[k] = parseFloat(el?.textContent || 1.5);
   }
 
   for (const k of valKeys) {
     const el = document.getElementById(`cfg-valnum-${k}`);
-    if (el) body[k] = parseFloat(el?.value || 0);
+    body[k] = parseFloat(el?.value || 0);
   }
-
-  // Bono liderazgo fields
-  const bonoActivo = document.getElementById('cfg-bono-activo');
-  if (bonoActivo) body.bono_liderazgo_activo = bonoActivo.checked ? 1 : 0;
-  const bonoFondo = document.getElementById('cfg-bono-fondo');
-  if (bonoFondo) body.porcentaje_fondo_liderazgo = parseFloat(bonoFondo.value || 5.0);
-  const bonoEvalMin = document.getElementById('cfg-bono-eval-min');
-  if (bonoEvalMin) body.evaluacion_minima_extra = parseFloat(bonoEvalMin.value || 3.0);
 
   try {
     await api('PUT', '/api/config', body);
     toast('Configuración guardada correctamente');
-    cfgTab('incentivos');
+    render();
   } catch (e) {
     toast('Error: ' + e.message, 'error');
   } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<span>💾</span> Guardar Configuración';
-    }
+    btn.disabled = false;
+    btn.innerHTML = '<span>💾</span> Guardar Configuración';
   }
 };
 
 window.reloadConfig = function () {
-  cfgTab('incentivos');
+  render();
 };
 
 window.previewLogo = function (input) {

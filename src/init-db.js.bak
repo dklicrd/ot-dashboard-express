@@ -406,9 +406,6 @@ async function initDatabase() {
       mant_cerradura REAL DEFAULT 82.5,
       mant_caja_fuerte REAL DEFAULT 30,
       mant_ahorro_energia REAL DEFAULT 37.5,
-      bono_liderazgo_activo INTEGER DEFAULT 0,
-      porcentaje_fondo_liderazgo REAL DEFAULT 5.0,
-      evaluacion_minima_extra REAL DEFAULT 3.0,
       actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
     );
   `);
@@ -417,35 +414,6 @@ async function initDatabase() {
   const cfgResult = queryFirst('SELECT id FROM configuracion_incentivos LIMIT 1');
   if (!cfgResult) {
     run('INSERT INTO configuracion_incentivos (id) VALUES (1)');
-  }
-
-  // ═══════════════════════════════════════════════
-  // TABLA: tecnicos_config (% editables + líder)
-  // ═══════════════════════════════════════════════
-  run(`
-    CREATE TABLE IF NOT EXISTS tecnicos_config (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id),
-      porcentaje_base REAL NOT NULL DEFAULT 0.0,
-      es_lider INTEGER DEFAULT 0,
-      activo INTEGER DEFAULT 1,
-      creado_en TEXT DEFAULT (datetime('now', '-04:00'))
-    );
-  `);
-
-  // Migracion columnas liderazgo si tabla config existe pero sin las columnas nuevas
-  const cfgCols = queryAll("PRAGMA table_info('configuracion_incentivos')");
-  if (!cfgCols.some(c => c.name === 'bono_liderazgo_activo')) {
-    run('ALTER TABLE configuracion_incentivos ADD COLUMN bono_liderazgo_activo INTEGER DEFAULT 0');
-    console.log('🔧 Columna bono_liderazgo_activo agregada a configuracion_incentivos');
-  }
-  if (!cfgCols.some(c => c.name === 'porcentaje_fondo_liderazgo')) {
-    run('ALTER TABLE configuracion_incentivos ADD COLUMN porcentaje_fondo_liderazgo REAL DEFAULT 5.0');
-    console.log('🔧 Columna porcentaje_fondo_liderazgo agregada a configuracion_incentivos');
-  }
-  if (!cfgCols.some(c => c.name === 'evaluacion_minima_extra')) {
-    run('ALTER TABLE configuracion_incentivos ADD COLUMN evaluacion_minima_extra REAL DEFAULT 3.0');
-    console.log('🔧 Columna evaluacion_minima_extra agregada a configuracion_incentivos');
   }
 
   run(`
@@ -489,10 +457,6 @@ async function initDatabase() {
   // RESTAURAR BACKUP si existe — antes de insertar seeds
   // ═══════════════════════════════════════════════
   await verificarYRestaurarBackup();
-
-  // After backup restore, always seed tecnicos_config if needed
-  await seedTecnicosConfig();
-  actualizarDefaultsBonoLiderazgo();
 
   // Productos por defecto si están vacíos (después de posible restore)
   const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
@@ -621,29 +585,6 @@ async function seedDemo() {
     run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
       ['María Santos', 'maria@sistema.com', hashSc, 'servicio_cliente']);
 
-    // ═══════════════════════════════════════════════
-    // Seed tecnicos_config (% base editables para reporte de bono)
-    // ═══════════════════════════════════════════════
-    const tecnicosConfigSeed = [
-      { nombre: 'Máximo Vallejo', pct: 0.30, lider: 1 },
-      { nombre: 'Víctor De La Rosa', pct: 0.28, lider: 0 },
-      { nombre: 'Alexander De Dios', pct: 0.12, lider: 0 },
-      { nombre: 'Ángel Pérez', pct: 0.12, lider: 0 },
-      { nombre: 'Juan Samuel Encarnación', pct: 0.08, lider: 0 },
-      { nombre: 'Rosaura Nivar', pct: 0.10, lider: 0 },
-    ];
-    for (const tc of tecnicosConfigSeed) {
-      const userRow = queryFirst("SELECT id FROM usuarios WHERE nombre = ?", [tc.nombre]);
-      if (userRow) {
-        const existing = queryFirst('SELECT id FROM tecnicos_config WHERE usuario_id = ?', [userRow.id]);
-        if (!existing) {
-          run('INSERT INTO tecnicos_config (usuario_id, porcentaje_base, es_lider, activo) VALUES (?, ?, ?, 1)',
-            [userRow.id, tc.pct, tc.lider]);
-        }
-      }
-    }
-    console.log('✅ Técnicos config seed insertados');
-
     // Órdenes de trabajo + avales legacy + encuestas
     const ots = [
       { c: 1, t: 'instalacion', m: 101475, tec: 2, sg: 5, te: 5, de: 5, pr: 5, cp: 5, ct: 5, ce: 5, desc: 'Instalación 1230 cerraduras electrónicas - Secrets Royal Beach' },
@@ -755,43 +696,4 @@ async function verificarYRestaurarBackup() {
   }
 }
 
-
-async function seedTecnicosConfig() {
-  const tecnicosConfigSeed = [
-    { nombre: 'Máximo Vallejo', pct: 0.30, lider: 1 },
-    { nombre: 'Víctor De La Rosa', pct: 0.28, lider: 0 },
-    { nombre: 'Alexander De Dios', pct: 0.12, lider: 0 },
-    { nombre: 'Ángel Pérez', pct: 0.12, lider: 0 },
-    { nombre: 'Juan Samuel Encarnación', pct: 0.08, lider: 0 },
-    { nombre: 'Rosaura Nivar', pct: 0.10, lider: 0 },
-  ];
-  for (const tc of tecnicosConfigSeed) {
-    const userRow = queryFirst('SELECT id FROM usuarios WHERE nombre = ?', [tc.nombre]);
-    if (userRow) {
-      const existing = queryFirst('SELECT id FROM tecnicos_config WHERE usuario_id = ?', [userRow.id]);
-      if (!existing) {
-        run('INSERT INTO tecnicos_config (usuario_id, porcentaje_base, es_lider, activo) VALUES (?, ?, ?, 1)',
-          [userRow.id, tc.pct, tc.lider]);
-      }
-    }
-  }
-  console.log('✅ Técnicos config seed verificado');
-}
-
-function actualizarDefaultsBonoLiderazgo() {
-  const cfg = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
-  if (cfg) {
-    const updates = [];
-    const params = [];
-    if (cfg.bono_liderazgo_activo == null) { updates.push('bono_liderazgo_activo = ?'); params.push(0); }
-    if (cfg.porcentaje_fondo_liderazgo == null) { updates.push('porcentaje_fondo_liderazgo = ?'); params.push(5.0); }
-    if (cfg.evaluacion_minima_extra == null) { updates.push('evaluacion_minima_extra = ?'); params.push(3.0); }
-    if (updates.length > 0) {
-      params.push(1);
-      run('UPDATE configuracion_incentivos SET ' + updates.join(', ') + ' WHERE id = ?', params);
-      console.log('✅ Defaults de bono liderazgo aplicados a config existente');
-    }
-  }
-}
-
-module.exports = { initDatabase, verificarYRestaurarBackup, seedTecnicosConfig, actualizarDefaultsBonoLiderazgo };
+module.exports = { initDatabase, verificarYRestaurarBackup };
