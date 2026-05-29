@@ -363,69 +363,6 @@
       "presupuesto_id": 4,
       "creado_en": "2026-05-29 15:03:29",
       "actualizado_en": "2026-05-29 15:22:38"
-    },
-    {
-      "id": 5,
-      "numero_ot": "OT-2026-0005",
-      "cliente_id": 3,
-      "tipo_servicio": "mantenimiento",
-      "descripcion": "Prueba Sistema OT/Avales",
-      "presupuesto_aprobado": 1,
-      "monto_total": 0,
-      "tecnico_id": 4,
-      "estado": "cancelada",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 1,
-      "fecha_programada": "2026-06-02",
-      "fecha_inicio": null,
-      "fecha_fin": null,
-      "presupuesto_id": 3,
-      "creado_en": "2026-05-29 18:08:36",
-      "actualizado_en": "2026-05-29 18:25:22"
-    },
-    {
-      "id": 6,
-      "numero_ot": "OT-2026-0006",
-      "cliente_id": 6,
-      "tipo_servicio": "instalacion",
-      "descripcion": "test",
-      "presupuesto_aprobado": 1,
-      "monto_total": 16500,
-      "tecnico_id": 4,
-      "estado": "pendiente",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 1,
-      "fecha_programada": null,
-      "fecha_inicio": null,
-      "fecha_fin": null,
-      "presupuesto_id": 4,
-      "creado_en": "2026-05-29 18:25:57",
-      "actualizado_en": "2026-05-29 18:25:57"
-    },
-    {
-      "id": 7,
-      "numero_ot": "OT-2026-0007",
-      "cliente_id": 3,
-      "tipo_servicio": "mantenimiento",
-      "descripcion": "test",
-      "presupuesto_aprobado": 1,
-      "monto_total": 0,
-      "tecnico_id": 4,
-      "estado": "pendiente",
-      "fuente": "manual",
-      "archivo_presupuesto": null,
-      "notas": null,
-      "creada_por": 1,
-      "fecha_programada": null,
-      "fecha_inicio": null,
-      "fecha_fin": null,
-      "presupuesto_id": 3,
-      "creado_en": "2026-05-29 18:26:38",
-      "actualizado_en": "2026-05-29 18:26:38"
     }
   ],
   "orden_trabajo_productos": [
@@ -446,18 +383,6 @@
       "orden_trabajo_id": 4,
       "producto_id": 1,
       "cantidad": 2
-    },
-    {
-      "id": 19,
-      "orden_trabajo_id": 6,
-      "producto_id": 1,
-      "cantidad": 50
-    },
-    {
-      "id": 20,
-      "orden_trabajo_id": 6,
-      "producto_id": 6,
-      "cantidad": 30
     }
   ],
   "avales": [
