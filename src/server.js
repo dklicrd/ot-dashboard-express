@@ -2128,25 +2128,36 @@ app.get('/orden/:id', async (req, res) => {
     const preciosCfg2 = getPreciosFromDB();
     const precios = ot.tipo_servicio === 'mantenimiento' ? preciosCfg2.mantenimiento : preciosCfg2.proyecto_nuevo;
     let montoTotal = 0;
-    const prodRows = productos.map(p => {
-      const pu = precios[p.categoria] || 0;
-      const sub = pu * p.cantidad;
-      montoTotal += sub;
-      return `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(p.nombre)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.categoria}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${pu.toFixed(2)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${sub.toFixed(2)}</td></tr>`;
-    }).join('');
+    let prodRows = '';
+    let desgRows = '';
 
-    // Desglose
-    const desglose = {};
-    for (const p of productos) {
-      const cat = p.categoria || 'otro';
-      const pu = precios[cat] || 0;
-      if (!desglose[cat]) desglose[cat] = { cantidad: 0, subtotal: 0 };
-      desglose[cat].cantidad += p.cantidad;
-      desglose[cat].subtotal += pu * p.cantidad;
+    // Si no hay productos, usar el tipo de servicio como categoría base
+    if (productos.length === 0) {
+      const catBase = ot.categoria_servicio || ot.tipo_servicio;
+      const precioBase = precios[catBase] || 0;
+      montoTotal = precioBase;
+      prodRows = `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(ot.tipo_servicio)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${escHtml2(catBase)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">1</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${precioBase.toFixed(2)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${precioBase.toFixed(2)}</td></tr>`;
+      desgRows = `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(catBase.replace(/_/g, ' '))}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">1</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${precioBase.toFixed(2)}</td></tr>`;
+    } else {
+      prodRows = productos.map(p => {
+        const pu = precios[p.categoria] || 0;
+        const sub = pu * p.cantidad;
+        montoTotal += sub;
+        return `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(p.nombre)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.categoria}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${pu.toFixed(2)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${sub.toFixed(2)}</td></tr>`;
+      }).join('');
+
+      const desglose = {};
+      for (const p of productos) {
+        const cat = p.categoria || 'otro';
+        const pu = precios[cat] || 0;
+        if (!desglose[cat]) desglose[cat] = { cantidad: 0, subtotal: 0 };
+        desglose[cat].cantidad += p.cantidad;
+        desglose[cat].subtotal += pu * p.cantidad;
+      }
+      desgRows = Object.entries(desglose).map(([cat, v]) =>
+        `<tr><td style="border:1px solid #e5e7eb;padding:8px">${cat.replace(/_/g, ' ')}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${v.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${v.subtotal.toFixed(2)}</td></tr>`
+      ).join('');
     }
-    const desgRows = Object.entries(desglose).map(([cat, v]) =>
-      `<tr><td style="border:1px solid #e5e7eb;padding:8px">${cat.replace(/_/g, ' ')}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${v.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${v.subtotal.toFixed(2)}</td></tr>`
-    ).join('');
 
     // Aval
     const aval = queryFirst(`SELECT * FROM avales WHERE orden_trabajo_id = ?`, [id]);
