@@ -2996,6 +2996,14 @@ window.submitNuevaOT = async function (e) {
       err.classList.remove('hidden');
       return;
     }
+
+    // Validar tecnico asignado
+    const tecVal = document.getElementById('ot-tecnico').value;
+    if (!tecVal) {
+      err.textContent = 'Selecciona un técnico asignado';
+      err.classList.remove('hidden');
+      return;
+    }
     cliente_id = Number(cliente_id);
   }
 
