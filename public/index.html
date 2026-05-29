@@ -1879,14 +1879,13 @@ async function renderConfig() {
       </div>
 
       <div id="cfg-tab-content">
-        <!-- Cargado dinámicamente por cfgTab() -->
+        <div class="text-center py-12"><div class="loading-spinner mx-auto mb-3"></div><p class="text-gray-400">Cargando...</p></div>
       </div>
     </div>
   `;
+  // Auto-cargar primer tab al renderizar Config
+  setTimeout(function() { cfgTab('incentivos'); }, 50);
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CFG TABS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.cfgTab = async function (tab) {

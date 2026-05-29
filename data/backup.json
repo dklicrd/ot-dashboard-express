@@ -430,7 +430,7 @@
       "firma_cliente_data": null,
       "fecha_firma_cliente": null,
       "token_enviado_en": null,
-      "token_visto_en": null,
+      "token_visto_en": "2026-05-29 15:22:56",
       "historial_firmas": null,
       "productos_tecnico": "[{\"producto_id\":1,\"cantidad\":2,\"comentario\":\"\"}]",
       "productos_admin": null,
@@ -467,8 +467,8 @@
       "website": "",
       "logo_base64": "",
       "pie_pagina": "Documento generado por el sistema",
-      "color_primario": "#1e40af",
-      "actualizado_en": "2026-05-26 14:18:16"
+      "color_primario": "#ae811e",
+      "actualizado_en": "2026-05-29 15:33:23"
     }
   ]
 }
