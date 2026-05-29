@@ -1877,7 +1877,7 @@ async function renderConfig() {
         <button onclick="cfgTab('incentivos')" id="cfg-tab-incentivos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn bg-blue-100 text-blue-700">💰 Incentivos</button>
         <button onclick="cfgTab('documentos')" id="cfg-tab-documentos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">📄 Documentos</button>
         <button onclick="cfgTab('equipo')" id="cfg-tab-equipo" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">👷 Equipo Técnico</button>
-        ${state.user?.rol === 'superadmin' ? '<button onclick="cfgTab(\'sistema\')" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
+        ${state.user?.rol === 'superadmin' ? '<button onclick="cfgTab(&apos;sistema&apos;)" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
       </div>
 
       <div id="cfg-tab-content">
