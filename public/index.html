@@ -2386,16 +2386,19 @@ window.toggleOrigenOT = function () {
   if (origen === 'presupuesto') {
     presupSection.style.display = 'block';
     clienteSection.style.display = 'none';
+    document.getElementById('ot-categorias-section').style.display = 'block';
     // Allow all service types for presupuesto
     tipoSelect.innerHTML = '<option value="instalacion">Instalación</option><option value="mantenimiento">Mantenimiento</option><option value="reparacion">Reparación</option>';
   } else if (origen === 'garantia') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
     tipoSelect.innerHTML = '<option value="garantia" selected>Garantía</option>';
+    document.getElementById('ot-categorias-section').style.display = 'none';
   } else if (origen === 'levantamiento') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
     tipoSelect.innerHTML = '<option value="levantamiento" selected>Levantamiento</option>';
+    document.getElementById('ot-categorias-section').style.display = 'none';
   }
 };
 
@@ -2793,7 +2796,7 @@ function renderModalNuevaOT() {
             </div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha Programada <span class="text-red-500">*</span></label><input type="date" id="ot-fecha" class="input-field" required></div>
           </div>
-          <div class="border-t border-gray-200 pt-4">
+          <div id="ot-categorias-section" class="border-t border-gray-200 pt-4">
             <label class="block text-sm font-medium text-gray-700 mb-2">Servicios por Categoría</label>
             <div id="ot-categorias-list" class="space-y-3 mb-3"></div>
             <p class="text-xs text-gray-400 italic">Los precios se configuran desde Configuraci&oacute;n &gt; Valores por Tipo de Servicio</p>
@@ -3009,7 +3012,10 @@ window.submitNuevaOT = async function (e) {
 
   // Read categorias (productos) from _productosSeleccionados
   var productos = [];
-  if (typeof _productosSeleccionados !== 'undefined') {
+  if (origen === 'garantia' || origen === 'levantamiento') {
+    // Garantia/levantamiento: usar tipo_servicio como categoria, monto 0
+    productos.push({ categoria: document.getElementById('ot-tipo').value, nombre: document.getElementById('ot-tipo').value, cantidad: 1 });
+  } else if (typeof _productosSeleccionados !== 'undefined') {
     for (var i = 0; i < _productosSeleccionados.length; i++) {
       var p = _productosSeleccionados[i];
       if (p.cantidad > 0) {

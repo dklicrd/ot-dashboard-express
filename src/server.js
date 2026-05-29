@@ -193,7 +193,9 @@ app.post('/api/auth', async (req, res) => {
       // Upgrade legacy password
       if (valid) {
         const hashed = await bcrypt.hash(password, 10);
-        run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, user.id]);
+        }
+
+    run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, user.id]);
       }
     }
 
@@ -501,8 +503,12 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
       return res.status(400).json({ error: 'La fecha programada es obligatoria' });
     }
 
-    // Calculate monto_total from precios fijos
     let montoCalculado = 0;
+
+    if (body.tipo_servicio === 'garantia' || body.tipo_servicio === 'levantamiento') {
+      // Garantia y levantamiento monto 0
+    } else {
+    // Calculate monto_total from precios fijos
     if (body.productos && Array.isArray(body.productos)) {
       const tipo = body.tipo_servicio || 'proyecto_nuevo';
       const preciosData = getPreciosFromDB();
@@ -518,6 +524,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
           montoCalculado += precio * p.cantidad;
         }
       }
+    }
     }
 
     run(`INSERT INTO ordenes_trabajo (numero_ot, cliente_id, tipo_servicio, descripcion, presupuesto_aprobado,
