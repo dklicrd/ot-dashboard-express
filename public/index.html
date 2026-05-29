@@ -1821,16 +1821,16 @@ async function renderConfig() {
     { key: 'valor_control_acceso', label: 'Control de Acceso', icon: '🛡️' },
     { key: 'valor_caja_fuerte', label: 'Caja Fuerte', icon: '🔐' },
     { key: 'valor_ahorro_energia', label: 'Ahorro de Energía', icon: '💡' },
-    { key: 'mant_cerradura', label: 'Mant. Cerradura Elect.', icon: '🔧' },
-    { key: 'mant_caja_fuerte', label: 'Mant. Caja Fuerte', icon: '🔩' },
-    { key: 'mant_ahorro_energia', label: 'Mant. Ahorro de Energía', icon: '⚡' },
+    { key: 'cerradura', label: 'Mant. Cerradura Elect.', icon: '🔧' },
+    { key: 'caja_fuerte', label: 'Mant. Caja Fuerte', icon: '🔩' },
+    { key: 'ahorro_energia', label: 'Mant. Ahorro de Energía', icon: '⚡' },
   ];
 
   const defaultVals = {
     ponderacion_tiempo_entrega: 1.5, ponderacion_desempeno: 1.5, ponderacion_conocimientos: 1.5,
     ponderacion_presentacion: 1.0, ponderacion_calidad_productos: 1.0, ponderacion_calidad_entrenamientos: 1.0,
     valor_cerradura: 150, valor_control_acceso: 300, valor_caja_fuerte: 150, valor_ahorro_energia: 105,
-    mant_cerradura: 82.5, mant_caja_fuerte: 30, mant_ahorro_energia: 37.5,
+    cerradura: 82.5, caja_fuerte: 30, ahorro_energia: 37.5,
   };
   const vals = config || defaultVals;
 
@@ -2829,9 +2829,9 @@ var _categoriasServicio = [
   { key: 'ahorro_energia', label: 'Ahorro de Energ\u00eda', icon: '\ud83d\udca1' },
 ];
 var _categoriasMant = [
-  { key: 'mant_cerradura', label: 'Mant. Cerradura Elect.', icon: '\ud83d\udd27' },
-  { key: 'mant_caja_fuerte', label: 'Mant. Caja Fuerte', icon: '\ud83d\udd29' },
-  { key: 'mant_ahorro_energia', label: 'Mant. Ahorro de Energ\u00eda', icon: '\u26a1' },
+  { key: 'cerradura', label: 'Mant. Cerradura Elect.', icon: '\ud83d\udd27' },
+  { key: 'caja_fuerte', label: 'Mant. Caja Fuerte', icon: '\ud83d\udd29' },
+  { key: 'ahorro_energia', label: 'Mant. Ahorro de Energ\u00eda', icon: '\u26a1' },
 ];
 var _preciosCategorias = {};
 
@@ -2844,7 +2844,7 @@ async function cargarCategoriasOT() {
     var cfg = d.config || {};
     // Mapear keys de config (valor_X) a keys de categoria (X)
     _preciosCategorias = {};
-    var mapKeys = { 'valor_cerradura':'cerradura', 'valor_control_acceso':'control_acceso', 'valor_caja_fuerte':'caja_fuerte', 'valor_ahorro_energia':'ahorro_energia', 'mant_cerradura':'mant_cerradura', 'mant_caja_fuerte':'mant_caja_fuerte', 'mant_ahorro_energia':'mant_ahorro_energia' };
+    var mapKeys = { 'valor_cerradura':'cerradura', 'valor_control_acceso':'control_acceso', 'valor_caja_fuerte':'caja_fuerte', 'valor_ahorro_energia':'ahorro_energia', 'mant_cerradura':'cerradura', 'mant_caja_fuerte':'caja_fuerte', 'mant_ahorro_energia':'ahorro_energia' };
     for (var ck in mapKeys) {
       if (cfg[ck] !== undefined) _preciosCategorias[mapKeys[ck]] = cfg[ck];
     }
