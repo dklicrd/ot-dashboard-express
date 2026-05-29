@@ -2791,7 +2791,7 @@ function renderModalNuevaOT() {
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Valor Incentivo Estimado</label>
               <div id="ot-monto-estimado" class="p-2.5 bg-gray-100 rounded-xl text-sm text-gray-500 italic">Selecciona productos para calcular</div>
             </div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha Programada</label><input type="date" id="ot-fecha" class="input-field"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha Programada <span class="text-red-500">*</span></label><input type="date" id="ot-fecha" class="input-field" required></div>
           </div>
           <div class="border-t border-gray-200 pt-4">
             <label class="block text-sm font-medium text-gray-700 mb-2">Servicios por Categoría</label>
@@ -2988,6 +2988,14 @@ window.submitNuevaOT = async function (e) {
   } else {
     cliente_id = document.getElementById('ot-cliente-id').value;
     if (!cliente_id) { err.textContent = 'Selecciona un cliente'; err.classList.remove('hidden'); return; }
+
+    // Validar fecha programada
+    const fechaVal = document.getElementById('ot-fecha').value;
+    if (!fechaVal) {
+      err.textContent = 'Selecciona una fecha programada';
+      err.classList.remove('hidden');
+      return;
+    }
     cliente_id = Number(cliente_id);
   }
 
