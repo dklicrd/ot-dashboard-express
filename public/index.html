@@ -1874,10 +1874,10 @@ async function renderConfig() {
 
       <!-- Tabs internas de configuración -->
       <div class="flex gap-2 mb-6 border-b border-gray-200 pb-2">
-        <button onclick="cfgTab('incentivos')" id="cfg-tab-incentivos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn bg-blue-100 text-blue-700">💰 Incentivos</button>
-        <button onclick="cfgTab('documentos')" id="cfg-tab-documentos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">📄 Documentos</button>
-        <button onclick="cfgTab('equipo')" id="cfg-tab-equipo" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">👷 Equipo Técnico</button>
-        ${state.user?.rol === 'superadmin' ? '<button onclick="cfgTab(&apos;sistema&apos;)" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
+        <button data-tab="incentivos" id="cfg-tab-incentivos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn bg-blue-100 text-blue-700">💰 Incentivos</button>
+        <button data-tab="documentos" id="cfg-tab-documentos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">📄 Documentos</button>
+        <button data-tab="equipo" id="cfg-tab-equipo" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">👷 Equipo Técnico</button>
+        ${state.user?.rol === 'superadmin' ? '<button data-tab="sistema" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
       </div>
 
       <div id="cfg-tab-content">
@@ -1890,6 +1890,14 @@ async function renderConfig() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CFG TABS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// Event delegation para botones de tabs (data-tab)
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.cfg-tab-btn[data-tab]');
+  if (btn) {
+    cfgTab(btn.getAttribute('data-tab'));
+  }
+});
 
 window.cfgTab = async function (tab) {
   document.querySelectorAll('.cfg-tab-btn').forEach(b => b.classList.remove('bg-blue-100', 'text-blue-700'));
