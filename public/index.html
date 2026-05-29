@@ -1603,12 +1603,40 @@ function renderBonoResultado(r) {
     '</tbody></table></div>' +
     '<div class="mt-4 flex justify-end gap-3"><button onclick="window.print()" class="btn-secondary flex items-center gap-2"><span>🖨️</span> Imprimir</button></div></div>' +
     '<p class="text-xs text-gray-400 text-center">Período: ' + r.periodo.inicio + ' a ' + r.periodo.fin + '</p></div>';
-}
+};
+  const anio = new Date().getFullYear();
+  const trim = Math.ceil((new Date().getMonth() + 1) / 3);
 
-// La vista 'Reportes' redirige a Bonos
-async function renderReportes() {
-  state.view = 'bonos';
-  return await renderBonos();
+  return `
+    <div class="fade-in">
+      <h1 class="text-2xl font-bold text-gray-900 mb-6">Reporte de Incentivo Trimestral</h1>
+      <div class="card mb-6">
+        <div class="flex flex-wrap gap-4 items-end">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Año</label>
+            <select id="rep-anio" class="select-field w-32">${[2024, 2025, 2026, 2027].map(a => `<option value="${a}" ${a === anio ? 'selected' : ''}>${a}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Trimestre</label>
+            <select id="rep-trim" class="select-field w-40">
+              ${[{ v: 1, l: 'T1 — Ene a Mar' }, { v: 2, l: 'T2 — Abr a Jun' }, { v: 3, l: 'T3 — Jul a Sep' }, { v: 4, l: 'T4 — Oct a Dic' }].map(t =>
+                `<option value="${t.v}" ${trim === t.v ? 'selected' : ''}>${t.l}</option>`).join('')}
+            </select>
+          </div>
+          <button onclick="calcularReporte(false)" class="btn-secondary flex items-center gap-2"><span>📊</span> Calcular</button>
+          <button onclick="calcularReporte(true)" class="btn-primary flex items-center gap-2"><span>💾</span> Generar Reporte</button>
+        </div>
+        <div id="rep-error" class="text-red-500 text-sm mt-3 hidden"></div>
+        <div id="rep-success" class="text-green-600 text-sm mt-3 hidden"></div>
+      </div>
+      <div id="rep-resultado"></div>
+      <div id="rep-empty" class="card text-center py-16">
+        <span class="text-6xl mb-4 inline-block">📈</span>
+        <p class="text-gray-500 text-lg">Selecciona un período y haz clic en <strong>"Calcular"</strong></p>
+        <p class="text-gray-400 text-sm mt-2">El reporte se genera con las OT completadas del trimestre</p>
+      </div>
+    </div>
+  `;
 }
 
 window.calcularReporte = async function (generar) {
@@ -1840,6 +1868,8 @@ async function renderConfig() {
 
   return `
     <div class="fade-in">
+  return `
+    <div class="fade-in">
       <h1 class="text-2xl font-bold text-gray-900 mb-6">Configuración del Sistema</h1>
 
       <!-- Tabs internas de configuración -->
@@ -1847,17 +1877,18 @@ async function renderConfig() {
         <button onclick="cfgTab('incentivos')" id="cfg-tab-incentivos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn bg-blue-100 text-blue-700">💰 Incentivos</button>
         <button onclick="cfgTab('documentos')" id="cfg-tab-documentos" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">📄 Documentos</button>
         <button onclick="cfgTab('equipo')" id="cfg-tab-equipo" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">👷 Equipo Técnico</button>
-        ${state.user?.rol === 'superadmin' ? '<button onclick="cfgTab('sistema')" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
+        ${state.user?.rol === 'superadmin' ? '<button onclick="cfgTab(\'sistema\')" id="cfg-tab-sistema" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all cfg-tab-btn">⚙️ Sistema</button>' : ''}
       </div>
 
       <div id="cfg-tab-content">
-        <div class="text-center py-12"><div class="loading-spinner mx-auto mb-3"></div><p class="text-gray-400">Cargando...</p></div>
+        <!-- Cargado dinámicamente por cfgTab() -->
       </div>
     </div>
   `;
-  // Auto-cargar primer tab al renderizar Config
-  setTimeout(function() { cfgTab('incentivos'); }, 50);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CFG TABS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 window.cfgTab = async function (tab) {
