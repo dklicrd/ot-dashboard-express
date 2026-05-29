@@ -514,7 +514,6 @@ async function renderOrdenes() {
     <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <td class="py-3 px-4 font-medium whitespace-nowrap"><a href="/orden/${ot.id}?token=${state.token}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold">${ot.numero_ot}</a></td>
       <td class="py-3 px-4">${escHtml(ot.cliente_nombre)}</td>
-      <td class="py-3 px-4"><span class="badge capitalize bg-gray-100 text-gray-700">${ot.tipo_servicio}</span></td>
       <td class="py-3 px-4 text-sm text-gray-600 max-w-[200px] truncate" title="${escHtml(catHtml.replace(/<[^>]+>/g, ''))}">${catHtml}</td>
       <td class="py-3 px-4">${ot.tecnico_nombre || '<span class="text-gray-400">—</span>'}</td>
       <td class="py-3 px-4"><span class="badge-${ot.estado}">${estadoLabel[ot.estado] || ot.estado}</span></td>
@@ -536,7 +535,6 @@ async function renderOrdenes() {
             <thead><tr class="border-b-2 border-gray-200 bg-gray-50">
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">OT</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Cliente</th>
-              <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Tipo</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Categor\u00eda</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Técnico</th>
               <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Estado</th>
