@@ -384,6 +384,27 @@
       "presupuesto_id": 4,
       "creado_en": "2026-05-29 19:08:42",
       "actualizado_en": "2026-05-29 19:08:42"
+    },
+    {
+      "id": 6,
+      "numero_ot": "OT-2026-0006",
+      "cliente_id": 6,
+      "tipo_servicio": "mantenimiento",
+      "descripcion": "test",
+      "presupuesto_aprobado": 1,
+      "monto_total": 2062.5,
+      "tecnico_id": 4,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": 4,
+      "creado_en": "2026-05-29 19:22:06",
+      "actualizado_en": "2026-05-29 19:22:06"
     }
   ],
   "orden_trabajo_productos": [
@@ -416,6 +437,12 @@
       "orden_trabajo_id": 5,
       "producto_id": 8,
       "cantidad": 47
+    },
+    {
+      "id": 21,
+      "orden_trabajo_id": 6,
+      "producto_id": 1,
+      "cantidad": 25
     }
   ],
   "avales": [
