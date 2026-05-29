@@ -496,6 +496,11 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
     const num = generarNumeroOT();
     const body = req.body;
 
+    // Validar fecha programada obligatoria
+    if (!body.fecha_programada) {
+      return res.status(400).json({ error: 'La fecha programada es obligatoria' });
+    }
+
     // Calculate monto_total from precios fijos
     let montoCalculado = 0;
     if (body.productos && Array.isArray(body.productos)) {
