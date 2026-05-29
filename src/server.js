@@ -1678,7 +1678,6 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
       'ponderacion_presentacion', 'ponderacion_calidad_productos', 'ponderacion_calidad_entrenamientos',
       'valor_cerradura', 'valor_control_acceso', 'valor_caja_fuerte', 'valor_ahorro_energia',
       'mant_cerradura', 'mant_caja_fuerte', 'mant_ahorro_energia',
-      'bono_liderazgo_activo', 'porcentaje_fondo_liderazgo', 'evaluacion_minima_extra',
     ];
 
     const sets = [];
@@ -1749,99 +1748,6 @@ app.put('/api/config/documentos', authMiddleware, adminOnly, (req, res) => {
   } catch (e) {
     console.error('Error updating documentos config:', e);
     res.status(500).json({ error: 'Error al actualizar configuración de documentos' });
-  }
-});
-
-// ==================== API: TECNICOS CONFIG (% editables + líder) ====================
-
-// Listar todos los técnicos configurados
-app.get('/api/tecnicos-config', authMiddleware, adminOnly, (req, res) => {
-  try {
-    const rows = queryAll(`
-      SELECT tc.*, u.nombre, u.email, u.rol
-      FROM tecnicos_config tc
-      JOIN usuarios u ON u.id = tc.usuario_id
-      ORDER BY tc.es_lider DESC, u.nombre ASC
-    `);
-    res.json({ tecnicos: rows });
-  } catch (e) {
-    console.error('Error listing tecnicos-config:', e);
-    res.status(500).json({ error: 'Error al listar técnicos' });
-  }
-});
-
-// Usuarios con rol tecnico disponibles para agregar
-app.get('/api/tecnicos-config/disponibles', authMiddleware, adminOnly, (req, res) => {
-  try {
-    const rows = queryAll(`
-      SELECT u.id, u.nombre, u.email
-      FROM usuarios u
-      WHERE u.rol = 'tecnico'
-        AND u.activo = 1
-        AND u.id NOT IN (SELECT usuario_id FROM tecnicos_config WHERE activo = 1)
-      ORDER BY u.nombre
-    `);
-    res.json({ disponibles: rows });
-  } catch (e) {
-    console.error('Error listing disponibles:', e);
-    res.status(500).json({ error: 'Error al listar disponibles' });
-  }
-});
-
-// Agregar técnico al equipo
-app.post('/api/tecnicos-config', authMiddleware, adminOnly, (req, res) => {
-  try {
-    const { usuario_id, porcentaje_base } = req.body;
-    if (!usuario_id) return res.status(400).json({ error: 'usuario_id requerido' });
-
-    const pct = porcentaje_base !== undefined ? Number(porcentaje_base) : 0;
-    const existing = queryFirst('SELECT id FROM tecnicos_config WHERE usuario_id = ?', [usuario_id]);
-    if (existing) {
-      // Reactivar si estaba inactivo
-      run('UPDATE tecnicos_config SET activo = 1, porcentaje_base = ? WHERE id = ?', [pct, existing.id]);
-    } else {
-      run('INSERT INTO tecnicos_config (usuario_id, porcentaje_base) VALUES (?, ?)', [usuario_id, pct]);
-    }
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); };
-    res.json({ message: 'Técnico agregado al equipo' });
-  } catch (e) {
-    console.error('Error adding tecnico-config:', e);
-    res.status(500).json({ error: 'Error al agregar técnico' });
-  }
-});
-
-// Editar % base, es_lider, activo de un técnico
-app.put('/api/tecnicos-config/:id', authMiddleware, adminOnly, (req, res) => {
-  try {
-    const { id } = req.params;
-    const b = req.body;
-    const sets = [];
-    const params = [];
-
-    if (b.porcentaje_base !== undefined) {
-      const pct = Number(b.porcentaje_base);
-      if (isNaN(pct) || pct < 0 || pct > 1) return res.status(400).json({ error: 'porcentaje_base debe ser entre 0 y 1' });
-      sets.push('porcentaje_base = ?');
-      params.push(pct);
-    }
-    if (b.es_lider !== undefined) {
-      sets.push('es_lider = ?');
-      params.push(b.es_lider ? 1 : 0);
-    }
-    if (b.activo !== undefined) {
-      sets.push('activo = ?');
-      params.push(b.activo ? 1 : 0);
-    }
-
-    if (sets.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
-
-    params.push(id);
-    run(`UPDATE tecnicos_config SET ${sets.join(', ')} WHERE id = ?`, params);
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); };
-    res.json({ message: 'Técnico actualizado' });
-  } catch (e) {
-    console.error('Error updating tecnico-config:', e);
-    res.status(500).json({ error: 'Error al actualizar técnico' });
   }
 });
 
@@ -2015,121 +1921,23 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
     const porcDeduccionGeneral = totalBruto > 0 ? Math.round((totalDeduccion / totalBruto) * 10000) / 10000 : 0;
     const totalADistribuir = Math.round((totalBruto - totalDeduccion) * 100) / 100;
 
-    // ═══════════════════════════════════════════════════════════════════
-    // DISTRIBUCIÓN desdete TecnicosConfig (base de datos, editable)
-    // ═══════════════════════════════════════════════════════════════════
+    // Distribución por técnico
+    const distTecnicos = [
+      { nombre: 'Máximo Vallejo', porcentaje: 0.30 },
+      { nombre: 'Víctor De La Rosa', porcentaje: 0.28 },
+      { nombre: 'Alexander De Dios', porcentaje: 0.12 },
+      { nombre: 'Ángel Pérez', porcentaje: 0.12 },
+      { nombre: 'Juan Samuel Encarnación', porcentaje: 0.08 },
+      { nombre: 'Rosaura Nivar', porcentaje: 0.10 },
+    ];
 
-    // Leer configuración de incentivos (bono liderazgo)
-    const cfgIncentivos = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
-    const bonoLiderazgoActivo = cfgIncentivos?.bono_liderazgo_activo === 1;
-    const pctFondoLiderazgo = Number(cfgIncentivos?.porcentaje_fondo_liderazgo || 5.0) / 100;
-    const evalMinimaExtra = Number(cfgIncentivos?.evaluacion_minima_extra || 3.0);
-
-    // Leer técnicos configurados (activos)
-    const tecnicosRows = queryAll(`
-      SELECT tc.*, u.nombre, u.email
-      FROM tecnicos_config tc
-      JOIN usuarios u ON u.id = tc.usuario_id
-      WHERE tc.activo = 1
-      ORDER BY tc.es_lider DESC, tc.porcentaje_base DESC
-    `);
-
-    // Fallback: si no hay técnicos configurados, usar lista hardcodeada
-    let tecnicos = tecnicosRows;
-    if (tecnicos.length === 0) {
-      const fallback = [
-        { nombre: 'Máximo Vallejo', porcentaje_base: 0.30 },
-        { nombre: 'Víctor De La Rosa', porcentaje_base: 0.28 },
-        { nombre: 'Alexander De Dios', porcentaje_base: 0.12 },
-        { nombre: 'Ángel Pérez', porcentaje_base: 0.12 },
-        { nombre: 'Juan Samuel Encarnación', porcentaje_base: 0.08 },
-        { nombre: 'Rosaura Nivar', porcentaje_base: 0.10 },
-      ];
-      tecnicos = fallback.map(t => ({ ...t, es_lider: 0 }));
-    }
-
-    // Calcular bono de liderazgo
-    let bonoLiderazgoInfo = null;
-    let distribucion = [];
-
-    if (bonoLiderazgoActivo) {
-      // Encontrar líder
-      const lider = tecnicos.find(t => t.es_lider === 1);
-      if (lider && evalPromedioGeneral !== null) {
-        // Calcular fondo de liderazgo
-        const fondo = Math.round(totalADistribuir * pctFondoLiderazgo * 100) / 100;
-
-        // Calcular extra del líder según evaluación
-        let extraLider = 0;
-        if (evalPromedioGeneral >= evalMinimaExtra) {
-          extraLider = Math.round(fondo * (evalPromedioGeneral / 5) * 100) / 100;
-        }
-
-        // Total a distribuir entre técnicos (sin el fondo)
-        const totalTecnicos = Math.round((totalADistribuir - fondo) * 100) / 100;
-
-        // Suma de porcentajes base (normalizar)
-        const sumaPct = tecnicos.reduce((s, t) => s + Number(t.porcentaje_base), 0);
-
-        distribucion = tecnicos.map(t => {
-          const pct = Number(t.porcentaje_base);
-          const pctNormalizado = sumaPct > 0 ? pct / sumaPct : 0;
-          const base = Math.round(pctNormalizado * totalTecnicos * 100) / 100;
-          const bonoLider = t.es_lider === 1 ? extraLider : 0;
-          return {
-            tecnico: t.nombre,
-            porcentaje: pct,
-            pct_normalizado: Math.round(pctNormalizado * 10000) / 10000,
-            base: base,
-            bono_lider: bonoLider,
-            total: Math.round((base + bonoLider) * 100) / 100
-          };
-        });
-
-        bonoLiderazgoInfo = {
-          activo: true,
-          fondo: fondo,
-          evaluacion_promedio: evalPromedioGeneral,
-          evaluacion_minima: evalMinimaExtra,
-          extra_lider: extraLider,
-          lider_nombre: lider.nombre,
-          total_tecnicos: totalTecnicos
-        };
-      } else {
-        // Sin líder o sin evaluaciones — distribuir normal
-        const sumaPct = tecnicos.reduce((s, t) => s + Number(t.porcentaje_base), 0);
-        distribucion = tecnicos.map(t => {
-          const pct = Number(t.porcentaje_base);
-          const pctNormalizado = sumaPct > 0 ? pct / sumaPct : 0;
-          const total = Math.round(pctNormalizado * totalADistribuir * 100) / 100;
-          return {
-            tecnico: t.nombre,
-            porcentaje: pct,
-            pct_normalizado: Math.round(pctNormalizado * 10000) / 10000,
-            base: total,
-            bono_lider: 0,
-            total: total
-          };
-        });
-        bonoLiderazgoInfo = { activo: true, error: 'Sin líder o sin evaluaciones para calcular bono liderazgo' };
-      }
-    } else {
-      // Sin bono liderazgo — distribuir 100% por porcentaje
-      const sumaPct = tecnicos.reduce((s, t) => s + Number(t.porcentaje_base), 0);
-      distribucion = tecnicos.map(t => {
-        const pct = Number(t.porcentaje_base);
-        const pctNormalizado = sumaPct > 0 ? pct / sumaPct : 0;
-        const total = Math.round(pctNormalizado * totalADistribuir * 100) / 100;
-        return {
-          tecnico: t.nombre,
-          porcentaje: pct,
-          pct_normalizado: Math.round(pctNormalizado * 10000) / 10000,
-          base: total,
-          bono_lider: 0,
-          total: total
-        };
-      });
-    }
+    const distribucion = distTecnicos.map(t => ({
+      tecnico: t.nombre,
+      porcentaje: t.porcentaje,
+      valor_bruto: Math.round(t.porcentaje * totalADistribuir * 100) / 100,
+      adicionales: 0,
+      total: Math.round(t.porcentaje * totalADistribuir * 100) / 100
+    }));
 
     const resultado = {
       periodo: { inicio: fInicio, fin: fFin },
@@ -2146,7 +1954,6 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
         total_deduccion: Math.round(totalDeduccion * 100) / 100,
         total_a_distribuir: totalADistribuir
       },
-      bono_liderazgo: bonoLiderazgoInfo,
       distribucion
     };
 
