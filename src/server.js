@@ -193,9 +193,7 @@ app.post('/api/auth', async (req, res) => {
       // Upgrade legacy password
       if (valid) {
         const hashed = await bcrypt.hash(password, 10);
-        }
-
-    run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, user.id]);
+        run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, user.id]);
       }
     }
 
