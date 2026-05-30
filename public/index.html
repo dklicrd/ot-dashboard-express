@@ -3010,6 +3010,16 @@ window.submitNuevaOT = async function (e) {
     return;
   }
 
+  // Validar al menos 1 categoria (excepto garantia/levantamiento)
+  if (origen !== 'garantia' && origen !== 'levantamiento') {
+    const tieneCategoria = _productosSeleccionados && _productosSeleccionados.some(function(p) { return p.cantidad > 0; });
+    if (!tieneCategoria) {
+      err.textContent = 'Selecciona al menos 1 servicio por categoría';
+      err.classList.remove('hidden');
+      return;
+    }
+  }
+
   // Read categorias (productos) from _productosSeleccionados
   var productos = [];
   if (origen === 'garantia' || origen === 'levantamiento') {
