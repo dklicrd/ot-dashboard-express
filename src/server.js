@@ -503,7 +503,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
 
     let montoCalculado = 0;
 
-    if (body.tipo_servicio === 'garantia' || body.tipo_servicio === 'levantamiento') {
+    if (body.tipo_servicio === 'garantia' || body.tipo_servicio === 'levantamiento' || body.tipo_servicio === 'vtc') {
       // Garantia y levantamiento monto 0
     } else {
     // Calculate monto_total from precios fijos
@@ -530,7 +530,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [num, body.cliente_id, body.tipo_servicio, body.descripcion || null,
        body.presupuesto_aprobado ? 1 : 0, montoCalculado, body.tecnico_id || null,
-       body.estado || 'pendiente', (body.fuente === 'presupuesto' || body.fuente === 'garantia' || body.fuente === 'levantamiento' ? 'manual' : body.fuente || 'manual'), body.notas || null,
+       body.estado || 'pendiente', (body.fuente === 'presupuesto' || body.fuente === 'garantia' || body.fuente === 'levantamiento' || body.fuente === 'vtc' ? 'manual' : body.fuente || 'manual'), body.notas || null,
        req.user.userId, body.fecha_programada || null, body.presupuesto_id || null]);
 
     // Get the inserted OT id
