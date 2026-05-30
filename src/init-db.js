@@ -390,6 +390,212 @@ async function initDatabase() {
     console.log('🔧 Columna respuestas_data agregada a encuestas_satisfaccion');
   }
 
+  // ═══════════════════════════════════════════════
+  // AVALES v2 — migración de nuevos campos y estados
+  // ═══════════════════════════════════════════════
+  const avalCols = queryAll("PRAGMA table_info('avales')");
+
+  const hasTrabajoCompletado = avalCols.some(c => c.name === 'trabajo_completado');
+  if (!hasTrabajoCompletado) {
+    run("ALTER TABLE avales ADD COLUMN trabajo_completado INTEGER DEFAULT 1");
+    console.log('🔧 Columna trabajo_completado agregada a avales');
+  }
+
+  const hasDetalleTrabajo = avalCols.some(c => c.name === 'detalle_trabajo_real');
+  if (!hasDetalleTrabajo) {
+    run("ALTER TABLE avales ADD COLUMN detalle_trabajo_real TEXT");
+    console.log('🔧 Columna detalle_trabajo_real agregada a avales');
+  }
+
+  const hasPenalizadoFoto = avalCols.some(c => c.name === 'penalizado_foto');
+  if (!hasPenalizadoFoto) {
+    run("ALTER TABLE avales ADD COLUMN penalizado_foto INTEGER DEFAULT 0");
+    console.log('🔧 Columna penalizado_foto agregada a avales');
+  }
+
+  const hasSkipSurvey = avalCols.some(c => c.name === 'skip_survey');
+  if (!hasSkipSurvey) {
+    run("ALTER TABLE avales ADD COLUMN skip_survey INTEGER DEFAULT 0");
+    console.log('🔧 Columna skip_survey agregada a avales');
+  }
+
+  const hasSkipSurveyPct = avalCols.some(c => c.name === 'skip_survey_pct');
+  if (!hasSkipSurveyPct) {
+    run("ALTER TABLE avales ADD COLUMN skip_survey_pct REAL");
+    console.log('🔧 Columna skip_survey_pct agregada a avales');
+  }
+
+  const hasSkipSurveyMotivo = avalCols.some(c => c.name === 'skip_survey_motivo');
+  if (!hasSkipSurveyMotivo) {
+    run("ALTER TABLE avales ADD COLUMN skip_survey_motivo TEXT");
+    console.log('🔧 Columna skip_survey_motivo agregada a avales');
+  }
+
+  const hasHistorialReconsideracion = avalCols.some(c => c.name === 'historial_reconsideracion');
+  if (!hasHistorialReconsideracion) {
+    run("ALTER TABLE avales ADD COLUMN historial_reconsideracion TEXT DEFAULT '[]'");
+    console.log('🔧 Columna historial_reconsideracion agregada a avales');
+  }
+
+  const hasReaperturaPenalizado = avalCols.some(c => c.name === 'reapertura_penalizado');
+  if (!hasReaperturaPenalizado) {
+    run("ALTER TABLE avales ADD COLUMN reapertura_penalizado INTEGER DEFAULT 0");
+    console.log('🔧 Columna reapertura_penalizado agregada a avales');
+  }
+
+  const hasAvalOrigen = avalCols.some(c => c.name === 'origen');
+  if (!hasAvalOrigen) {
+    run("ALTER TABLE avales ADD COLUMN origen TEXT DEFAULT 'instalacion'");
+    console.log('🔧 Columna origen agregada a avales');
+  }
+
+  // Migrar CHECK de estado para aceptar nuevos valores
+  // SQLite no permite ALTER CHECK, así que recreamos la tabla si el CHECK está desactualizado
+  const avalSql = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='avales'").map(r => r.sql).join('');
+  const hasNewStates = avalSql.includes('rechazado_calidad') && avalSql.includes('reconsideracion') && avalSql.includes('reemplazado');
+  if (!hasNewStates && hasTrabajoCompletado) {
+    // Ya hicimos ALTER TABLEs arriba, ahora recreamos el CHECK
+    console.log('🔧 Recreando tabla avales con nuevos estados permitidos...');
+    
+    // Backup data
+    const avalesData = queryAll('SELECT * FROM avales');
+    const avalProductosData = queryAll('SELECT * FROM aval_productos');
+    
+    // Get all column names
+    const allCols = avalCols.map(c => c.name);
+    const colList = allCols.join(', ');
+    
+    // Drop old foreign key references first
+    run('PRAGMA foreign_keys=OFF');
+    
+    // Rename old table
+    run('ALTER TABLE avales RENAME TO avales_old');
+    run('ALTER TABLE aval_productos RENAME TO aval_productos_old');
+    
+    // Create new table with updated CHECK
+    run(`
+      CREATE TABLE avales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orden_trabajo_id INTEGER NOT NULL REFERENCES ordenes_trabajo(id),
+        tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
+        numero_aval TEXT UNIQUE,
+        token_publico TEXT UNIQUE,
+        cliente_nombre TEXT NOT NULL,
+        cliente_contacto TEXT,
+        cliente_cedula TEXT,
+        cliente_telefono TEXT,
+        cliente_email TEXT,
+        observaciones TEXT,
+        fecha_entrega_tecnico TEXT DEFAULT (datetime('now', '-04:00')),
+        fecha_confirmacion_admin TEXT,
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'firmado_cliente', 'confirmado', 'rechazado', 'rechazado_calidad', 'reconsideracion', 'reemplazado')),
+        confirmado_por INTEGER REFERENCES usuarios(id),
+        firma_cliente_data TEXT,
+        fecha_firma_cliente TEXT,
+        token_enviado_en TEXT,
+        token_visto_en TEXT,
+        historial_firmas TEXT,
+        productos_tecnico TEXT,
+        productos_admin TEXT,
+        creado_en TEXT DEFAULT (datetime('now', '-04:00')),
+        trabajo_completado INTEGER DEFAULT 1,
+        detalle_trabajo_real TEXT,
+        penalizado_foto INTEGER DEFAULT 0,
+        skip_survey INTEGER DEFAULT 0,
+        skip_survey_pct REAL,
+        skip_survey_motivo TEXT,
+        historial_reconsideracion TEXT DEFAULT '[]',
+        reapertura_penalizado INTEGER DEFAULT 0,
+        origen TEXT DEFAULT 'instalacion'
+      )
+    `);
+    
+    run(`
+      CREATE TABLE aval_productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        aval_id INTEGER NOT NULL REFERENCES avales(id),
+        producto_id INTEGER NOT NULL REFERENCES productos(id),
+        cantidad_reportada INTEGER NOT NULL DEFAULT 0,
+        cantidad_confirmada INTEGER,
+        comentario TEXT,
+        creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+      )
+    `);
+    
+    // Restore data
+    if (avalesData.length > 0) {
+      const placeholders = allCols.map(() => '?').join(', ');
+      for (const row of avalesData) {
+        const vals = allCols.map(c => row[c] !== undefined ? row[c] : null);
+        // Normalize old 'rechazado' to keep as is (it's still valid in new CHECK)
+        run('INSERT INTO avales (' + colList + ') VALUES (' + placeholders + ')', vals);
+      }
+    }
+    
+    if (avalProductosData.length > 0) {
+      const oldProductCols = queryAll("PRAGMA table_info('aval_productos_old')").map(c => c.name);
+      const pColList = oldProductCols.join(', ');
+      const pPlaceholders = oldProductCols.map(() => '?').join(', ');
+      for (const row of avalProductosData) {
+        const vals = oldProductCols.map(c => row[c] !== undefined ? row[c] : null);
+        run('INSERT INTO aval_productos (' + pColList + ') VALUES (' + pPlaceholders + ')', vals);
+      }
+    }
+    
+    // Drop old tables
+    run('DROP TABLE IF EXISTS avales_old');
+    run('DROP TABLE IF EXISTS aval_productos_old');
+    
+    run('PRAGMA foreign_keys=ON');
+    console.log('✅ Tabla avales recreada con nuevos estados permitidos');
+  }
+
+  // ═══════════════════════════════════════════════
+  // ORDENES TRABAJO v2 — migrar estado en_revision
+  // ═══════════════════════════════════════════════
+  const otSql = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo'").map(r => r.sql).join('');
+  const hasEnRevision = otSql.includes('en_revision');
+  if (!hasEnRevision) {
+    console.log('🔧 Migrando tabla ordenes_trabajo (agregando estado en_revision)...');
+    run('PRAGMA foreign_keys=OFF');
+    run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_v2_old');
+    run(`
+      CREATE TABLE ordenes_trabajo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero_ot TEXT UNIQUE NOT NULL,
+        cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+        tipo_servicio TEXT NOT NULL,
+        descripcion TEXT,
+        presupuesto_aprobado INTEGER DEFAULT 0,
+        monto_total REAL DEFAULT 0,
+        tecnico_id INTEGER REFERENCES usuarios(id),
+        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'aval_entregado', 'en_revision', 'completada', 'cancelada')),
+        fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube', 'presupuesto', 'garantia', 'levantamiento', 'vtc')),
+        archivo_presupuesto TEXT,
+        notas TEXT,
+        creada_por INTEGER REFERENCES usuarios(id),
+        fecha_programada TEXT,
+        fecha_inicio TEXT,
+        fecha_fin TEXT,
+        presupuesto_id INTEGER,
+        creado_en TEXT DEFAULT (datetime('now', '-04:00')),
+        actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+      )
+    `);
+    // Copy existing data
+    const otCols = queryAll("PRAGMA table_info('ordenes_trabajo_v2_old')").map(c => c.name);
+    const otColList = otCols.join(', ');
+    const otPlaceholders = otCols.map(() => '?').join(', ');
+    const otData = queryAll('SELECT * FROM ordenes_trabajo_v2_old');
+    for (const row of otData) {
+      const vals = otCols.map(c => row[c] !== undefined ? row[c] : null);
+      run('INSERT INTO ordenes_trabajo (' + otColList + ') VALUES (' + otPlaceholders + ')', vals);
+    }
+    run('DROP TABLE IF EXISTS ordenes_trabajo_v2_old');
+    run('PRAGMA foreign_keys=ON');
+    console.log('✅ Tabla ordenes_trabajo migrada con estado en_revision');
+  }
+
   run(`
     CREATE TABLE IF NOT EXISTS configuracion_incentivos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

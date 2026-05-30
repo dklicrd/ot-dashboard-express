@@ -62,8 +62,14 @@
   .badge-pendiente { @apply badge bg-yellow-100 text-yellow-800; }
   .badge-aprobada { @apply badge bg-green-100 text-green-800; }
   .badge-en_curso { @apply badge bg-blue-100 text-blue-800; }
+  .badge-aval_entregado { @apply badge bg-purple-100 text-purple-800; }
+  .badge-en_revision { @apply badge bg-red-100 text-red-800; }
   .badge-completada { @apply badge bg-gray-100 text-gray-800; }
   .badge-cancelada { @apply badge bg-red-100 text-red-800; }
+  .badge-error { @apply badge bg-red-100 text-red-800; }
+  .badge-warning { @apply badge bg-orange-100 text-orange-800; }
+  .badge-info { @apply badge bg-blue-100 text-blue-800; }
+  .badge-default { @apply badge bg-gray-100 text-gray-500; }
   .modal-overlay { @apply fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4; }
   .modal-content { @apply bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100; }
   .toast { @apply fixed bottom-6 right-6 z-[100] px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300; }
@@ -194,20 +200,89 @@ async function verAval(avalId, otId) {
 };
 
 async function confirmarAval(avalId) {
-  if (!confirm('¿Confirmar este aval? La OT se marcará como completada.')) return;
+  // Mostrar modal de confirmación con opción skip_survey
+  const modal = document.getElementById('modal');
+  if (!modal) return;
+  modal.innerHTML = `
+    <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal()">
+      <div class="modal-content max-w-lg" onclick="event.stopPropagation()">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="text-xl font-bold">✅ Confirmar Aval</h2>
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+          <p class="text-sm text-gray-600">¿Confirmar este aval y marcar la OT como completada?</p>
+
+          <div class="border rounded-xl p-4 space-y-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" id="aval-skip-survey" onchange="toggleSkipSurvey()" class="w-5 h-5 rounded border-gray-300">
+              <div>
+                <span class="font-medium text-sm">🙋 Confirmación Express</span>
+                <p class="text-xs text-gray-500">Omitir encuesta de satisfacción y seleccionar % de bono manualmente</p>
+              </div>
+            </label>
+            <div id="skip-survey-options" class="hidden space-y-3 pl-8 border-l-2 border-blue-200 ml-2">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">% de Bono Asignado</label>
+                <input type="range" id="aval-skip-pct" min="0" max="100" value="100" class="w-full" oninput="document.getElementById('aval-skip-pct-label').textContent=this.value+'%'">
+                <div class="flex justify-between text-xs text-gray-400">
+                  <span>0%</span>
+                  <span id="aval-skip-pct-label" class="font-bold text-blue-600">100%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Motivo de confirmación express</label>
+                <textarea id="aval-skip-motivo" class="input-field" rows="2" placeholder="Ej: Cliente no disponible para encuesta, conformidad verbal con Admin..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 text-sm text-yellow-700 bg-yellow-50 rounded-lg p-3">
+            <span>⚠️</span>
+            <span>La OT se marcará como completada y se calculará el bono correspondiente.</span>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button onclick="closeModal()" class="btn-secondary">Cancelar</button>
+            <button onclick="ejecutarConfirmarAval(${avalId})" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar Aval</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+window.toggleSkipSurvey = function() {
+  const opt = document.getElementById('skip-survey-options');
+  if (opt) opt.classList.toggle('hidden', !document.getElementById('aval-skip-survey')?.checked);
+};
+
+window.ejecutarConfirmarAval = async function (avalId) {
+  const skipSurvey = document.getElementById('aval-skip-survey')?.checked || false;
+  const skipSurveyPct = skipSurvey ? parseInt(document.getElementById('aval-skip-pct')?.value || '100') : null;
+  const skipSurveyMotivo = skipSurvey ? (document.getElementById('aval-skip-motivo')?.value?.trim() || 'Conformidad verbal') : null;
+
+  const productos = [];
+  const inputs = document.querySelectorAll('[data-confirm-cantidad]');
+  inputs.forEach(inp => {
+    const pid = parseInt(inp.dataset.confirmCantidad);
+    const val = parseInt(inp.value);
+    if (!isNaN(val) && val >= 0) {
+      productos.push({ producto_id: pid, cantidad_confirmada: val });
+    }
+  });
+
   try {
-    const productos = [];
-    const inputs = document.querySelectorAll('[data-confirm-cantidad]');
-    inputs.forEach(inp => {
-      const pid = parseInt(inp.dataset.confirmCantidad);
-      const val = parseInt(inp.value);
-      if (!isNaN(val) && val >= 0) {
-        productos.push({ producto_id: pid, cantidad_confirmada: val });
-      }
+    const r = await api('PUT', '/api/avales/' + avalId + '/confirmar', {
+      productos,
+      skip_survey: skipSurvey,
+      skip_survey_pct: skipSurveyPct,
+      skip_survey_motivo: skipSurveyMotivo
     });
-    await api('PUT', '/api/avales/' + avalId + '/confirmar', { productos });
-    closeModal('detalle-aval');
-    toast('Aval confirmado. OT marcada como completada.');
+    closeModal();
+    toast(r.message || (skipSurvey ? 'Aval confirmado sin encuesta.' : 'Aval confirmado. OT completada.'));
     render();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
@@ -475,7 +550,7 @@ function barraProgreso(label, val, total, color) {
 async function renderOrdenes() {
   let ordenes = [];
   try { const d = await api('GET', '/api/ordenes'); ordenes = d.ordenes || []; } catch (e) { /* ignore */ }
-  const estadoLabel = { pendiente: 'Pendiente', aprobada: 'Aprobada', en_curso: 'En Curso', aval_entregado: 'Aval Entregado', completada: 'Completada', cancelada: 'Cancelada' };
+  const estadoLabel = { pendiente: 'Pendiente', aprobada: 'Aprobada', en_curso: 'En Curso', aval_entregado: 'Aval Entregado', en_revision: '🔍 En Revisión', completada: 'Completada', cancelada: 'Cancelada' };
 
   const rows = ordenes.map(ot => {
     // Group productos by categoria, show unique categories with total qty
@@ -873,6 +948,28 @@ function renderEntregaAvalForm() {
         <strong>Técnico:</strong> ${state.user?.nombre}
       </div>
 
+      <!-- 🆕 TRABAJO COMPLETADO v2 -->
+      <div class="border rounded-xl p-4 space-y-3">
+        <h3 class="font-semibold text-gray-700 text-sm">Estado del Trabajo</h3>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-2">¿Se completó el 100% de los trabajos asignados?</label>
+          <div class="flex gap-3">
+            <label class="flex items-center gap-2 p-2 border-2 rounded-lg cursor-pointer transition-all" id="ent-completado-si" style="border-color:#22c55e;background:#f0fdf4" onclick="seleccionarCompletado(true)">
+              <input type="radio" name="trabajo-completado" value="1" checked onchange="seleccionarCompletado(true)">
+              <span class="text-sm font-medium text-green-700">✅ Sí, 100% completado</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 border-2 rounded-lg cursor-pointer transition-all" id="ent-completado-no" style="border-color:#e5e7eb" onclick="seleccionarCompletado(false)">
+              <input type="radio" name="trabajo-completado" value="0" onchange="seleccionarCompletado(false)">
+              <span class="text-sm font-medium text-gray-600">⚠️ No, solo parcial</span>
+            </label>
+          </div>
+        </div>
+        <div id="ent-detalle-container" class="hidden">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Detalle del trabajo realizado *</label>
+          <textarea id="ent-detalle-trabajo" class="input-field" rows="3" placeholder="Describe qué trabajos se realizaron realmente..."></textarea>
+        </div>
+      </div>
+
       <div class="border rounded-xl p-4 space-y-3">
         <h3 class="font-semibold text-gray-700 text-sm">Datos del Cliente (quien recibe)</h3>
         <div class="grid grid-cols-2 gap-3">
@@ -927,6 +1024,25 @@ function renderEntregaAvalForm() {
   `;
 }
 
+// 🆕 v2: Toggle trabajo completado / parcial
+window.seleccionarCompletado = function (completado) {
+  const siLabel = document.getElementById('ent-completado-si');
+  const noLabel = document.getElementById('ent-completado-no');
+  const detalleContainer = document.getElementById('ent-detalle-container');
+  if (siLabel) {
+    siLabel.style.borderColor = completado ? '#22c55e' : '#e5e7eb';
+    siLabel.style.background = completado ? '#f0fdf4' : 'white';
+  }
+  if (noLabel) {
+    noLabel.style.borderColor = completado ? '#e5e7eb' : '#ef4444';
+    noLabel.style.background = completado ? 'white' : '#fef2f2';
+  }
+  if (detalleContainer) {
+    detalleContainer.classList.toggle('hidden', completado);
+    if (!completado) setTimeout(function() { document.getElementById('ent-detalle-trabajo')?.focus(); }, 100);
+  }
+};
+
 window.submitEntregaAval = async function (otId) {
   const clienteNombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   if (!clienteNombre) { toast('Nombre del cliente es requerido', 'error'); return; }
@@ -937,8 +1053,19 @@ window.submitEntregaAval = async function (otId) {
     comentario: p.comentario || ''
   }));
 
+  const trabajoCompletado = document.querySelector('input[name="trabajo-completado"]:checked')?.value === '1';
+  const detalleTrabajoReal = document.getElementById('ent-detalle-trabajo')?.value?.trim() || '';
+
+  if (!trabajoCompletado && !detalleTrabajoReal) {
+    toast('Debes detallar qué trabajos se realizaron si no se completó el 100%', 'error');
+    btn.disabled = false; btn.textContent = 'Entregar Aval ✅';
+    return;
+  }
+
   const body = {
     orden_trabajo_id: otId,
+    trabajo_completado: trabajoCompletado,
+    detalle_trabajo_real: detalleTrabajoReal,
     cliente_nombre: clienteNombre,
     cliente_contacto: document.getElementById('ent-cliente-contacto')?.value || '',
     cliente_cedula: document.getElementById('ent-cliente-cedula')?.value || '',
@@ -1216,12 +1343,22 @@ async function renderEstadoCompartir(avalId) {
 
 function renderDetalleAvalContent(aval, productos, ot) {
   const isPendiente = aval.estado === 'pendiente' || aval.estado === 'firmado_cliente';
-  const estadoColor = isPendiente ? 'badge-pendiente' : 'badge-completada';
+  const isRechazadoCalidad = aval.estado === 'rechazado_calidad';
+  const isReconsideracion = aval.estado === 'reconsideracion';
+  const isConfirmado = aval.estado === 'confirmado';
+  const isReemplazado = aval.estado === 'reemplazado';
+  const estadoColor = isPendiente ? 'badge-pendiente' : isConfirmado ? 'badge-completada' : isRechazadoCalidad ? 'badge-error' : 'badge-default';
   let estadoLabel = aval.estado;
-  if (aval.estado === 'pendiente') estadoLabel = 'Pendiente';
-  else if (aval.estado === 'firmado_cliente') estadoLabel = 'Firmado por Cliente';
-  else if (aval.estado === 'confirmado') estadoLabel = 'Confirmado';
-  else if (aval.estado === 'rechazado') estadoLabel = 'Rechazado';
+  const estadoLabels = {
+    'pendiente': '⏳ Pendiente',
+    'firmado_cliente': '✍️ Firmado por Cliente',
+    'confirmado': '✅ Confirmado',
+    'rechazado': '❌ Rechazado',
+    'rechazado_calidad': '🚨 Rechazado por Calidad',
+    'reconsideracion': '🔄 En Reconsideración',
+    'reemplazado': '📦 Reemplazado (reapertura)'
+  };
+  estadoLabel = estadoLabels[aval.estado] || aval.estado;
 
   const prodRows = productos.map(p => `
     <tr class="border-b border-gray-100">
@@ -1242,14 +1379,25 @@ function renderDetalleAvalContent(aval, productos, ot) {
     <div class="space-y-4">
       <div class="flex items-center justify-between bg-gray-50 rounded-xl p-4">
         <div>
-          <span class="badge ${estadoColor} text-sm">${aval.estado === 'confirmado' ? '✅ ' : ''}${estadoLabel}</span>
+          <span class="badge ${estadoColor} text-sm">${estadoLabel}</span>
+          ${aval.penalizado_foto ? ' <span class="badge badge-error text-xs">📸 Penalizado</span>' : ''}
+          ${aval.reapertura_penalizado ? ' <span class="badge badge-warning text-xs">🔄 Reabierta -50%</span>' : ''}
+          ${aval.skip_survey ? ' <span class="badge badge-info text-xs">🙋 Sin encuesta</span>' : ''}
         </div>
         <div class="text-sm text-gray-500">Aval #${aval.id}</div>
       </div>
 
       ${ot ? `<div class="bg-blue-50 rounded-xl p-4 text-sm"><strong>OT:</strong> ${ot.numero_ot} · <strong>Cliente:</strong> ${escHtml(ot.cliente_nombre)}</div>` : ''}
 
-      <div class="border rounded-xl p-4 space-y-2">
+      ${aval.trabajo_completado !== undefined || aval.detalle_trabajo_real ? `
+      <div class="border rounded-xl p-4 space-y-1">
+        <h3 class="font-semibold text-gray-700 text-sm mb-2">Estado del Trabajo</h3>
+        <p class="text-sm">
+          ${aval.trabajo_completado !== undefined ? (aval.trabajo_completado ? '✅ <strong>100% completado</strong>' : '⚠️ <strong>Trabajo parcial</strong>') : ''}
+        </p>
+        ${aval.detalle_trabajo_real ? `<p class="text-sm text-gray-600 mt-1"><strong>Detalle:</strong> ${escHtml(aval.detalle_trabajo_real)}</p>` : ''}
+      </div>
+      ` : ''}
         <h3 class="font-semibold text-gray-700 text-sm">Datos del Cliente</h3>
         <table class="w-full text-sm">
           <tr><td class="text-gray-500 w-32 py-1">Nombre:</td><td>${escHtml(aval.cliente_nombre)}</td></tr>
@@ -1328,16 +1476,55 @@ function renderDetalleAvalContent(aval, productos, ot) {
         ${isPendiente && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
           ? `<button onclick="subirFirmaFisicaModal(${aval.id})" class="btn-warning flex items-center gap-2"><span>📸</span> Subir Firma</button>`
           : ''}
+        ${isRechazadoCalidad && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
+          ? `<button onclick="reconsiderarAval(${aval.id})" class="btn-primary flex items-center gap-2"><span>🔄</span> Reconsiderar</button>`
+          : ''}
+        ${isConfirmado && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
+          ? `<button onclick="reabrirOT(${aval.id})" class="btn-warning flex items-center gap-2"><span>↩️</span> Reabrir OT</button>`
+          : ''}
+        ${aval.historial_reconsideracion && aval.historial_reconsideracion !== '[]' ? `
+        <div class="w-full mt-3">
+          <details class="text-xs text-gray-500">
+            <summary class="cursor-pointer hover:text-gray-700">📋 Historial de reconsideración (${(()=>{try{return JSON.parse(aval.historial_reconsideracion).length}catch(e){return 0}})()})</summary>
+            <div class="mt-2 space-y-2">
+              ${(()=>{try{return JSON.parse(aval.historial_reconsideracion).map(function(h,i){ return '<div class="bg-gray-50 rounded p-2 border-l-4 '+(h.tipo==='rechazo_calidad'?'border-red-400':'border-green-400')+'"><p class="font-medium">'+(h.tipo==='rechazo_calidad'?'❌ Rechazo #'+(i+1):'🔄 Reconsideración #'+(i+1))+'</p><p>'+escHtml(h.motivo||h.nuevo_motivo||'')+'</p><p class="text-gray-400">'+new Date(h.fecha).toLocaleString()+'</p></div>';}).join('') : ''}catch(e){return ''}})()}
+            </div>
+          </details>
+        </div>
+        ` : ''}
       </div>
     </div>
   `;
 }
 
-async function rechazarAval(avalId) {
-  if (!confirm('¿Estás seguro de rechazar este aval? La OT permanecerá en aval_entregado.')) return;
+window.reconsiderarAval = async function(avalId) {
+  const motivo = prompt('Describe las correcciones realizadas:');
+  if (!motivo || !motivo.trim()) { toast('Debes describir las correcciones', 'error'); return; }
   try {
-    const r = await api('PUT', '/api/avales/' + avalId + '/rechazar', {});
-    toast('✅ ' + (r.message || 'Aval rechazado'));
+    const r = await api('PUT', '/api/avales/' + avalId + '/reconsiderar', { nuevo_motivo: motivo.trim() });
+    toast('🔄 ' + (r.message || 'Aval reconsiderado. OT vuelve a aval_entregado.'));
+    closeModal();
+    render();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+};
+
+window.reabrirOT = async function(avalId) {
+  if (!confirm('⚠️ ¿Estás seguro de reabrir esta OT? Se aplicará una penalidad del 50% en el bono.\n\nSolo posible si NO tiene encuesta completada.')) return;
+  try {
+    const r = await api('PUT', '/api/avales/' + avalId + '/reabrir', {});
+    toast('↩️ ' + (r.message || 'OT reabierta con penalidad del 50%'));
+    closeModal();
+    render();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+};
+
+async function rechazarAval(avalId) {
+  if (!confirm('¿Estás seguro de rechazar este aval por calidad? La OT pasará a En Revisión (alerta ROJA).')) return;
+  const motivo = prompt('Motivo del rechazo por calidad:');
+  if (!motivo || !motivo.trim()) { toast('Debes especificar un motivo', 'error'); return; }
+  try {
+    const r = await api('PUT', '/api/avales/' + avalId + '/rechazar', { motivo: motivo.trim() });
+    toast('🚨 ' + (r.message || 'Aval rechazado por calidad'));
     closeModal();
     render();
   } catch(e) {

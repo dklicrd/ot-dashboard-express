@@ -886,16 +886,20 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     // Guardar productos como JSON para auditoría
     const productosTecnico = JSON.stringify(body.productos || []);
 
+    // Nuevos campos v2
+    const trabajoCompletado = body.trabajo_completado !== undefined ? (body.trabajo_completado ? 1 : 0) : 1;
+    const detalleTrabajoReal = body.detalle_trabajo_real || null;
+
     transaction(() => {
       const avalId = queryFirst(`
         INSERT INTO avales (orden_trabajo_id, tecnico_id, numero_aval, token_publico, cliente_nombre, cliente_contacto, cliente_cedula,
-          cliente_telefono, cliente_email, observaciones, productos_tecnico, estado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+          cliente_telefono, cliente_email, observaciones, productos_tecnico, estado, trabajo_completado, detalle_trabajo_real)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
         RETURNING id
       `, [
         body.orden_trabajo_id, tecnicoId, numeroAval, tokenPublico, body.cliente_nombre, body.cliente_contacto || null,
         body.cliente_cedula || null, body.cliente_telefono || null, body.cliente_email || null,
-        body.observaciones || null, productosTecnico
+        body.observaciones || null, productosTecnico, trabajoCompletado, detalleTrabajoReal
       ]);
 
       // Insert individual product records
@@ -952,29 +956,37 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
         }
       }
 
-      // Update aval
+      // Update aval — incluir campos v2 (skip_survey)
+      const skipSurvey = body.skip_survey ? 1 : 0;
+      const skipSurveyPct = body.skip_survey_pct !== undefined ? body.skip_survey_pct : null;
+      const skipSurveyMotivo = body.skip_survey_motivo || null;
+
       run(`UPDATE avales SET estado='confirmado', fecha_confirmacion_admin=datetime('now', '-04:00'),
-        confirmado_por=?, productos_admin=? WHERE id=?`,
-        [req.user.userId, productosAdmin, id]);
+        confirmado_por=?, productos_admin=?, skip_survey=?, skip_survey_pct=?, skip_survey_motivo=? WHERE id=?`,
+        [req.user.userId, productosAdmin, skipSurvey, skipSurveyPct, skipSurveyMotivo, id]);
 
       // Change OT to completada
       run("UPDATE ordenes_trabajo SET estado='completada', fecha_fin=datetime('now', '-04:00'), actualizado_en=datetime('now', '-04:00') WHERE id=?",
         [aval.orden_trabajo_id]);
 
-      // Crear encuesta automática
-      const hoy = new Date().toISOString().split('T')[0];
-      const fechaLimite = sumarDiasHabiles(hoy, 3);
-      const tokenEnc = generarTokenEncuesta();
-      run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico)
-        VALUES (?, ?, 'pendiente', ?, ?, ?)`,
-        [aval.orden_trabajo_id, id, fechaLimite, req.user.userId, tokenEnc]);
+      // Crear encuesta automática SOLO si no es skip_survey
+      if (!skipSurvey) {
+        const hoy = new Date().toISOString().split('T')[0];
+        const fechaLimite = sumarDiasHabiles(hoy, 3);
+        const tokenEnc = generarTokenEncuesta();
+        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico)
+          VALUES (?, ?, 'pendiente', ?, ?, ?)`,
+          [aval.orden_trabajo_id, id, fechaLimite, req.user.userId, tokenEnc]);
+      }
     });
 
-    const encuestaId = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_id = ?', [aval.orden_trabajo_id, id])?.id;
+    const encuestaId = !skipSurvey ? queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_id = ?', [aval.orden_trabajo_id, id])?.id : null;
 
     res.json({
-      message: 'Aval confirmado. OT marcada como completada.',
-      pendingSurvey: true,
+      message: skipSurvey ? 'Aval confirmado sin encuesta (conformidad verbal). OT completada.' : 'Aval confirmado. OT marcada como completada.',
+      pendingSurvey: !skipSurvey,
+      skipSurvey: !!skipSurvey,
+      skipSurveyPct: skipSurveyPct,
       encuestaId: encuestaId,
       fechaLimite: encuestaId ? queryFirst('SELECT fecha_limite FROM encuestas_satisfaccion WHERE id = ?', [encuestaId])?.fecha_limite : null
     });
@@ -985,23 +997,45 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-// PUT /api/avales/:id/rechazar — admin rechaza aval
+// PUT /api/avales/:id/rechazar — admin rechaza aval por calidad
 app.put('/api/avales/:id/rechazar', authMiddleware, adminOnly, (req, res) => {
   try {
     const id = Number(req.params.id);
+    const body = req.body;
     const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
     if (aval.estado !== 'pendiente' && aval.estado !== 'firmado_cliente') {
       return res.status(400).json({ error: 'El aval no puede ser rechazado en su estado actual' });
     }
 
+    const motivoRechazo = body.motivo || 'Calidad del servicio insuficiente';
+
     transaction(() => {
-      run(`UPDATE avales SET estado='rechazado', productos_admin='[]', confirmado_por=?, fecha_confirmacion_admin=datetime('now', '-04:00') WHERE id=?`,
-        [req.user.userId, id]);
-      // NO cambiamos estado de la OT — sigue en aval_entregado
+      // Guardar historial de reconsideración si ya hay uno
+      var historialReconsideracion = [];
+      try {
+        if (aval.historial_reconsideracion) historialReconsideracion = JSON.parse(aval.historial_reconsideracion);
+        if (!Array.isArray(historialReconsideracion)) historialReconsideracion = [];
+      } catch(e) { historialReconsideracion = []; }
+
+      historialReconsideracion.push({
+        tipo: 'rechazo_calidad',
+        motivo: motivoRechazo,
+        rechazado_por: req.user.userId,
+        fecha: new Date().toISOString()
+      });
+
+      run(`UPDATE avales SET estado='rechazado_calidad',
+        historial_reconsideracion=?, confirmado_por=?, fecha_confirmacion_admin=datetime('now', '-04:00')
+        WHERE id=?`,
+        [JSON.stringify(historialReconsideracion), req.user.userId, id]);
+
+      // OT pasa a en_revision (alerta ROJA)
+      run("UPDATE ordenes_trabajo SET estado='en_revision', actualizado_en=datetime('now', '-04:00') WHERE id=?",
+        [aval.orden_trabajo_id]);
     });
 
-    res.json({ message: 'Aval rechazado. La OT permanece en estado aval_entregado.' });
+    res.json({ message: 'Aval rechazado por calidad. OT en revisión (alerta ROJA).', estado_aval: 'rechazado_calidad', estado_ot: 'en_revision' });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error rechazando aval:', e);
@@ -1047,6 +1081,81 @@ app.put('/api/avales/:id/subir-firma', authMiddleware, adminOnly, avalUpload.sin
   } catch (e) {
     console.error('Error subiendo firma:', e);
     res.status(500).json({ error: 'Error al subir firma' });
+  }
+});
+
+// PUT /api/avales/:id/reconsiderar — admin/líder aprueba reconsideración
+app.put('/api/avales/:id/reconsiderar', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (aval.estado !== 'rechazado_calidad') {
+      return res.status(400).json({ error: 'Solo avales rechazados por calidad pueden ser reconsiderados' });
+    }
+
+    var historialReconsideracion = [];
+    try {
+      if (aval.historial_reconsideracion) historialReconsideracion = JSON.parse(aval.historial_reconsideracion);
+      if (!Array.isArray(historialReconsideracion)) historialReconsideracion = [];
+    } catch(e) { historialReconsideracion = []; }
+
+    historialReconsideracion.push({
+      tipo: 'reconsideracion_aprobada',
+      resuelto_por: req.user.userId,
+      nuevo_motivo: req.body.nuevo_motivo || 'Correcciones realizadas',
+      fecha: new Date().toISOString()
+    });
+
+    transaction(() => {
+      run(`UPDATE avales SET estado='pendiente',
+        historial_reconsideracion=?, fecha_confirmacion_admin=NULL, confirmado_por=NULL
+        WHERE id=?`,
+        [JSON.stringify(historialReconsideracion), id]);
+
+      // OT vuelve a aval_entregado
+      run("UPDATE ordenes_trabajo SET estado='aval_entregado', actualizado_en=datetime('now', '-04:00') WHERE id=?",
+        [aval.orden_trabajo_id]);
+    });
+
+    res.json({ message: 'Aval reconsiderado. OT vuelve a aval_entregado.', estado: 'pendiente' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error reconsiderando aval:', e);
+    res.status(500).json({ error: 'Error al reconsiderar aval' });
+  }
+});
+
+// PUT /api/avales/:id/reabrir — admin reabre OT completada
+app.put('/api/avales/:id/reabrir', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const aval = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (aval.estado !== 'confirmado') {
+      return res.status(400).json({ error: 'Solo avales confirmados pueden ser reabiertos' });
+    }
+
+    // Verificar que no tenga encuesta completada
+    const encuestaExistente = queryFirst("SELECT id, estado FROM encuestas_satisfaccion WHERE aval_id = ? AND estado = 'completada'", [id]);
+    if (encuestaExistente) {
+      return res.status(400).json({ error: 'Esta OT ya tiene encuesta completada. Debes crear una nueva OT de garantía.' });
+    }
+
+    transaction(() => {
+      // Marcar aval como reemplazado
+      run(`UPDATE avales SET estado='reemplazado', reapertura_penalizado=1 WHERE id=?`, [id]);
+
+      // OT vuelve a en_curso
+      run("UPDATE ordenes_trabajo SET estado='en_curso', fecha_fin=NULL, actualizado_en=datetime('now', '-04:00') WHERE id=?",
+        [aval.orden_trabajo_id]);
+    });
+
+    res.json({ message: 'OT reabierta con penalidad del 50%. Crea un nuevo aval al completar.', reapertura_penalizado: true });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error reabriendo OT:', e);
+    res.status(500).json({ error: 'Error al reabrir OT' });
   }
 });
 
