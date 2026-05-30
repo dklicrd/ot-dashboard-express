@@ -450,12 +450,13 @@ async function initDatabase() {
   }
 
   // Migrar CHECK de estado para aceptar nuevos valores
-  // SQLite no permite ALTER CHECK, así que recreamos la tabla si el CHECK está desactualizado
+  // SQLite no permite ALTER CHECK, así que recreamos la tabla sin CHECK si está desactualizado
   const avalSql = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='avales'").map(r => r.sql).join('');
   const hasNewStates = avalSql.includes('rechazado_calidad') && avalSql.includes('reconsideracion') && avalSql.includes('reemplazado');
-  if (!hasNewStates && hasTrabajoCompletado) {
-    // Ya hicimos ALTER TABLEs arriba, ahora recreamos el CHECK
-    console.log('🔧 Recreando tabla avales con nuevos estados permitidos...');
+  const hasCheck = avalSql.includes('CHECK');
+  
+  if (hasCheck) {
+    console.log('🔧 Recreando tabla avales sin CHECK constraint...');
     
     // Backup data
     const avalesData = queryAll('SELECT * FROM avales');
@@ -465,14 +466,12 @@ async function initDatabase() {
     const allCols = avalCols.map(c => c.name);
     const colList = allCols.join(', ');
     
-    // Drop old foreign key references first
     run('PRAGMA foreign_keys=OFF');
     
-    // Rename old table
     run('ALTER TABLE avales RENAME TO avales_old');
     run('ALTER TABLE aval_productos RENAME TO aval_productos_old');
     
-    // Create new table with updated CHECK
+    // Create new table WITHOUT CHECK constraint
     run(`
       CREATE TABLE avales (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -488,7 +487,7 @@ async function initDatabase() {
         observaciones TEXT,
         fecha_entrega_tecnico TEXT DEFAULT (datetime('now', '-04:00')),
         fecha_confirmacion_admin TEXT,
-        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'firmado_cliente', 'confirmado', 'rechazado', 'rechazado_calidad', 'reconsideracion', 'reemplazado')),
+        estado TEXT DEFAULT 'pendiente',
         confirmado_por INTEGER REFERENCES usuarios(id),
         firma_cliente_data TEXT,
         fecha_firma_cliente TEXT,
@@ -523,13 +522,10 @@ async function initDatabase() {
     `);
     
     // Restore data
-    if (avalesData.length > 0) {
-      const placeholders = allCols.map(() => '?').join(', ');
-      for (const row of avalesData) {
-        const vals = allCols.map(c => row[c] !== undefined ? row[c] : null);
-        // Normalize old 'rechazado' to keep as is (it's still valid in new CHECK)
-        run('INSERT INTO avales (' + colList + ') VALUES (' + placeholders + ')', vals);
-      }
+    const placeholders = allCols.map(() => '?').join(', ');
+    for (const row of avalesData) {
+      const vals = allCols.map(c => row[c] !== undefined ? row[c] : null);
+      run('INSERT INTO avales (' + colList + ') VALUES (' + placeholders + ')', vals);
     }
     
     if (avalProductosData.length > 0) {
@@ -542,12 +538,10 @@ async function initDatabase() {
       }
     }
     
-    // Drop old tables
     run('DROP TABLE IF EXISTS avales_old');
     run('DROP TABLE IF EXISTS aval_productos_old');
-    
     run('PRAGMA foreign_keys=ON');
-    console.log('✅ Tabla avales recreada con nuevos estados permitidos');
+    console.log('✅ Tabla avales recreada sin CHECK constraint');
   }
 
   // ═══════════════════════════════════════════════
@@ -555,8 +549,10 @@ async function initDatabase() {
   // ═══════════════════════════════════════════════
   const otSql = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo'").map(r => r.sql).join('');
   const hasEnRevision = otSql.includes('en_revision');
-  if (!hasEnRevision) {
-    console.log('🔧 Migrando tabla ordenes_trabajo (agregando estado en_revision)...');
+  const hasOtCheck = otSql.includes('CHECK');
+  
+  if (hasOtCheck) {
+    console.log('🔧 Migrando tabla ordenes_trabajo (eliminando CHECK constraint)...');
     run('PRAGMA foreign_keys=OFF');
     run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_v2_old');
     run(`
@@ -569,8 +565,8 @@ async function initDatabase() {
         presupuesto_aprobado INTEGER DEFAULT 0,
         monto_total REAL DEFAULT 0,
         tecnico_id INTEGER REFERENCES usuarios(id),
-        estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobada', 'en_curso', 'aval_entregado', 'en_revision', 'completada', 'cancelada')),
-        fuente TEXT DEFAULT 'manual' CHECK(fuente IN ('manual', 'email', 'nube', 'presupuesto', 'garantia', 'levantamiento', 'vtc')),
+        estado TEXT DEFAULT 'pendiente',
+        fuente TEXT DEFAULT 'manual',
         archivo_presupuesto TEXT,
         notas TEXT,
         creada_por INTEGER REFERENCES usuarios(id),
@@ -593,7 +589,7 @@ async function initDatabase() {
     }
     run('DROP TABLE IF EXISTS ordenes_trabajo_v2_old');
     run('PRAGMA foreign_keys=ON');
-    console.log('✅ Tabla ordenes_trabajo migrada con estado en_revision');
+    console.log('✅ Tabla ordenes_trabajo migrada sin CHECK constraint');
   }
 
   run(`
