@@ -557,6 +557,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
             run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (?, ?, ?)',
               [otRow.id, pid, p.cantidad]);
           }
+          // If no pid (product not found and not created), silently skip (garantia/levantamiento case)
         }
       }
     }
