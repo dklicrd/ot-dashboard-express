@@ -491,7 +491,7 @@ async function renderOrdenes() {
     var catKeys = Object.keys(catMap);
     var catHtml = catKeys.length > 0
       ? catKeys.map(function(k) { return escHtml(k.charAt(0).toUpperCase() + k.slice(1)) + ' x' + catMap[k]; }).join(', ')
-      : '<span class="text-gray-400">—</span>';
+      : ot.tipo_servicio ? escHtml(ot.tipo_servicio.charAt(0).toUpperCase() + ot.tipo_servicio.slice(1)) : '<span class="text-gray-400">—</span>';
 
     // Build action buttons based on estado
     let actions = '';
