@@ -247,6 +247,14 @@
       "descripcion": "Sensor de movimiento para ahorro energético",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
+    },
+    {
+      "id": 12,
+      "nombre": "cerradura",
+      "categoria": "cerradura",
+      "descripcion": "Creado automaticamente desde OT",
+      "activo": 1,
+      "creado_en": "2026-05-29 21:43:09"
     }
   ],
   "presupuestos": [
@@ -573,6 +581,69 @@
       "presupuesto_id": 4,
       "creado_en": "2026-05-29 21:27:31",
       "actualizado_en": "2026-05-29 21:27:31"
+    },
+    {
+      "id": 15,
+      "numero_ot": "OT-2026-0015",
+      "cliente_id": 6,
+      "tipo_servicio": "reparacion",
+      "descripcion": null,
+      "presupuesto_aprobado": 1,
+      "monto_total": 2550,
+      "tecnico_id": 4,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": "2026-04-29",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": 4,
+      "creado_en": "2026-05-29 21:43:09",
+      "actualizado_en": "2026-05-29 21:43:09"
+    },
+    {
+      "id": 16,
+      "numero_ot": "OT-2026-0016",
+      "cliente_id": 1,
+      "tipo_servicio": "garantia",
+      "descripcion": null,
+      "presupuesto_aprobado": 1,
+      "monto_total": 0,
+      "tecnico_id": 4,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": "2026-06-03",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": null,
+      "creado_en": "2026-05-29 21:44:14",
+      "actualizado_en": "2026-05-29 21:44:14"
+    },
+    {
+      "id": 17,
+      "numero_ot": "OT-2026-0017",
+      "cliente_id": 6,
+      "tipo_servicio": "levantamiento",
+      "descripcion": null,
+      "presupuesto_aprobado": 1,
+      "monto_total": 0,
+      "tecnico_id": 4,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": "2026-06-02",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": null,
+      "creado_en": "2026-05-29 21:44:54",
+      "actualizado_en": "2026-05-29 21:44:54"
     }
   ],
   "orden_trabajo_productos": [
@@ -611,6 +682,12 @@
       "orden_trabajo_id": 6,
       "producto_id": 1,
       "cantidad": 25
+    },
+    {
+      "id": 22,
+      "orden_trabajo_id": 15,
+      "producto_id": 1,
+      "cantidad": 17
     }
   ],
   "avales": [
