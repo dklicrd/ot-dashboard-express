@@ -2991,23 +2991,23 @@ window.submitNuevaOT = async function (e) {
   } else {
     cliente_id = document.getElementById('ot-cliente-id').value;
     if (!cliente_id) { err.textContent = 'Selecciona un cliente'; err.classList.remove('hidden'); return; }
-
-    // Validar fecha programada
-    const fechaVal = document.getElementById('ot-fecha').value;
-    if (!fechaVal) {
-      err.textContent = 'Selecciona una fecha programada';
-      err.classList.remove('hidden');
-      return;
-    }
-
-    // Validar tecnico asignado
-    const tecVal = document.getElementById('ot-tecnico').value;
-    if (!tecVal) {
-      err.textContent = 'Selecciona un técnico asignado';
-      err.classList.remove('hidden');
-      return;
-    }
     cliente_id = Number(cliente_id);
+  }
+
+  // Validar fecha programada (todos los origenes)
+  const fechaVal = document.getElementById('ot-fecha').value;
+  if (!fechaVal) {
+    err.textContent = 'Selecciona una fecha programada';
+    err.classList.remove('hidden');
+    return;
+  }
+
+  // Validar tecnico asignado (todos los origenes)
+  const tecVal = document.getElementById('ot-tecnico').value;
+  if (!tecVal) {
+    err.textContent = 'Selecciona un técnico asignado';
+    err.classList.remove('hidden');
+    return;
   }
 
   // Read categorias (productos) from _productosSeleccionados
