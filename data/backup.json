@@ -552,6 +552,27 @@
       "presupuesto_id": null,
       "creado_en": "2026-05-29 21:12:50",
       "actualizado_en": "2026-05-29 21:12:50"
+    },
+    {
+      "id": 14,
+      "numero_ot": "OT-2026-0014",
+      "cliente_id": 6,
+      "tipo_servicio": "mantenimiento",
+      "descripcion": null,
+      "presupuesto_aprobado": 1,
+      "monto_total": 0,
+      "tecnico_id": null,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": "2026-05-30",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": 4,
+      "creado_en": "2026-05-29 21:27:31",
+      "actualizado_en": "2026-05-29 21:27:31"
     }
   ],
   "orden_trabajo_productos": [
