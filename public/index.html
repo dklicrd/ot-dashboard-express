@@ -3013,7 +3013,8 @@ window.submitNuevaOT = async function (e) {
   // Read categorias (productos) from _productosSeleccionados
   var productos = [];
   if (origen === 'garantia' || origen === 'levantamiento') {
-    // Garantia/levantamiento: sin productos, monto 0 (backend lo maneja)
+    // Garantia/levantamiento: usar tipo_servicio como categoria, monto 0
+    productos.push({ categoria: document.getElementById('ot-tipo').value, nombre: document.getElementById('ot-tipo').value, cantidad: 1 });
   } else if (typeof _productosSeleccionados !== 'undefined') {
     for (var i = 0; i < _productosSeleccionados.length; i++) {
       var p = _productosSeleccionados[i];

@@ -542,22 +542,17 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
         if (p.cantidad > 0) {
           var pid = p.producto_id || 0;
           // If no producto_id but has categoria, create or find product by categoria
+          // If no pid but has categoria, create the product on the fly
           if (!pid && p.categoria) {
-            var prodExistente = queryFirst('SELECT id FROM productos WHERE categoria = ? LIMIT 1', [p.categoria]);
-            if (prodExistente) {
-              pid = prodExistente.id;
-            } else if (p.nombre) {
-              run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)',
-                [p.nombre, p.categoria, 'Creado automaticamente desde OT']);
-              prodExistente = queryFirst('SELECT id FROM productos WHERE categoria = ?', [p.categoria]);
-              pid = prodExistente ? prodExistente.id : 0;
-            }
+            run('INSERT OR IGNORE INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)',
+              [p.categoria, p.categoria, 'Creado automaticamente desde OT']);
+            var prodNuevo = queryFirst('SELECT id FROM productos WHERE categoria = ?', [p.categoria]);
+            pid = prodNuevo ? prodNuevo.id : 0;
           }
           if (pid > 0) {
             run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (?, ?, ?)',
               [otRow.id, pid, p.cantidad]);
           }
-          // If no pid (product not found and not created), silently skip (garantia/levantamiento case)
         }
       }
     }
