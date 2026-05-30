@@ -3122,6 +3122,105 @@ function iniciarCronEncuestas() {
   verificarEncuestas();
   setInterval(verificarEncuestas, INTERVALO);
   console.log('⏰ Cron de encuestas iniciado (cada hora)');
+
+  // ═══════════════════════════════════════════════════════════
+  // CRON: Penalidad 48h para avales sin firmar
+  // ═══════════════════════════════════════════════════════════
+  function verificarAvalesPendientes() {
+    try {
+      const ahora = new Date();
+      const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+
+      const avalesVencidos = queryAll(`
+        SELECT a.id, a.orden_trabajo_id, a.estado, a.fecha_entrega_tecnico,
+               a.cliente_nombre, a.cliente_telefono, a.cliente_email,
+               a.historial_reconsideracion,
+               o.numero_ot, o.tecnico_id,
+               u.nombre as tecnico_nombre, u.email as tecnico_email, u.telefono as tecnico_telefono
+        FROM avales a
+        JOIN ordenes_trabajo o ON a.orden_trabajo_id = o.id
+        LEFT JOIN usuarios u ON o.tecnico_id = u.id
+        WHERE a.estado IN ('pendiente', 'firmado_cliente')
+        AND a.fecha_entrega_tecnico IS NOT NULL
+        ORDER BY a.fecha_entrega_tecnico ASC
+      `);
+
+      for (const aval of avalesVencidos) {
+        const fechaEntrega = new Date(aval.fecha_entrega_tecnico + 'Z');
+        const diffMs = ahora.getTime() - fechaEntrega.getTime();
+        const diffHoras = diffMs / (1000 * 60 * 60);
+
+        if (diffHoras > 48) {
+          const diasExtra = Math.floor((diffHoras - 48) / 24) + 1;
+          const penalidadDiaria = Math.min(diasExtra * 5, 100);
+
+          console.log(`⚠️ Aval #${aval.id} (OT ${aval.numero_ot}) — ${diasExtra}d sin firmar, penalidad ${penalidadDiaria}%`);
+
+          var historial = [];
+          try {
+            if (aval.historial_reconsideracion) {
+              historial = JSON.parse(aval.historial_reconsideracion);
+              if (!Array.isArray(historial)) historial = [];
+            }
+          } catch(e) { historial = []; }
+
+          historial.push({
+            tipo: 'penalidad_firma',
+            dias_sin_firmar: diasExtra,
+            penalidad_porcentaje: penalidadDiaria,
+            fecha: ahora.toISOString()
+          });
+
+          run(`UPDATE avales SET historial_reconsideracion=? WHERE id=?`,
+            [JSON.stringify(historial), aval.id]);
+
+          // Alerta al técnico
+          if (aval.tecnico_email) {
+            const { enviarEmail: alertaEmail } = require('./email');
+            alertaEmail({
+              to: [aval.tecnico_email],
+              subject: `⚠️ PENALIDAD — Aval #${aval.id} sin firmar (${diasExtra}d) — ${penalidadDiaria}% de bono`,
+              html: `<h2>⚠️ Alerta de Penalidad por Firma Pendiente</h2>
+                <p><strong>OT:</strong> ${aval.numero_ot}</p>
+                <p><strong>Cliente:</strong> ${aval.cliente_nombre}</p>
+                <p><strong>Teléfono:</strong> ${aval.cliente_telefono || 'N/A'}</p>
+                <p><strong>Días sin firmar:</strong> ${diasExtra}</p>
+                <p><strong>Penalidad acumulada:</strong> -${penalidadDiaria}% del bono</p>
+                <p style="color:red;font-weight:bold">Gestiona la firma del cliente lo antes posible para evitar más penalidad.</p>
+                <p><a href="${dashUrl}">Ir al Dashboard</a></p>`
+            }).catch(err => console.error('Error email penalidad 48h:', err));
+          }
+
+          // Alerta a admin/lider
+          const adminEmails = queryAll("SELECT email FROM usuarios WHERE (rol='admin' OR rol='superadmin' OR rol='lider') AND email IS NOT NULL");
+          const recipients = adminEmails.map(a => a.email).filter(Boolean);
+          if (recipients.length > 0) {
+            const { enviarEmail: alertaAdmin } = require('./email');
+            alertaAdmin({
+              to: recipients,
+              subject: `🚨 ALERTA: Aval #${aval.id} (OT ${aval.numero_ot}) sin firmar — penalidad activa`,
+              html: `<h2>🚨 Aval sin firma superó 48h</h2>
+                <p><strong>OT:</strong> ${aval.numero_ot}</p>
+                <p><strong>Aval ID:</strong> ${aval.id}</p>
+                <p><strong>Técnico:</strong> ${aval.tecnico_nombre || 'N/A'} ${aval.tecnico_telefono ? '('+aval.tecnico_telefono+')' : ''}</p>
+                <p><strong>Cliente:</strong> ${aval.cliente_nombre}</p>
+                <p><strong>Días sin firmar:</strong> ${diasExtra}</p>
+                <p><strong>Penalidad:</strong> -${penalidadDiaria}% del bono</p>
+                <p><em>El técnico fue notificado por email. El administrador puede hacer confirmación express para detener la penalidad.</em></p>
+                <p><a href="${dashUrl}">Ir al Dashboard</a></p>`
+            }).catch(err => console.error('Error email alerta admin 48h:', err));
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error en cron de avales pendientes:', e);
+    }
+  }
+
+  // Ejecutar inmediatamente al iniciar, luego cada hora
+  verificarAvalesPendientes();
+  setInterval(verificarAvalesPendientes, INTERVALO);
+  console.log('⏰ Cron de avales sin firma iniciado (cada hora)');
 }
 
 start();
