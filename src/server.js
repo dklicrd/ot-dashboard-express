@@ -1887,10 +1887,14 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
 
     // Get all completed OTs (aval confirmado) in range
     const proyectos = queryAll(`
-      SELECT ot.*, c.nombre as cliente_nombre, p.nombre_proyecto,
+      SELECT ot.*, c.nombre as cliente_nombre, c.id as cliente_id, p.nombre_proyecto,
              a.id as aval_id,
+             a.trabajo_completado, a.detalle_trabajo_real,
+             a.penalizado_foto, a.skip_survey, a.skip_survey_pct,
+             a.reapertura_penalizado, a.origen,
+             a.historial_reconsideracion,
              e.tiempo_entrega, e.desempeno_equipo, e.presentacion_equipo,
-             e.calidad_productos, e.calidad_entrenamientos
+             e.calidad_productos, e.calidad_entrenamientos, e.porcentaje_final
       FROM ordenes_trabajo ot
       JOIN clientes c ON ot.cliente_id = c.id
       LEFT JOIN avales a ON a.orden_trabajo_id = ot.id AND a.estado = 'confirmado'
@@ -1900,8 +1904,72 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
         AND (ot.fecha_fin >= ? AND ot.fecha_fin <= ?)
     `, [fInicio, fFin]);
 
-    // Calculate per-project
-    const proyectosData = proyectos.map(ot => {
+    // Separar OTs por origen
+    const proyectosNormales = proyectos.filter(ot => !ot.origen || (ot.origen !== 'garantia' && ot.origen !== 'levantamiento'));
+    const proyectosGarantia = proyectos.filter(ot => ot.origen === 'garantia' || ot.origen === 'levantamiento');
+
+    // ════════════════════════════════════════════════════════
+    // Calcular penalidades dinámicas por aval v2
+    // ════════════════════════════════════════════════════════
+    function calcularPenalidadAval(aval, ot) {
+      var penalidades = [];
+      var penalidadTotal = 0;
+
+      // P3: Reapertura penalizada (-50%)
+      if (aval && aval.reapertura_penalizado) {
+        penalidades.push({ tipo: 'reapertura', porcentaje: 50, descripcion: 'OT reabierta' });
+        penalidadTotal += 50;
+      }
+
+      // P2: Foto penalizada
+      if (aval && aval.penalizado_foto) {
+        // Si tiene encuesta negativa (< 3 de promedio), -70%; si no -50%
+        const encuestaQuery = queryFirst(`
+          SELECT (tiempo_entrega + desempeno_equipo + presentacion_equipo + calidad_productos + calidad_entrenamientos) / 5.0 as prom
+          FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND estado = 'completada'
+        `, [ot.id]);
+        const pctFoto = (encuestaQuery && encuestaQuery.prom !== null && encuestaQuery.prom < 3) ? 70 : 50;
+        penalidades.push({ tipo: 'foto', porcentaje: pctFoto, descripcion: 'Foto ilegible' + (pctFoto === 70 ? ' (encuesta negativa)' : '') });
+        penalidadTotal += pctFoto;
+      }
+
+      // P1: Penalidad por firma (del historial_reconsideracion)
+      if (aval && aval.historial_reconsideracion) {
+        try {
+          var historial = JSON.parse(aval.historial_reconsideracion);
+          if (Array.isArray(historial)) {
+            for (var h of historial) {
+              if (h.tipo === 'penalidad_firma' && h.penalidad_porcentaje) {
+                penalidades.push({ tipo: 'firma', porcentaje: h.penalidad_porcentaje, descripcion: h.dias_sin_firmar + 'd sin firmar', dias: h.dias_sin_firmar });
+                penalidadTotal += h.penalidad_porcentaje;
+              }
+            }
+          }
+        } catch(e) {}
+      }
+
+      // P4: Cancelada por admin (0% penalidad) — se maneja en estado cancelada
+      // P5: Abandono técnico (-100%) — se maneja en estado cancelada
+
+      // Si tiene skip_survey (confirmación express), usar el pct manual
+      if (aval && aval.skip_survey) {
+        // El skip_survey_pct es el % de bono asignado, no penalidad
+        // Lo aplicamos como factor multiplicador al final
+      }
+
+      return { penalidades, penalidadTotal: Math.min(penalidadTotal, 100) };
+    }
+
+    // Calcular para proyectos normales con penalidades
+    const proyectosData = proyectosNormales.map(ot => {
+      const aval = { id: ot.aval_id, reapertura_penalizado: ot.reapertura_penalizado, penalizado_foto: ot.penalizado_foto, historial_reconsideracion: ot.historial_reconsideracion, skip_survey: ot.skip_survey, skip_survey_pct: ot.skip_survey_pct };
+      const { penalidades, penalidadTotal } = calcularPenalidadAval(aval, ot);
+      
+      // Si tiene skip_survey (confirmación express), aplicar % manual
+      let factorBono = 1; // 100% por defecto
+      if (aval.skip_survey && aval.skip_survey_pct !== null) {
+        factorBono = aval.skip_survey_pct / 100;
+      }
       // Get confirmed products from aval
       let cerradurasNuevas = 0, cajasNuevas = 0, controlAccesoNuevo = 0, ahorroEnergiaNuevo = 0;
       let cerradurasMant = 0, cajasMant = 0, ahorroEnergiaMant = 0;
@@ -1979,9 +2047,24 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
       // Deducción
       let deduccionPorcentaje = 0;
       let total = subtotal;
+
+      // Penalidades v2
+      let penalidadPorcentaje = penalidadTotal;
+      let descuentoPenalidad = 0;
+
+      // Aplicar factor de skip_survey primero
+      total = total * factorBono;
+
+      // Luego aplicar deducción por evaluación (existente)
       if (evaluacion && evaluacion.promedio < 1.0) {
         deduccionPorcentaje = 1 - evaluacion.promedio;
-        total = subtotal * (1 - deduccionPorcentaje);
+        total = total * (1 - deduccionPorcentaje);
+      }
+
+      // Finalmente aplicar penalidades
+      if (penalidadTotal > 0) {
+        descuentoPenalidad = total * (penalidadTotal / 100);
+        total = total - descuentoPenalidad;
       }
 
       return {
@@ -1990,6 +2073,7 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
         habitaciones: 1,
         fecha_inicio: ot.fecha_inicio,
         fecha_fin: ot.fecha_fin,
+        origen: ot.origen || 'instalacion',
         proyecto_nuevo: {
           cerraduras: cerradurasNuevas,
           cajas_fuertes: cajasNuevas,
@@ -2006,17 +2090,42 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
           cajas_fuertes: valCajaNuevo + valCajaMant,
           control_acceso: valCtrlNuevo,
           ahorro_energia: valAhorroNuevo + valAhorroMant,
-          subtotal: Math.round(subtotal * 100) / 100
+          subtotal: Math.round(subtotal * 100) / 100,
+          factor_bono: Math.round(factorBono * 100) / 100,
+          penalidad_porcentaje: penalidadTotal,
+          penalidades: penalidades
         },
         evaluacion: evaluacion,
         deduccion_porcentaje: Math.round(deduccionPorcentaje * 10000) / 10000,
+        descuento_penalidad: Math.round(descuentoPenalidad * 100) / 100,
         total: Math.round(total * 100) / 100
       };
     });
 
+    // Calcular extra 5% trimestral por garantías con ≥95% satisfacción
+    let extraGarantiaPct = 0;
+    let garantiasElegibles = 0;
+    let garantiasTotal = 0;
+    if (proyectosGarantia.length > 0) {
+      for (var g of proyectosGarantia) {
+        garantiasTotal++;
+        const encG = queryFirst(`
+          SELECT (tiempo_entrega + desempeno_equipo + presentacion_equipo + calidad_productos + calidad_entrenamientos) / 5.0 as prom
+          FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND estado = 'completada'
+        `, [g.id]);
+        if (encG && encG.prom !== null && encG.prom >= 4.75) {
+          garantiasElegibles++;
+        }
+      }
+      const pctSatisfaccion = garantiasTotal > 0 ? (garantiasElegibles / garantiasTotal * 100) : 0;
+      if (pctSatisfaccion >= 95) {
+        extraGarantiaPct = 5;
+      }
+    }
+
     // Sum totals
     let totalCerraduras = 0, totalCajas = 0, totalControlAcceso = 0, totalAhorroEnergia = 0;
-    let totalBruto = 0, totalDeduccion = 0;
+    let totalBruto = 0, totalDeduccion = 0, totalPenalidad = 0;
     let sumEval = 0, countEval = 0;
 
     for (const p of proyectosData) {
@@ -2025,7 +2134,8 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
       totalControlAcceso += p.valores.control_acceso;
       totalAhorroEnergia += p.valores.ahorro_energia;
       totalBruto += p.valores.subtotal;
-      totalDeduccion += (p.valores.subtotal - p.total);
+      totalPenalidad += (p.descuento_penalidad || 0);
+      totalDeduccion += (p.valores.subtotal - p.total) - (p.descuento_penalidad || 0);
       if (p.evaluacion) {
         sumEval += p.evaluacion.promedio;
         countEval++;
@@ -2034,7 +2144,7 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
 
     const evalPromedioGeneral = countEval > 0 ? Math.round((sumEval / countEval) * 100) / 100 : null;
     const porcDeduccionGeneral = totalBruto > 0 ? Math.round((totalDeduccion / totalBruto) * 10000) / 10000 : 0;
-    const totalADistribuir = Math.round((totalBruto - totalDeduccion) * 100) / 100;
+    const totalADistribuir = Math.round((totalBruto - totalDeduccion - totalPenalidad) * 100) / 100;
 
     // Distribución por técnico
     const distTecnicos = [
@@ -2046,17 +2156,22 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
       { nombre: 'Rosaura Nivar', porcentaje: 0.10 },
     ];
 
+    // Aplicar extra 5% trimestral a distribución
     const distribucion = distTecnicos.map(t => ({
       tecnico: t.nombre,
       porcentaje: t.porcentaje,
       valor_bruto: Math.round(t.porcentaje * totalADistribuir * 100) / 100,
-      adicionales: 0,
-      total: Math.round(t.porcentaje * totalADistribuir * 100) / 100
+      adicionales: Math.round(t.porcentaje * totalADistribuir * extraGarantiaPct / 100 * 100) / 100,
+      total: Math.round(t.porcentaje * totalADistribuir * (1 + extraGarantiaPct/100) * 100) / 100
     }));
 
     const resultado = {
       periodo: { inicio: fInicio, fin: fFin },
       proyectos: proyectosData,
+      proyectos_garantia_count: proyectosGarantia.length,
+      garantias_elegibles: garantiasElegibles,
+      garantias_total: garantiasTotal,
+      extra_garantia_pct: extraGarantiaPct,
       resumen: {
         total_proyectos: proyectosData.length,
         total_cerraduras: Math.round(totalCerraduras * 100) / 100,
@@ -2067,7 +2182,10 @@ app.get('/api/reporte/bono', authMiddleware, adminOnly, (req, res) => {
         total_bruto: Math.round(totalBruto * 100) / 100,
         porcentaje_deduccion: porcDeduccionGeneral,
         total_deduccion: Math.round(totalDeduccion * 100) / 100,
-        total_a_distribuir: totalADistribuir
+        total_penalidad: Math.round(totalPenalidad * 100) / 100,
+        total_a_distribuir: totalADistribuir,
+        extra_garantia_pct: extraGarantiaPct,
+        extra_garantia_valor: Math.round(totalADistribuir * extraGarantiaPct / 100 * 100) / 100
       },
       distribucion
     };
