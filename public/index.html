@@ -3657,17 +3657,11 @@ window.submitNuevoUsuario = async function (e) {
 
 // ============ EDITAR USUARIO ============
 window.editarUsuario = function (id, nombre, email, rol, telefono) {
-  showModal('editar-usuario');
-  setTimeout(function() {
-    document.getElementById('eu-id').value = id;
-    document.getElementById('eu-nombre').value = nombre;
-    document.getElementById('eu-email').value = email;
-    document.getElementById('eu-rol').value = rol;
-    document.getElementById('eu-tel').value = telefono;
-  }, 100);
+  showModal('editar-usuario', { id: id, nombre: nombre, email: email, rol: rol, telefono: telefono });
 };
 
 function renderModalEditarUsuario() {
+  var d = (modals['editar-usuario'] && modals['editar-usuario'].data) || {};
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('editar-usuario')">
       <div class="modal-content max-w-md">
@@ -3677,17 +3671,17 @@ function renderModalEditarUsuario() {
         </div>
         <form onsubmit="submitEditarUsuario(event)" class="p-6 space-y-4">
           <div id="eu-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
-          <input type="hidden" id="eu-id">
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label><input type="text" id="eu-nombre" class="input-field" required></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico *</label><input type="email" id="eu-email" class="input-field" required></div>
+          <input type="hidden" id="eu-id" value="${escHtml(d.id||'')}">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label><input type="text" id="eu-nombre" class="input-field" value="${escHtml(d.nombre||'')}" required></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico *</label><input type="email" id="eu-email" class="input-field" value="${escHtml(d.email||'')}" required></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña <span class="text-gray-400 font-normal">(dejar vacío para mantener actual)</span></label><input type="password" id="eu-pass" class="input-field" minlength="6"></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Rol *</label>
             <select id="eu-rol" class="select-field">
-              <option value="tecnico">Técnico</option>
-              <option value="admin">Administrador</option>
-              <option value="servicio_cliente">Servicio al Cliente</option>
+              <option value="tecnico"${d.rol==='tecnico'?' selected':''}>Técnico</option>
+              <option value="admin"${d.rol==='admin'?' selected':''}>Administrador</option>
+              <option value="servicio_cliente"${d.rol==='servicio_cliente'?' selected':''}>Servicio al Cliente</option>
             </select></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input type="text" id="eu-tel" class="input-field" placeholder="809-555-0100"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input type="text" id="eu-tel" class="input-field" value="${escHtml(d.telefono||'')}" placeholder="809-555-0100"></div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" onclick="closeModal('editar-usuario')" class="btn-secondary">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar Cambios</button>
