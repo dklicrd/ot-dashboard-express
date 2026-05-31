@@ -1487,7 +1487,7 @@ function renderDetalleAvalContent(aval, productos, ot) {
           <details class="text-xs text-gray-500">
             <summary class="cursor-pointer hover:text-gray-700">📋 Historial de reconsideración (${(()=>{try{return JSON.parse(aval.historial_reconsideracion).length}catch(e){return 0}})()})</summary>
             <div class="mt-2 space-y-2">
-              ${(()=>{try{return JSON.parse(aval.historial_reconsideracion).map(function(h,i){ return '<div class="bg-gray-50 rounded p-2 border-l-4 '+(h.tipo==='rechazo_calidad'?'border-red-400':'border-green-400')+'"><p class="font-medium">'+(h.tipo==='rechazo_calidad'?'❌ Rechazo #'+(i+1):'🔄 Reconsideración #'+(i+1))+'</p><p>'+escHtml(h.motivo||h.nuevo_motivo||'')+'</p><p class="text-gray-400">'+new Date(h.fecha).toLocaleString()+'</p></div>';}).join('') : ''}catch(e){return ''}})()}
+              ${(()=>{try{return JSON.parse(aval.historial_reconsideracion).map(function(h,i){ return '<div class="bg-gray-50 rounded p-2 border-l-4 '+(h.tipo==='rechazo_calidad'?'border-red-400':'border-green-400')+'"><p class="font-medium">'+(h.tipo==='rechazo_calidad'?'❌ Rechazo #'+(i+1):'🔄 Reconsideración #'+(i+1))+'</p><p>'+escHtml(h.motivo||h.nuevo_motivo||'')+'</p><p class="text-gray-400">'+new Date(h.fecha).toLocaleString()+'</p></div>';}).join('')}catch(e){return ''}})()}
             </div>
           </details>
         </div>
