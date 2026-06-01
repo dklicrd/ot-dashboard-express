@@ -23,10 +23,10 @@
     {
       "id": 3,
       "nombre": "Víctor De La Rosa",
-      "email": "victor@sistema.com",
+      "email": "manuelgreen.vg@gmail.com",
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
       "rol": "tecnico",
-      "telefono": "809-100-2002",
+      "telefono": "8292924524",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
@@ -816,7 +816,7 @@
       "fecha_limite": "2026-06-03",
       "estado": "pendiente",
       "aval_id": 3,
-      "recordatorio_1_enviado": 0,
+      "recordatorio_1_enviado": 1,
       "recordatorio_2_enviado": 0,
       "contactado_por": null,
       "fecha_contacto": null,
