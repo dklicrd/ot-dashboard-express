@@ -3311,7 +3311,7 @@ function renderModalNuevoAval() {
         <form onsubmit="submitNuevoAval(event)" class="p-6 space-y-4">
           <div id="av-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
-            <select id="av-ot" class="select-field" onchange="cargarDatosAval()"><option value="">Seleccionar OT aprobada...</option></select></div>
+            <select id="av-ot" class="select-field" onchange="cargarDatosAval()"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo</label><textarea id="av-desc" class="input-field" rows="3"></textarea></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Materiales / Repuestos</label><textarea id="av-mat" class="input-field" rows="3" placeholder="Lista de materiales utilizados"></textarea></div>
           <div class="grid grid-cols-2 gap-4">
@@ -3334,11 +3334,11 @@ let _otsAprobadas = [];
 
 window.cargarDatosAval = async function () {
   try {
-    const d = await api('GET', '/api/ordenes?estado=aprobada');
+    const d = await api('GET', '/api/ordenes?estado=aprobada,en_curso');
     _otsAprobadas = d.ordenes || [];
     const sel = document.getElementById('av-ot');
-    sel.innerHTML = '<option value="">Seleccionar OT aprobada...</option>' +
-      _otsAprobadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)} (${o.tipo_servicio})</option>`).join('');
+    sel.innerHTML = '<option value="">Seleccionar OT...</option>' +
+      _otsAprobadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)} (${o.tipo_servicio}) [${o.estado.replace('_', ' ')}]</option>`).join('');
   } catch (e) { /* ignore */ }
 };
 

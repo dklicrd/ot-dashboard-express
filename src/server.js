@@ -458,7 +458,11 @@ app.get('/api/ordenes', authMiddleware, (req, res) => {
   `;
   const params = [];
 
-  if (estado) { sql += ' AND ot.estado = ?'; params.push(estado); }
+  if (estado) {
+    const estados = estado.split(',');
+    sql += ' AND ot.estado IN (' + estados.map(() => '?').join(',') + ')';
+    params.push(...estados);
+  }
   if (req.user.rol === 'tecnico') { sql += ' AND ot.tecnico_id = ?'; params.push(req.user.userId); }
 
   sql += ' ORDER BY ot.creado_en DESC LIMIT 100';
