@@ -15,7 +15,7 @@
       "nombre": "Máximo Vallejo",
       "email": "m.vallejo@grupoarboleda.com",
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
-      "rol": "admin",
+      "rol": "tecnico",
       "telefono": "8292925002",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
