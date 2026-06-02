@@ -683,12 +683,11 @@ async function initDatabase() {
   // Admin por defecto — solo si no hay backup que restaurar
   // (Esta sección ya no se ejecuta porque el backup se restaura arriba)
 
-  // Solo insertar seeds demo si la BD está realmente vacía (sin datos reales)
-  // Datos reales = tiene clientes u OTs (más allá del admin por defecto)
-  const tieneDatosReales = (queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0) > 0 ||
-                          (queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0) > 0;
+  // Siempre ejecutar seeds demo si la BD está vacía (sin clientes)
+  const tieneDatosReales = (queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0) > 0;
 
   if (!tieneDatosReales) {
+    console.log('🌱 BD vacía — ejecutando seeds demo...');
     // Productos demo (solo si no hay productos)
     const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
     if (numProductos === 0) {
