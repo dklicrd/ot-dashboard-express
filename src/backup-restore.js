@@ -161,7 +161,7 @@ function restoreDatabase() {
       // Orden de limpieza e inserción: usuarios primero para evitar FK issues
       const orderedTables = ['usuarios', 'clientes', 'productos', 'presupuestos', 'ordenes_trabajo',
         'orden_trabajo_productos', 'avales', 'avales_legacy', 'encuestas_satisfaccion',
-        'configuracion_incentivos', 'configuracion_documentos', 'reportes_incentivos', 'notificaciones_ot'];
+        'configuracion_incentivos', 'configuracion_documentos', 'reportes_incentivos'];
 
       // Primera pasada: limpiar TODO (incluye usuarios, el admin se recrea después)
       for (const table of orderedTables) {

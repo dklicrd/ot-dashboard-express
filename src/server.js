@@ -2745,7 +2745,7 @@ app.get(/^\/(?!api\/|uploads\/|orden\/|aval-publico\/|cambio-fecha\/).*/, (req, 
 app.post('/api/limpiar-ots', authMiddleware, superAdminOnly, (req, res) => {
   try {
     transaction(() => {
-      const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','notificaciones_ot','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos'];
+      const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos'];
       for (const t of tables) {
         try { run('DELETE FROM ' + t); } catch(e) { console.warn('No se pudo limpiar ' + t); }
       }
@@ -2765,7 +2765,7 @@ app.post('/api/limpiar-ots', authMiddleware, superAdminOnly, (req, res) => {
 app.post('/api/limpiar-bd', authMiddleware, superAdminOnly, (req, res) => {
   try {
     transaction(() => {
-      const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','notificaciones_ot','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos','configuracion_incentivos','configuracion_documentos','productos','clientes'];
+      const tables = ['orden_trabajo_productos','avales_legacy','encuestas_satisfaccion','avales','aval_productos','ordenes_trabajo','presupuestos','reportes_incentivos','configuracion_incentivos','configuracion_documentos','productos','clientes'];
       for (const t of tables) {
         try { run('DELETE FROM ' + t); } catch(e) { console.warn('No se pudo limpiar ' + t); }
       }
