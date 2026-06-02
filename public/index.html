@@ -1500,10 +1500,10 @@ function renderDetalleAvalContent(aval, productos, ot) {
       <div class="flex justify-end gap-3 pt-2 border-t flex-wrap">
         <a href="/api/avales/${aval.id}/pdf" target="_blank" class="btn-secondary flex items-center gap-2"><span>🖨️</span> PDF</a>
         ${isPendiente && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
-          ? `<>
+          ? `
               <button onclick="confirmarAval100(${aval.id})" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar 100%</button>
               <button onclick="habilitarEditarCantidades(${aval.id})" class="btn-warning flex items-center gap-2"><span>✏️</span> Cambiar cantidades</button>
-            </>`
+            `
           : ''}
         ${(isPendiente || aval.estado === 'firmado_cliente') && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
           ? `<button onclick="rechazarAval(${aval.id})" class="btn-danger flex items-center gap-2"><span>❌</span> Rechazar</button>`
@@ -2408,10 +2408,21 @@ window.showModal = function (id, data) {
     // Si es modal de nuevo aval, cargar las OTs en el select
     if (id === 'nuevo-aval') {
       setTimeout(() => {
-        cargarDatosAval();
         _productosOT = [];
         document.getElementById('av-cliente-info')?.classList.add('hidden');
         document.getElementById('av-productos-section')?.classList.add('hidden');
+        // Cargar OTs en el select
+        (async () => {
+          try {
+            const d = await api('GET', '/api/ordenes?estado=aprobada,en_curso');
+            _otsAprobadas = d.ordenes || [];
+            const sel = document.getElementById('av-ot');
+            if (sel) {
+              sel.innerHTML = '<option value="">Seleccionar OT (aprobada o en curso)...</option>' +
+                _otsAprobadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)} (${o.tipo_servicio}) [${o.estado.replace('_', ' ')}]</option>`).join('');
+            }
+          } catch(e) { /* ignore */ }
+        })();
       }, 50);
     }
   });

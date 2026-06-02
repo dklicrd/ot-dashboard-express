@@ -3,92 +3,82 @@
     {
       "id": 1,
       "nombre": "Administrador",
-      "email": "a.plasencia@grupoarboleda.com",
-      "password": "$2a$10$rX/Wm3PmFmd2nWIxwa3rlen.Aj9r10siZyUPotJVbTZIL1VC6VoGG",
-      "rol": "admin",
-      "telefono": "8292924524",
+      "email": "admin@sistema.com",
+      "password": "$2a$10$kWOKIynC3q/Gg0Jp3GnsEuodPworiZTGwb0EJGscDPbwshrFV4wfy",
+      "rol": "superadmin",
+      "telefono": null,
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 2,
       "nombre": "Máximo Vallejo",
-      "email": "m.vallejo@grupoarboleda.com",
-      "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
+      "email": "maximo@sistema.com",
+      "password": "$2a$10$6ANVZKEBAkcN3fL8qQ4afOw9I4dmTNao5hO9af.krFoP0PAeDBUHK",
       "rol": "tecnico",
-      "telefono": "8292925002",
+      "telefono": "809-100-2001",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 3,
       "nombre": "Víctor De La Rosa",
-      "email": "manuelgreen.vg@gmail.com",
-      "password": "$2a$10$DE1LmG7oSrJ6kq9wIRxVzuVTAKtazYlL2jLLOubU.rP2e4u6oCrgK",
+      "email": "victor@sistema.com",
+      "password": "$2a$10$6ANVZKEBAkcN3fL8qQ4afOw9I4dmTNao5hO9af.krFoP0PAeDBUHK",
       "rol": "tecnico",
-      "telefono": "8292924524",
+      "telefono": "809-100-2002",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 4,
       "nombre": "Alexander De Dios",
-      "email": "teamhpsimp@gmail.com",
-      "password": "$2a$10$3di6NM5wk1H4ceqmo0VIG.Tv0HDbwtikI.Q9FNNk/cXdBv326X0Sa",
+      "email": "alexander@sistema.com",
+      "password": "$2a$10$6ANVZKEBAkcN3fL8qQ4afOw9I4dmTNao5hO9af.krFoP0PAeDBUHK",
       "rol": "tecnico",
       "telefono": "809-100-2003",
-      "activo": 0,
-      "creado_en": "2026-05-25 22:49:55"
+      "activo": 1,
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 5,
       "nombre": "Ángel Pérez",
       "email": "angel@sistema.com",
-      "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
+      "password": "$2a$10$6ANVZKEBAkcN3fL8qQ4afOw9I4dmTNao5hO9af.krFoP0PAeDBUHK",
       "rol": "tecnico",
       "telefono": "809-100-2004",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 6,
       "nombre": "Juan Samuel Encarnación",
       "email": "juansam@sistema.com",
-      "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
+      "password": "$2a$10$6ANVZKEBAkcN3fL8qQ4afOw9I4dmTNao5hO9af.krFoP0PAeDBUHK",
       "rol": "tecnico",
       "telefono": "809-100-2005",
-      "activo": 0,
-      "creado_en": "2026-05-25 22:49:55"
+      "activo": 1,
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 7,
       "nombre": "Rosaura Nivar",
-      "email": "r.nivar@grupoarboleda.com",
-      "password": "$2a$10$ZMk/mWRGMemCGQc/la5rSuzSh0cvqCffLgjqz5BbGq8M7GwrrOn7.",
-      "rol": "admin",
+      "email": "rosaura@sistema.com",
+      "password": "$2a$10$6ANVZKEBAkcN3fL8qQ4afOw9I4dmTNao5hO9af.krFoP0PAeDBUHK",
+      "rol": "tecnico",
       "telefono": "809-100-2006",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 8,
       "nombre": "María Santos",
       "email": "maria@sistema.com",
-      "password": "$2a$10$h9o2BYLm8sCgWhMgbvPIve6hz/rfo/gQU4F.AEeGnGFquTfx3V5Hi",
+      "password": "$2a$10$PhL5Z1h6dl2ZB9/Xj8uXI.03cOg3bALqe0SKVr/bvk6Vdp76j1.oG",
       "rol": "servicio_cliente",
       "telefono": null,
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:56"
-    },
-    {
-      "id": 9,
-      "nombre": "Administrador",
-      "email": "admin@sistema.com",
-      "password": "$2a$10$wY8585IYwWrowz1QBqf6i.017DcB0JafOprw7HuNnAP5I.xO02xzG",
-      "rol": "superadmin",
-      "telefono": null,
-      "activo": 1,
-      "creado_en": "2026-05-25 23:46:29"
+      "creado_en": "2026-05-28 14:18:47"
     }
   ],
   "clientes": [
@@ -101,7 +91,7 @@
       "cedula_rnc": "101-12345-6",
       "tipo": "empresa",
       "referencias_ubicacion": null,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 2,
@@ -112,7 +102,7 @@
       "cedula_rnc": "102-23456-7",
       "tipo": "empresa",
       "referencias_ubicacion": null,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 3,
@@ -123,7 +113,7 @@
       "cedula_rnc": "103-34567-8",
       "tipo": "empresa",
       "referencias_ubicacion": null,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 4,
@@ -134,7 +124,7 @@
       "cedula_rnc": null,
       "tipo": "empresa",
       "referencias_ubicacion": null,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 5,
@@ -145,29 +135,7 @@
       "cedula_rnc": null,
       "tipo": "particular",
       "referencias_ubicacion": null,
-      "creado_en": "2026-05-25 22:49:55"
-    },
-    {
-      "id": 6,
-      "nombre": "Prueba de Cliente",
-      "telefono": "8292924524",
-      "email": null,
-      "direccion": "RAFAEL AUGUSTO SANCHEZ NO 75",
-      "cedula_rnc": null,
-      "tipo": "particular",
-      "referencias_ubicacion": null,
-      "creado_en": "2026-05-27 22:31:04"
-    },
-    {
-      "id": 7,
-      "nombre": "Varallo Comercial",
-      "telefono": "8091231234",
-      "email": null,
-      "direccion": null,
-      "cedula_rnc": null,
-      "tipo": "particular",
-      "referencias_ubicacion": null,
-      "creado_en": "2026-06-01 20:39:11"
+      "creado_en": "2026-05-28 14:18:47"
     }
   ],
   "productos": [
@@ -177,7 +145,7 @@
       "categoria": "cerradura",
       "descripcion": "Cerradura eléctrica estándar para puertas",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 2,
@@ -185,7 +153,7 @@
       "categoria": "cerradura",
       "descripcion": "Cerradura con teclado electrónico",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 3,
@@ -193,7 +161,7 @@
       "categoria": "cerradura",
       "descripcion": "Cerradura con lector de huella",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 4,
@@ -201,7 +169,7 @@
       "categoria": "puerta",
       "descripcion": "Puerta de metal reforzado",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 5,
@@ -209,7 +177,7 @@
       "categoria": "puerta",
       "descripcion": "Puerta de vidrio templado de seguridad",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 6,
@@ -217,7 +185,7 @@
       "categoria": "control_acceso",
       "descripcion": "Sistema de control de acceso profesional",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 7,
@@ -225,7 +193,7 @@
       "categoria": "control_acceso",
       "descripcion": "Control de acceso básico con tarjeta",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 8,
@@ -233,7 +201,7 @@
       "categoria": "caja_fuerte",
       "descripcion": "Caja fuerte digital electrónica",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 9,
@@ -241,7 +209,7 @@
       "categoria": "caja_fuerte",
       "descripcion": "Caja fuerte con combinación mecánica",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 10,
@@ -249,7 +217,7 @@
       "categoria": "ahorro_energia",
       "descripcion": "Sistema inteligente de ahorro de energía",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 11,
@@ -257,23 +225,7 @@
       "categoria": "ahorro_energia",
       "descripcion": "Sensor de movimiento para ahorro energético",
       "activo": 1,
-      "creado_en": "2026-05-25 22:49:55"
-    },
-    {
-      "id": 12,
-      "nombre": "cerradura",
-      "categoria": "cerradura",
-      "descripcion": "Creado automaticamente desde OT",
-      "activo": 1,
-      "creado_en": "2026-05-29 21:43:09"
-    },
-    {
-      "id": 13,
-      "nombre": "cerradura",
-      "categoria": "cerradura",
-      "descripcion": "Creado automaticamente desde OT",
-      "activo": 1,
-      "creado_en": "2026-06-01 20:40:38"
+      "creado_en": "2026-05-28 14:18:47"
     }
   ],
   "presupuestos": [
@@ -282,72 +234,170 @@
       "cliente_id": 1,
       "nombre_proyecto": "SECRETS AND DREAMS MICHES",
       "aprobado": 1,
-      "creado_en": "2026-06-01 20:36:23"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 2,
       "cliente_id": 2,
       "nombre_proyecto": "CASA MARINA REEF - FASE 2",
       "aprobado": 1,
-      "creado_en": "2026-06-01 20:36:23"
+      "creado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 3,
       "cliente_id": 3,
       "nombre_proyecto": "HYATT VIVID - MANTENIMIENTO Q1",
       "aprobado": 1,
-      "creado_en": "2026-06-01 20:36:23"
-    },
-    {
-      "id": 4,
-      "cliente_id": 7,
-      "nombre_proyecto": "Cerraduras Gym",
-      "aprobado": 1,
-      "creado_en": "2026-06-01 20:39:28"
+      "creado_en": "2026-05-28 14:18:47"
     }
   ],
   "ordenes_trabajo": [
     {
       "id": 1,
       "numero_ot": "OT-2026-0001",
-      "cliente_id": 7,
+      "cliente_id": 1,
       "tipo_servicio": "instalacion",
-      "descripcion": "Trabajos de instalación ",
+      "descripcion": "Instalación 1230 cerraduras electrónicas - Secrets Royal Beach",
       "presupuesto_aprobado": 1,
-      "monto_total": 300,
-      "tecnico_id": 3,
-      "estado": "en_curso",
+      "monto_total": 101475,
+      "tecnico_id": 2,
+      "estado": "completada",
       "fuente": "manual",
       "archivo_presupuesto": null,
       "notas": null,
-      "creada_por": 9,
-      "fecha_programada": "2026-06-02",
-      "fecha_inicio": "2026-06-01 20:49:59",
-      "fecha_fin": null,
-      "presupuesto_id": 1,
-      "creado_en": "2026-06-01 20:40:38",
-      "actualizado_en": "2026-06-01 20:49:59"
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-10",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
     },
     {
       "id": 2,
       "numero_ot": "OT-2026-0002",
-      "cliente_id": 7,
-      "tipo_servicio": "vtc",
-      "descripcion": "Realizar VTC ",
+      "cliente_id": 2,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Instalación 24 cerraduras - Casa Marina Reef",
       "presupuesto_aprobado": 1,
-      "monto_total": 0,
+      "monto_total": 3600,
       "tecnico_id": 3,
+      "estado": "completada",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-11",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 3,
+      "numero_ot": "OT-2026-0003",
+      "cliente_id": 3,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Instalación 50 cerraduras - Hyatt Vivid",
+      "presupuesto_aprobado": 1,
+      "monto_total": 7500,
+      "tecnico_id": 4,
+      "estado": "completada",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-12",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 4,
+      "numero_ot": "OT-2026-0004",
+      "cliente_id": 1,
+      "tipo_servicio": "mantenimiento",
+      "descripcion": "Mantenimiento preventivo 943 cerraduras",
+      "presupuesto_aprobado": 1,
+      "monto_total": 15000,
+      "tecnico_id": 2,
+      "estado": "completada",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-13",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 5,
+      "numero_ot": "OT-2026-0005",
+      "cliente_id": 3,
+      "tipo_servicio": "mantenimiento",
+      "descripcion": "Mantenimiento 46 cerraduras - Hyatt Vivid",
+      "presupuesto_aprobado": 1,
+      "monto_total": 6900,
+      "tecnico_id": 3,
+      "estado": "completada",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-14",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 6,
+      "numero_ot": "OT-2026-0006",
+      "cliente_id": 4,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Instalación 30 cerraduras - Don Alejandro",
+      "presupuesto_aprobado": 1,
+      "monto_total": 4500,
+      "tecnico_id": 5,
       "estado": "en_curso",
       "fuente": "manual",
       "archivo_presupuesto": null,
       "notas": null,
-      "creada_por": 9,
-      "fecha_programada": "2026-06-02",
-      "fecha_inicio": "2026-06-01 20:50:03",
-      "fecha_fin": null,
-      "presupuesto_id": 2,
-      "creado_en": "2026-06-01 20:45:39",
-      "actualizado_en": "2026-06-01 20:50:03"
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-15",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 7,
+      "numero_ot": "OT-2026-0007",
+      "cliente_id": 5,
+      "tipo_servicio": "reparacion",
+      "descripcion": "Reparación cerradura principal - Juan Pérez",
+      "presupuesto_aprobado": 1,
+      "monto_total": 2500,
+      "tecnico_id": 6,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 1,
+      "fecha_programada": null,
+      "fecha_inicio": null,
+      "fecha_fin": "2026-05-16",
+      "presupuesto_id": null,
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
     }
   ],
   "orden_trabajo_productos": [
@@ -355,7 +405,139 @@
       "id": 1,
       "orden_trabajo_id": 1,
       "producto_id": 1,
-      "cantidad": 2
+      "cantidad": 1230
+    },
+    {
+      "id": 2,
+      "orden_trabajo_id": 2,
+      "producto_id": 1,
+      "cantidad": 24
+    },
+    {
+      "id": 3,
+      "orden_trabajo_id": 3,
+      "producto_id": 3,
+      "cantidad": 50
+    },
+    {
+      "id": 4,
+      "orden_trabajo_id": 4,
+      "producto_id": 1,
+      "cantidad": 943
+    },
+    {
+      "id": 5,
+      "orden_trabajo_id": 5,
+      "producto_id": 1,
+      "cantidad": 46
+    },
+    {
+      "id": 6,
+      "orden_trabajo_id": 6,
+      "producto_id": 4,
+      "cantidad": 30
+    }
+  ],
+  "avales_legacy": [
+    {
+      "id": 1,
+      "orden_trabajo_id": 1,
+      "numero_aval": "AV-2026-0001",
+      "descripcion_trabajo": "Instalación 1230 cerraduras electrónicas - Secrets Royal Beach",
+      "materiales": null,
+      "costo_total": 101475,
+      "forma_pago": null,
+      "garantia": null,
+      "observaciones": null,
+      "estado": "completado",
+      "archivo_pdf_generado": null,
+      "archivo_pdf_firmado": null,
+      "respuestas_digitales": null,
+      "fecha_envio_tecnico": null,
+      "fecha_firma_cliente": null,
+      "fecha_completado": "2026-05-10",
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 2,
+      "orden_trabajo_id": 2,
+      "numero_aval": "AV-2026-0002",
+      "descripcion_trabajo": "Instalación 24 cerraduras - Casa Marina Reef",
+      "materiales": null,
+      "costo_total": 3600,
+      "forma_pago": null,
+      "garantia": null,
+      "observaciones": null,
+      "estado": "completado",
+      "archivo_pdf_generado": null,
+      "archivo_pdf_firmado": null,
+      "respuestas_digitales": null,
+      "fecha_envio_tecnico": null,
+      "fecha_firma_cliente": null,
+      "fecha_completado": "2026-05-11",
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 3,
+      "orden_trabajo_id": 3,
+      "numero_aval": "AV-2026-0003",
+      "descripcion_trabajo": "Instalación 50 cerraduras - Hyatt Vivid",
+      "materiales": null,
+      "costo_total": 7500,
+      "forma_pago": null,
+      "garantia": null,
+      "observaciones": null,
+      "estado": "completado",
+      "archivo_pdf_generado": null,
+      "archivo_pdf_firmado": null,
+      "respuestas_digitales": null,
+      "fecha_envio_tecnico": null,
+      "fecha_firma_cliente": null,
+      "fecha_completado": "2026-05-12",
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 4,
+      "orden_trabajo_id": 4,
+      "numero_aval": "AV-2026-0004",
+      "descripcion_trabajo": "Mantenimiento preventivo 943 cerraduras",
+      "materiales": null,
+      "costo_total": 15000,
+      "forma_pago": null,
+      "garantia": null,
+      "observaciones": null,
+      "estado": "completado",
+      "archivo_pdf_generado": null,
+      "archivo_pdf_firmado": null,
+      "respuestas_digitales": null,
+      "fecha_envio_tecnico": null,
+      "fecha_firma_cliente": null,
+      "fecha_completado": "2026-05-13",
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
+    },
+    {
+      "id": 5,
+      "orden_trabajo_id": 5,
+      "numero_aval": "AV-2026-0005",
+      "descripcion_trabajo": "Mantenimiento 46 cerraduras - Hyatt Vivid",
+      "materiales": null,
+      "costo_total": 6900,
+      "forma_pago": null,
+      "garantia": null,
+      "observaciones": null,
+      "estado": "completado",
+      "archivo_pdf_generado": null,
+      "archivo_pdf_firmado": null,
+      "respuestas_digitales": null,
+      "fecha_envio_tecnico": null,
+      "fecha_firma_cliente": null,
+      "fecha_completado": "2026-05-14",
+      "creado_en": "2026-05-28 14:18:47",
+      "actualizado_en": "2026-05-28 14:18:47"
     }
   ],
   "configuracion_incentivos": [
@@ -374,13 +556,13 @@
       "mant_cerradura": 82.5,
       "mant_caja_fuerte": 30,
       "mant_ahorro_energia": 37.5,
-      "actualizado_en": "2026-05-25 22:49:54"
+      "actualizado_en": "2026-05-28 14:18:47"
     }
   ],
   "configuracion_documentos": [
     {
       "id": 1,
-      "nombre_empresa": "ARBOLEDA HPS-IMPORT",
+      "nombre_empresa": "DKLIC PLUS INVESTMENT",
       "eslogan": "",
       "direccion": "",
       "telefono": "",
@@ -389,7 +571,7 @@
       "logo_base64": "",
       "pie_pagina": "Documento generado por el sistema",
       "color_primario": "#1e40af",
-      "actualizado_en": "2026-05-26 14:18:16"
+      "actualizado_en": "2026-05-28 14:18:47"
     }
   ]
 }
