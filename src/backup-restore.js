@@ -17,6 +17,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 const { getDb, queryAll, queryFirst, run, transaction } = require('./db');
 const { subirBackupFTP } = require('./ftp-backup');
 
@@ -194,9 +195,7 @@ function restoreDatabase() {
       // SOBRESCRIBIR la password del admin con '3806.Adm' para garantizar acceso
       const adminExists = queryFirst('SELECT id FROM usuarios WHERE email = ?', ['admin@sistema.com']);
       if (adminExists) {
-        // La transacción ya no permite usar bcrypt (async), así que usamos hashSync
         try {
-          const bcrypt = require('bcryptjs');
           const hashFijo = bcrypt.hashSync('3806.Adm', 10);
           run('UPDATE usuarios SET password = ? WHERE email = ?', [hashFijo, 'admin@sistema.com']);
           console.log('🔐 Password de admin fijada a 3806.Adm');
