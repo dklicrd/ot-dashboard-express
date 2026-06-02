@@ -34,14 +34,19 @@ async function start() {
   try {
     await getDb();
     await initDatabase();
+  } catch (e) {
+    console.error('⚠️ Error inicializando BD (el servidor intentará arrancar de todas formas):', e.message);
+    console.error(e.stack);
+  }
 
+  try {
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);
       // Iniciar cron de encuestas
       iniciarCronEncuestas();
     });
   } catch (e) {
-    console.error('Error inicializando BD:', e.message);
+    console.error('Error iniciando servidor:', e.message);
     process.exit(1);
   }
 }

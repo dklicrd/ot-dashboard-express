@@ -43,8 +43,7 @@ function exportDatabase() {
       'encuestas_satisfaccion',
       'configuracion_incentivos',
       'configuracion_documentos',
-      'reportes_incentivos',
-      'notificaciones_ot'
+      'reportes_incentivos'
     ];
 
     const backup = {};
