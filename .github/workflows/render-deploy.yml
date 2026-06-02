@@ -9,17 +9,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render Deploy
-        run: |
-          echo "🚀 Triggering deploy on Render..."
-          # Intentar login y luego forzar deploy via API interna
-          # Primero check si la app responde
-          echo "📡 Checking current Render version..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://ot-dashboard-9mn9.onrender.com/" --max-time 15 || echo "000")
-          echo "Status: $STATUS"
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          # También podemos notificar al usuario que haga deploy manual
-          echo "✅ Notificado: se requiere deploy manual en Render Dashboard"
-          echo ""
-          echo "👉 Ve a: https://dashboard.render.com/web/srv-cq9agft6l47c73c2qaag"
-          echo "👉 Click: Manual Deploy → Deploy latest commit"
+      - name: Trigger Render Deploy via Webhook
+        run: |
+          echo "✅ Push a master detectado"
+          # El webhook de Render se activa automáticamente cuando hay push a master
+          # Si no está configurado, se necesita deploy manual
+          echo "👉 Render debería detectar el push automáticamente"
+          echo "👉 Si no, haz deploy manual en:"
+          echo "   https://dashboard.render.com/"

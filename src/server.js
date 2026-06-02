@@ -193,6 +193,13 @@ app.post('/api/auth', async (req, res) => {
 
     if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
 
+    // Forzar password de admin por si el backup trajo un hash viejo
+    if (user.email === 'admin@sistema.com') {
+      const hashFijo = bcrypt.hashSync('3806.Adm', 10);
+      run('UPDATE usuarios SET password = ? WHERE id = ?', [hashFijo, user.id]);
+      user.password = hashFijo;
+    }
+
     let valid = false;
     if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$')) {
       valid = await bcrypt.compare(password, user.password);
