@@ -157,6 +157,17 @@
       "tipo": "particular",
       "referencias_ubicacion": null,
       "creado_en": "2026-05-27 22:31:04"
+    },
+    {
+      "id": 7,
+      "nombre": "Varallo Comercial",
+      "telefono": "8091231234",
+      "email": null,
+      "direccion": null,
+      "cedula_rnc": null,
+      "tipo": "particular",
+      "referencias_ubicacion": null,
+      "creado_en": "2026-06-01 20:39:11"
     }
   ],
   "productos": [
@@ -255,6 +266,75 @@
       "descripcion": "Creado automaticamente desde OT",
       "activo": 1,
       "creado_en": "2026-05-29 21:43:09"
+    },
+    {
+      "id": 13,
+      "nombre": "cerradura",
+      "categoria": "cerradura",
+      "descripcion": "Creado automaticamente desde OT",
+      "activo": 1,
+      "creado_en": "2026-06-01 20:40:38"
+    }
+  ],
+  "presupuestos": [
+    {
+      "id": 1,
+      "cliente_id": 1,
+      "nombre_proyecto": "SECRETS AND DREAMS MICHES",
+      "aprobado": 1,
+      "creado_en": "2026-06-01 20:36:23"
+    },
+    {
+      "id": 2,
+      "cliente_id": 2,
+      "nombre_proyecto": "CASA MARINA REEF - FASE 2",
+      "aprobado": 1,
+      "creado_en": "2026-06-01 20:36:23"
+    },
+    {
+      "id": 3,
+      "cliente_id": 3,
+      "nombre_proyecto": "HYATT VIVID - MANTENIMIENTO Q1",
+      "aprobado": 1,
+      "creado_en": "2026-06-01 20:36:23"
+    },
+    {
+      "id": 4,
+      "cliente_id": 7,
+      "nombre_proyecto": "Cerraduras Gym",
+      "aprobado": 1,
+      "creado_en": "2026-06-01 20:39:28"
+    }
+  ],
+  "ordenes_trabajo": [
+    {
+      "id": 1,
+      "numero_ot": "OT-2026-0001",
+      "cliente_id": 7,
+      "tipo_servicio": "instalacion",
+      "descripcion": "Trabajos de instalación ",
+      "presupuesto_aprobado": 1,
+      "monto_total": 300,
+      "tecnico_id": 3,
+      "estado": "pendiente",
+      "fuente": "manual",
+      "archivo_presupuesto": null,
+      "notas": null,
+      "creada_por": 9,
+      "fecha_programada": "2026-06-02",
+      "fecha_inicio": null,
+      "fecha_fin": null,
+      "presupuesto_id": 4,
+      "creado_en": "2026-06-01 20:40:38",
+      "actualizado_en": "2026-06-01 20:40:38"
+    }
+  ],
+  "orden_trabajo_productos": [
+    {
+      "id": 1,
+      "orden_trabajo_id": 1,
+      "producto_id": 1,
+      "cantidad": 2
     }
   ],
   "configuracion_incentivos": [
