@@ -184,6 +184,15 @@ async function cancelarOT(id) {
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
 
+async function eliminarOT(id, cliente, numeroOt) {
+  if (!confirm(`¿Estás seguro de eliminar la ${numeroOt} de ${cliente}?\n\n⚠️ Esta acción eliminará permanentemente la orden de trabajo y todos sus registros asociados (productos, avales, encuestas).\n\nEsta acción NO se puede deshacer.`)) return;
+  try {
+    await api('DELETE', '/api/ordenes/' + id);
+    toast('OT eliminada permanentemente');
+    render();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+};
+
 async function verAval(avalId, otId) {
   if (!avalId) {
     try {
@@ -570,6 +579,7 @@ async function renderOrdenes() {
 
     // Build action buttons based on estado
     let actions = '';
+    const isAdmin = state.user?.rol === 'admin' || state.user?.rol === 'superadmin';
     if (ot.estado === 'pendiente') {
       actions += `<button onclick="iniciarOT(\`${ot.id}\`)" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Iniciar OT">▶️</button>`;
       actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
@@ -583,6 +593,13 @@ async function renderOrdenes() {
       actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
       actions += `<button onclick="compartirAval(${ot.aval_id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Compartir Aval">🔗</button>`;
       actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+    }
+    // Botón eliminar solo visible para admin/superadmin
+    if (isAdmin) {
+      // Solo mostrar eliminar para OTs canceladas o completadas (más seguras de borrar)
+      if (ot.estado === 'cancelada' || ot.estado === 'completada' || ot.estado === 'pendiente') {
+        actions += `<button onclick="eliminarOT(${ot.id}, '${escHtml(ot.cliente_nombre).replace(/'/g, "\\'")}', '${ot.numero_ot}')" class="btn-icon bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-red-600 border border-gray-200" title="Eliminar OT">🗑️</button>`;
+      }
     }
 
     return `
