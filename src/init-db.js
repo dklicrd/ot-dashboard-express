@@ -270,10 +270,10 @@ async function initDatabase() {
 
   // ============ ENCUESTAS ============
   const encTableInfo = queryAll("PRAGMA table_info('encuestas_satisfaccion')");
+  const hasAvalLegacyId = encTableInfo.some(c => c.name === 'aval_legacy_id');
   if (encTableInfo.length > 0) {
-    // Migrate to reference avales_legacy if it references avales
-    const hasAvalRef = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='encuestas_satisfaccion' AND sql LIKE '%REFERENCES avales%'").length > 0;
-    if (hasAvalRef) {
+    // Migrate to reference avales_legacy if it still references avales (old schema)
+    if (!hasAvalLegacyId) {
       console.log('🔧 Migrando referencia aval_id en encuestas...');
       run('DROP TABLE IF EXISTS encuestas_satisfaccion_old');
       run('ALTER TABLE encuestas_satisfaccion RENAME TO encuestas_satisfaccion_old');
