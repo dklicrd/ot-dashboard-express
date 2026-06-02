@@ -385,8 +385,11 @@ const navItems = {
   ],
   tecnico: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
-    { id: 'ordenes', label: 'Mis Órdenes', icon: '📋' },
-    { id: 'avales', label: 'Mis Avales', icon: '✅' },
+    { id: 'ordenes', label: 'Órdenes de Trabajo', icon: '📋' },
+    { id: 'avales', label: 'Avales', icon: '✅' },
+    { id: 'encuestas', label: 'Encuestas', icon: '📝' },
+    { id: 'reportes', label: 'Reportes', icon: '📈' },
+    { id: 'guia', label: 'Guía', icon: '📖' },
   ],
   servicio_cliente: [
     { id: 'inicio', label: 'Inicio', icon: '📊' },
@@ -580,19 +583,26 @@ async function renderOrdenes() {
     // Build action buttons based on estado
     let actions = '';
     const isAdmin = state.user?.rol === 'admin' || state.user?.rol === 'superadmin';
+    const isTecnico = state.user?.rol === 'tecnico';
     if (ot.estado === 'pendiente') {
       actions += `<button onclick="iniciarOT(\`${ot.id}\`)" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Iniciar OT">▶️</button>`;
-      actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      if (isAdmin) {
+        actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      }
     } else if (ot.estado === 'en_curso') {
       actions += `<button onclick="showModal('entrega-aval', ${ot.id})" class="btn-icon bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border border-green-200" title="Entregar Aval">📋</button>`;
       if (ot.aval_id) {
         actions += `<button onclick="compartirAval(${ot.aval_id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Compartir Aval">🔗</button>`;
       }
-      actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      if (isAdmin) {
+        actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      }
     } else if (ot.estado === 'aval_entregado') {
       actions += `<button onclick="verAval(${ot.aval_id || 0}, ${ot.id})" class="btn-icon bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200" title="Ver Aval">📄</button>`;
       actions += `<button onclick="compartirAval(${ot.aval_id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Compartir Aval">🔗</button>`;
-      actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      if (isAdmin) {
+        actions += `<button onclick="cancelarOT(\`${ot.id}\`)" class="btn-icon bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200" title="Cancelar OT">✕</button>`;
+      }
     }
     // Botón eliminar solo visible para admin/superadmin
     if (isAdmin) {
