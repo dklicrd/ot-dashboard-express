@@ -660,6 +660,15 @@ async function initDatabase() {
   // ═══════════════════════════════════════════════
   await verificarYRestaurarBackup();
 
+  // FORZAR password del admin a 3806.Adm (por si el backup trajo un hash diferente)
+  // Esto garantiza que siempre se pueda iniciar sesión
+  const adminExists = queryFirst('SELECT id FROM usuarios WHERE email = ?', ['admin@sistema.com']);
+  if (adminExists) {
+    const hashFijo = bcrypt.hashSync('3806.Adm', 10);
+    run('UPDATE usuarios SET password = ? WHERE email = ?', [hashFijo, 'admin@sistema.com']);
+    console.log('🔐 Password admin forzada a 3806.Adm');
+  }
+
   // Solo insertar seeds demo si la BD está realmente vacía (sin datos reales)
   // Datos reales = tiene clientes u OTs (más allá del admin por defecto)
   const tieneDatosReales = (queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0) > 0 ||
