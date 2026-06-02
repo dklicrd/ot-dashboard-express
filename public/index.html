@@ -3357,10 +3357,6 @@ window.completarDatosAval = async function (otId) {
     const ot = _otsAprobadas.find(o => String(o.id) === String(otId));
     if (ot) {
       document.getElementById('av-desc').value = ot.descripcion || ot.tipo_servicio || '';
-      // Si tiene monto, sugerirlo como costo
-      if (ot.monto_total) {
-        document.getElementById('av-costo').value = ot.monto_total;
-      }
     }
 
     // También intentar obtener los productos asociados a la OT
