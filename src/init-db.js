@@ -660,47 +660,53 @@ async function initDatabase() {
   // ═══════════════════════════════════════════════
   await verificarYRestaurarBackup();
 
-  // Productos por defecto si están vacíos (después de posible restore)
-  const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
-  
-  // ═══════════════════════════════════════════════
-  // Si backup.json en el repo tiene datos reales,
-  if (numProductos === 0) {
-    const productosDemo = [
-      ['Cerradura Eléctrica', 'cerradura', 'Cerradura eléctrica estándar para puertas'],
-      ['Cerradura Electrónica', 'cerradura', 'Cerradura con teclado electrónico'],
-      ['Cerradura Biométrica', 'cerradura', 'Cerradura con lector de huella'],
-      ['Puerta de Metal', 'puerta', 'Puerta de metal reforzado'],
-      ['Puerta de Vidrio Templado', 'puerta', 'Puerta de vidrio templado de seguridad'],
-      ['Control de Acceso Pro', 'control_acceso', 'Sistema de control de acceso profesional'],
-      ['Control de Acceso Básico', 'control_acceso', 'Control de acceso básico con tarjeta'],
-      ['Caja Fuerte Digital', 'caja_fuerte', 'Caja fuerte digital electrónica'],
-      ['Caja Fuerte Mecánica', 'caja_fuerte', 'Caja fuerte con combinación mecánica'],
-      ['Sistema Ahorro Energía', 'ahorro_energia', 'Sistema inteligente de ahorro de energía'],
-      ['Sensor de Movimiento', 'ahorro_energia', 'Sensor de movimiento para ahorro energético'],
-    ];
-    for (const p of productosDemo) {
-      run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)', p);
+  // Solo insertar seeds demo si la BD está realmente vacía (sin datos reales)
+  // Datos reales = tiene clientes u OTs (más allá del admin por defecto)
+  const tieneDatosReales = (queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0) > 0 ||
+                          (queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0) > 0;
+
+  if (!tieneDatosReales) {
+    // Productos demo (solo si no hay productos)
+    const numProductos = queryFirst('SELECT COUNT(*) as cnt FROM productos')?.cnt || 0;
+    if (numProductos === 0) {
+      const productosDemo = [
+        ['Cerradura Eléctrica', 'cerradura', 'Cerradura eléctrica estándar para puertas'],
+        ['Cerradura Electrónica', 'cerradura', 'Cerradura con teclado electrónico'],
+        ['Cerradura Biométrica', 'cerradura', 'Cerradura con lector de huella'],
+        ['Puerta de Metal', 'puerta', 'Puerta de metal reforzado'],
+        ['Puerta de Vidrio Templado', 'puerta', 'Puerta de vidrio templado de seguridad'],
+        ['Control de Acceso Pro', 'control_acceso', 'Sistema de control de acceso profesional'],
+        ['Control de Acceso Básico', 'control_acceso', 'Control de acceso básico con tarjeta'],
+        ['Caja Fuerte Digital', 'caja_fuerte', 'Caja fuerte digital electrónica'],
+        ['Caja Fuerte Mecánica', 'caja_fuerte', 'Caja fuerte con combinación mecánica'],
+        ['Sistema Ahorro Energía', 'ahorro_energia', 'Sistema inteligente de ahorro de energía'],
+        ['Sensor de Movimiento', 'ahorro_energia', 'Sensor de movimiento para ahorro energético'],
+      ];
+      for (const p of productosDemo) {
+        run('INSERT INTO productos (nombre, categoria, descripcion) VALUES (?, ?, ?)', p);
+      }
+      console.log('✅ Productos demo insertados');
     }
-    console.log('✅ Productos demo insertados');
-  }
 
-  // Seeds demo
-  const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
-  if (numClientes === 0) {
-    await seedDemo();
-  }
+    // Seeds demo (clientes + OTs demo)
+    const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
+    if (numClientes === 0) {
+      await seedDemo();
+    }
 
-  // Seed orden_trabajo_productos if empty
-  const numOTProductos = queryFirst('SELECT COUNT(*) as cnt FROM orden_trabajo_productos')?.cnt || 0;
-  if (numOTProductos === 0) {
-    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (1, 1, 1230)');
-    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (2, 1, 24)');
-    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (3, 3, 50)');
-    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (4, 1, 943)');
-    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (5, 1, 46)');
-    run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (6, 4, 30)');
-    console.log('✅ Productos-OT demo insertados');
+    // Seed orden_trabajo_productos
+    const numOTProductos = queryFirst('SELECT COUNT(*) as cnt FROM orden_trabajo_productos')?.cnt || 0;
+    if (numOTProductos === 0) {
+      run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (1, 1, 1230)');
+      run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (2, 1, 24)');
+      run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (3, 3, 50)');
+      run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (4, 1, 943)');
+      run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (5, 1, 46)');
+      run('INSERT INTO orden_trabajo_productos (orden_trabajo_id, producto_id, cantidad) VALUES (6, 4, 30)');
+      console.log('✅ Productos-OT demo insertados');
+    }
+  } else {
+    console.log('✅ BD con datos reales detectada — seeds demo omitidos');
   }
 
   // Seed presupuestos if empty

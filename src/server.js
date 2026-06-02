@@ -611,6 +611,36 @@ app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
+// ==================== API: DELETE ORDEN DE TRABAJO ====================
+app.delete('/api/ordenes/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = req.params.id;
+    const ot = queryFirst('SELECT id, presupuesto_id FROM ordenes_trabajo WHERE id = ?', [id]);
+    if (!ot) {
+      return res.status(404).json({ error: 'OT no encontrada' });
+    }
+    // Eliminar registros relacionados
+    run('DELETE FROM orden_trabajo_productos WHERE orden_trabajo_id = ?', [id]);
+    run('DELETE FROM avales WHERE orden_trabajo_id = ?', [id]);
+    run('DELETE FROM encuestas_satisfaccion WHERE orden_trabajo_id = ?', [id]);
+    // Eliminar presupuesto si solo esta OT lo referenciaba
+    if (ot.presupuesto_id) {
+      const otrasOTs = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo WHERE presupuesto_id = ? AND id != ?', [ot.presupuesto_id, id]);
+      if (otrasOTs?.cnt === 0) {
+        run('DELETE FROM presupuestos WHERE id = ?', [ot.presupuesto_id]);
+      }
+    }
+    // Eliminar la OT
+    run('DELETE FROM ordenes_trabajo WHERE id = ?', [id]);
+
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+    res.json({ success: true, message: 'OT eliminada' });
+  } catch (e) {
+    console.error('Error eliminando OT:', e);
+    res.status(500).json({ error: 'Error al eliminar OT' });
+  }
+});
+
 // ============ ESTADO DE OT - TRANSICIONES ============
 const TRANSICIONES_ESTADO = {
   'pendiente': ['en_curso', 'cancelada'],
