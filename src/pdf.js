@@ -76,17 +76,6 @@ function generarAvalPDF(data) {
       y += doc.y - y + 15;
     }
 
-    // Monto
-    doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold')
-      .text('COSTO DEL SERVICIO', leftMargin, y);
-    doc.moveTo(leftMargin, y + 22).lineTo(leftMargin + pageWidth, y + 22).strokeColor(borderGray).stroke();
-    y += 35;
-    doc.roundedRect(leftMargin, y, pageWidth, 50, 6).fill(lightGray);
-    doc.fillColor('#1f2937').fontSize(11).font('Helvetica').text('Total del Servicio:', leftMargin + 15, y + 10);
-    doc.fillColor(primaryColor).fontSize(20).font('Helvetica-Bold')
-      .text(`RD$ ${(data.costo_total || 0).toFixed(2)}`, leftMargin + pageWidth - 180, y + 8);
-    y += 65;
-
     if (data.forma_pago) { drawField('Forma de Pago', data.forma_pago, leftMargin, y, pageWidth); y += 45; }
     if (data.garantia) { drawField('Garantía', data.garantia, leftMargin, y, pageWidth); y += 45; }
     if (data.observaciones) { drawField('Observaciones', data.observaciones, leftMargin, y, pageWidth); y += 45; }
