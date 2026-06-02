@@ -1536,6 +1536,8 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
 // Obtener aval legacy con productos
 app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
   try {
+    const id = Number(req.params.id);
+    console.log('DEBUG aval-legacy GET by id=' + id + ' (user=' + req.user.email + ')');
     const aval = queryFirst(
       `SELECT a.*, ot.numero_ot, c.nombre as cliente_nombre,
               c.telefono as cliente_telefono, c.email, c.direccion as cliente_direccion,
@@ -1543,9 +1545,9 @@ app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
        FROM avales_legacy a
        JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
        JOIN clientes c ON ot.cliente_id = c.id
-       WHERE a.id = ?`, [req.params.id]);
+       WHERE a.id = ?`, [id]);
     if (!aval) {
-      console.error('Aval legacy no encontrado: id=' + req.params.id);
+      console.error('DEBUG aval-legacy: aval ' + id + ' no encontrado en BD');
       return res.status(404).json({ error: 'Aval no encontrado' });
     }
 
