@@ -33,7 +33,7 @@
     {
       "id": 4,
       "nombre": "Alexander De Dios",
-      "email": "dklicrd@gmail.com",
+      "email": "teamhpsimp@gmail.com",
       "password": "$2a$10$3di6NM5wk1H4ceqmo0VIG.Tv0HDbwtikI.Q9FNNk/cXdBv326X0Sa",
       "rol": "tecnico",
       "telefono": "809-100-2003",
@@ -84,7 +84,7 @@
       "id": 9,
       "nombre": "Administrador",
       "email": "admin@sistema.com",
-      "password": "$2a$10$ldDbNpMVWLje6rnfA5nTleIMaTFM7dOmpptlTCGHlFh3x/u2i.k7W",
+      "password": "$2a$10$jZ3tven/8C0fCpJaUIPgMuVT8NgD7NZ8YwDOHlcnNUE4VKYIhO/Ta",
       "rol": "superadmin",
       "telefono": null,
       "activo": 1,
