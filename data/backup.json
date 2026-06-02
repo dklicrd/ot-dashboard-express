@@ -12,7 +12,7 @@
     },
     {
       "id": 2,
-      "nombre": "M\u00e1ximo Vallejo",
+      "nombre": "Máximo Vallejo",
       "email": "m.vallejo@grupoarboleda.com",
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
       "rol": "tecnico",
@@ -22,9 +22,9 @@
     },
     {
       "id": 3,
-      "nombre": "V\u00edctor De La Rosa",
+      "nombre": "Víctor De La Rosa",
       "email": "manuelgreen.vg@gmail.com",
-      "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
+      "password": "$2a$10$DE1LmG7oSrJ6kq9wIRxVzuVTAKtazYlL2jLLOubU.rP2e4u6oCrgK",
       "rol": "tecnico",
       "telefono": "8292924524",
       "activo": 1,
@@ -34,7 +34,7 @@
       "id": 4,
       "nombre": "Alexander De Dios",
       "email": "dklicrd@gmail.com",
-      "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
+      "password": "$2a$10$3di6NM5wk1H4ceqmo0VIG.Tv0HDbwtikI.Q9FNNk/cXdBv326X0Sa",
       "rol": "tecnico",
       "telefono": "809-100-2003",
       "activo": 1,
@@ -42,7 +42,7 @@
     },
     {
       "id": 5,
-      "nombre": "\u00c1ngel P\u00e9rez",
+      "nombre": "Ángel Pérez",
       "email": "angel@sistema.com",
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
       "rol": "tecnico",
@@ -52,7 +52,7 @@
     },
     {
       "id": 6,
-      "nombre": "Juan Samuel Encarnaci\u00f3n",
+      "nombre": "Juan Samuel Encarnación",
       "email": "juansam@sistema.com",
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
       "rol": "tecnico",
@@ -72,7 +72,7 @@
     },
     {
       "id": 8,
-      "nombre": "Mar\u00eda Santos",
+      "nombre": "María Santos",
       "email": "maria@sistema.com",
       "password": "$2a$10$h9o2BYLm8sCgWhMgbvPIve6hz/rfo/gQU4F.AEeGnGFquTfx3V5Hi",
       "rol": "servicio_cliente",
@@ -81,10 +81,10 @@
       "creado_en": "2026-05-25 22:49:56"
     },
     {
-      "id": 1,
+      "id": 9,
       "nombre": "Administrador",
       "email": "admin@sistema.com",
-      "password": "$2a$10$zD48o8o.bw668rdfTAIXYOQxacd.4SUfblk0yWi1FgpQbcSOeBJLy",
+      "password": "$2a$10$ldDbNpMVWLje6rnfA5nTleIMaTFM7dOmpptlTCGHlFh3x/u2i.k7W",
       "rol": "superadmin",
       "telefono": null,
       "activo": 1,
@@ -108,7 +108,7 @@
       "nombre": "Casa Marina Reef",
       "telefono": "809-555-0102",
       "email": "marina@reef.com",
-      "direccion": "B\u00e1varo",
+      "direccion": "Bávaro",
       "cedula_rnc": "102-23456-7",
       "tipo": "empresa",
       "referencias_ubicacion": null,
@@ -138,7 +138,7 @@
     },
     {
       "id": 5,
-      "nombre": "Juan P\u00e9rez",
+      "nombre": "Juan Pérez",
       "telefono": "829-555-0105",
       "email": "juan@email.com",
       "direccion": "Santo Domingo",
@@ -173,23 +173,23 @@
   "productos": [
     {
       "id": 1,
-      "nombre": "Cerradura El\u00e9ctrica",
+      "nombre": "Cerradura Eléctrica",
       "categoria": "cerradura",
-      "descripcion": "Cerradura el\u00e9ctrica est\u00e1ndar para puertas",
+      "descripcion": "Cerradura eléctrica estándar para puertas",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
     {
       "id": 2,
-      "nombre": "Cerradura Electr\u00f3nica",
+      "nombre": "Cerradura Electrónica",
       "categoria": "cerradura",
-      "descripcion": "Cerradura con teclado electr\u00f3nico",
+      "descripcion": "Cerradura con teclado electrónico",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
     {
       "id": 3,
-      "nombre": "Cerradura Biom\u00e9trica",
+      "nombre": "Cerradura Biométrica",
       "categoria": "cerradura",
       "descripcion": "Cerradura con lector de huella",
       "activo": 1,
@@ -221,9 +221,9 @@
     },
     {
       "id": 7,
-      "nombre": "Control de Acceso B\u00e1sico",
+      "nombre": "Control de Acceso Básico",
       "categoria": "control_acceso",
-      "descripcion": "Control de acceso b\u00e1sico con tarjeta",
+      "descripcion": "Control de acceso básico con tarjeta",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
@@ -231,23 +231,23 @@
       "id": 8,
       "nombre": "Caja Fuerte Digital",
       "categoria": "caja_fuerte",
-      "descripcion": "Caja fuerte digital electr\u00f3nica",
+      "descripcion": "Caja fuerte digital electrónica",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
     {
       "id": 9,
-      "nombre": "Caja Fuerte Mec\u00e1nica",
+      "nombre": "Caja Fuerte Mecánica",
       "categoria": "caja_fuerte",
-      "descripcion": "Caja fuerte con combinaci\u00f3n mec\u00e1nica",
+      "descripcion": "Caja fuerte con combinación mecánica",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
     {
       "id": 10,
-      "nombre": "Sistema Ahorro Energ\u00eda",
+      "nombre": "Sistema Ahorro Energía",
       "categoria": "ahorro_energia",
-      "descripcion": "Sistema inteligente de ahorro de energ\u00eda",
+      "descripcion": "Sistema inteligente de ahorro de energía",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
@@ -255,7 +255,7 @@
       "id": 11,
       "nombre": "Sensor de Movimiento",
       "categoria": "ahorro_energia",
-      "descripcion": "Sensor de movimiento para ahorro energ\u00e9tico",
+      "descripcion": "Sensor de movimiento para ahorro energético",
       "activo": 1,
       "creado_en": "2026-05-25 22:49:55"
     },
@@ -312,7 +312,7 @@
       "numero_ot": "OT-2026-0001",
       "cliente_id": 7,
       "tipo_servicio": "instalacion",
-      "descripcion": "Trabajos de instalaci\u00f3n ",
+      "descripcion": "Trabajos de instalación ",
       "presupuesto_aprobado": 1,
       "monto_total": 300,
       "tecnico_id": 3,
