@@ -1387,20 +1387,24 @@ function renderDetalleAvalContent(aval, productos, ot) {
   };
   estadoLabel = estadoLabels[aval.estado] || aval.estado;
 
-  const prodRows = productos.map(p => `
-    <tr class="border-b border-gray-100">
+  const prodRows = productos.map(p => {
+    const cantReportada = p.cantidad_reportada || 0;
+    const cantConfirmada = p.cantidad_confirmada !== null ? p.cantidad_confirmada : cantReportada;
+    return `
+    <tr class="border-b border-gray-100" data-prod-id="${p.producto_id}">
       <td class="py-2 px-3">${escHtml(p.producto_nombre || '')}</td>
-      <td class="py-2 px-3 text-center">${p.cantidad_reportada || 0}</td>
+      <td class="py-2 px-3 text-center">${cantReportada}</td>
       <td class="py-2 px-3 text-center">
-        ${isPendiente && state.user?.rol === 'admin' || state.user?.rol === 'superadmin'
-          ? `<input type="number" min="0" value="${p.cantidad_confirmada !== null ? p.cantidad_confirmada : (p.cantidad_reportada || 0)}" 
-              class="input-field w-20 text-center" data-confirm-cantidad="${p.producto_id}">`
-          : (p.cantidad_confirmada !== null ? p.cantidad_confirmada : '-')
+        ${isPendiente && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
+          ? `<input type="number" min="0" value="${cantConfirmada}${isRechazadoCalidad?'':''}" 
+              class="input-field w-20 text-center aval-cantidad-input" data-prod-id="${p.producto_id}" 
+              style="background-color:#f0f9ff" disabled>`
+          : cantConfirmada
         }
       </td>
       <td class="py-2 px-3 text-sm text-gray-500">${escHtml(p.comentario || '')}</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   return `
     <div class="space-y-4">
@@ -1436,18 +1440,27 @@ function renderDetalleAvalContent(aval, productos, ot) {
       </div>
 
       <div class="border rounded-xl p-4">
-        <h3 class="font-semibold text-gray-700 text-sm mb-3">Productos Instalados</h3>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-gray-700 text-sm">Productos Instalados</h3>
+          ${isPendiente ? '<span class="text-xs text-gray-400" id="modo-edit-aval">✅ Cantidad original precargada</span>' : ''}
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="bg-gray-50">
               <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Producto</th>
               <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Cant. Reportada</th>
-              <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase">${isPendiente ? 'Cant. a Confirmar' : 'Cant. Confirmada'}</th>
+              <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Cant. a Confirmar</th>
               <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Comentario</th>
             </tr></thead>
             <tbody>${prodRows || '<tr><td colspan="4" class="text-center py-4 text-gray-400">Sin productos</td></tr>'}</tbody>
           </table>
         </div>
+        ${isPendiente ? `
+        <div class="flex gap-2 mt-3" id="acciones-aval-productos">
+          <button onclick="confirmarAval100(${aval.id})" class="btn-success flex items-center gap-2 text-sm px-4 py-2"><span>✅</span> Confirmar 100% (sin cambios)</button>
+          <button onclick="habilitarEditarCantidades(${aval.id})" class="btn-warning flex items-center gap-2 text-sm px-4 py-2"><span>✏️</span> Cambiar cantidades</button>
+        </div>
+        ` : ''}
       </div>
 
       ${aval.observaciones ? `<div class="bg-gray-50 rounded-xl p-4"><h3 class="font-semibold text-gray-700 text-sm mb-1">Observaciones</h3><p class="text-sm text-gray-600">${escHtml(aval.observaciones)}</p></div>` : ''}
@@ -1552,6 +1565,60 @@ async function rechazarAval(avalId) {
   try {
     const r = await api('PUT', '/api/avales/' + avalId + '/rechazar', { motivo: motivo.trim() });
     toast('🚨 ' + (r.message || 'Aval rechazado por calidad'));
+    closeModal();
+    render();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// Confirmar aval al 100% — marca estado confirmado
+async function confirmarAval100(avalId) {
+  if (!confirm('¿Confirmar este aval al 100%? Todos los productos se marcarán con las cantidades originales de la OT.')) return;
+  try {
+    const r = await api('PUT', '/api/avales-legacy/' + avalId + '/confirmar');
+    toast('✅ ' + (r.message || 'Aval confirmado al 100%'));
+    closeModal();
+    render();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// Habilitar edición de cantidades en los inputs
+function habilitarEditarCantidades(avalId) {
+  const inputs = document.querySelectorAll('.aval-cantidad-input');
+  inputs.forEach(inp => {
+    inp.disabled = false;
+    inp.style.backgroundColor = '#ffffff';
+    inp.style.borderColor = '#3b82f6';
+  });
+  // Cambiar a botón guardar
+  const cont = document.getElementById('acciones-aval-productos');
+  if (cont) {
+    cont.innerHTML = `
+      <button onclick="guardarCambiosAval(${avalId})" class="btn-success flex items-center gap-2 text-sm px-4 py-2"><span>💾</span> Guardar cambios</button>
+      <button onclick="confirmarAval100(${avalId})" class="btn-secondary flex items-center gap-2 text-sm px-4 py-2"><span>❌</span> Cancelar</button>
+    `;
+  }
+  document.getElementById('modo-edit-aval').textContent = '✏️ Editando cantidades...';
+}
+
+// Guardar cambios de cantidades, actualizar OT y bono
+async function guardarCambiosAval(avalId) {
+  const inputs = document.querySelectorAll('.aval-cantidad-input');
+  const productos = [];
+  inputs.forEach(inp => {
+    const prodId = inp.dataset.prodId;
+    const cantidad = parseInt(inp.value) || 0;
+    productos.push({ producto_id: parseInt(prodId), cantidad });
+  });
+
+  if (!confirm('¿Guardar cambios? Se actualizarán las cantidades en la OT y se recalculará el bono del técnico.')) return;
+
+  try {
+    const r = await api('PUT', '/api/avales-legacy/' + avalId + '/productos', { productos });
+    toast('✅ ' + (r.message || 'Cambios guardados. Bono recalculado: RD$' + (r.bono_tecnico || 0)));
     closeModal();
     render();
   } catch(e) {
