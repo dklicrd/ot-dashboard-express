@@ -163,31 +163,13 @@ function restoreDatabase() {
         'orden_trabajo_productos', 'avales', 'avales_legacy', 'encuestas_satisfaccion',
         'configuracion_incentivos', 'configuracion_documentos', 'reportes_incentivos', 'notificaciones_ot'];
 
-      // Primera pasada: limpiar todo EXCEPTO usuarios
+      // Primera pasada: limpiar TODO (incluye usuarios, el admin se recrea después)
       for (const table of orderedTables) {
-        if (table === 'usuarios') continue;
         try {
           run(`DELETE FROM ${table}`);
         } catch (e) {
           console.warn(`⚠️ No se pudo limpiar ${table}: ${e.message}`);
         }
-      }
-
-      // Limpiar usuarios existentes — SOLO los que NO estén en el backup
-      const backupEmails = (backup.usuarios || []).map(u => u.email).filter(Boolean);
-      if (backupEmails.length > 0) {
-        // Eliminar usuarios que ya existen y están en el backup (para reemplazarlos)
-        // Pero mantener usuarios que NO están en el backup (ej: admin creado por init-db)
-        for (const email of backupEmails) {
-          try {
-            run('DELETE FROM usuarios WHERE email = ?', [email]);
-          } catch (e) {
-            console.warn(`⚠️ No se pudo eliminar usuario ${email}: ${e.message}`);
-          }
-        }
-      } else {
-        // Sin emails en backup, eliminar todo
-        try { run('DELETE FROM usuarios'); } catch(e) {}
       }
 
       // Segunda pasada: insertar datos
@@ -200,21 +182,6 @@ function restoreDatabase() {
 
         for (const row of rows) {
           try {
-            // Para usuarios: si ya existe con este email (insertado por init-db), actualizar en vez de insertar
-            if (table === 'usuarios' && row.email) {
-              const existing = queryFirst('SELECT id FROM usuarios WHERE email = ?', [row.email]);
-              if (existing) {
-                // Actualizar datos del usuario existente sin tocar password
-                const setClauses = columns.filter(c => c !== 'password' && c !== 'id' && c !== 'email')
-                  .map(c => `${c} = ?`).join(', ');
-                const setValues = columns.filter(c => c !== 'password' && c !== 'id' && c !== 'email')
-                  .map(c => row[c] ?? null);
-                if (setClauses) {
-                  run(`UPDATE usuarios SET ${setClauses} WHERE email = ?`, [...setValues, row.email]);
-                }
-                continue;
-              }
-            }
             const values = columns.map(col => row[col] ?? null);
             run(`INSERT INTO ${table} (${colNames}) VALUES (${placeholders})`, values);
           } catch (e) {
@@ -222,6 +189,20 @@ function restoreDatabase() {
           }
         }
         console.log(`  ✓ ${table}: ${rows.length} registros restaurados`);
+      }
+
+      // SOBRESCRIBIR la password del admin con '3806.Adm' para garantizar acceso
+      const adminExists = queryFirst('SELECT id FROM usuarios WHERE email = ?', ['admin@sistema.com']);
+      if (adminExists) {
+        // La transacción ya no permite usar bcrypt (async), así que usamos hashSync
+        try {
+          const bcrypt = require('bcryptjs');
+          const hashFijo = bcrypt.hashSync('3806.Adm', 10);
+          run('UPDATE usuarios SET password = ? WHERE email = ?', [hashFijo, 'admin@sistema.com']);
+          console.log('🔐 Password de admin fijada a 3806.Adm');
+        } catch (e) {
+          console.warn('⚠️ No se pudo rehashear admin password:', e.message);
+        }
       }
 
       run('PRAGMA foreign_keys = ON');
