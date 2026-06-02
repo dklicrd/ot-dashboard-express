@@ -671,6 +671,9 @@ async function renderAvales() {
           : '<span class="text-gray-400">—</span>'}
       </td>
       <td class="py-3 px-4 text-center">
+        ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin'
+          ? `<button onclick="showModal('detalle-aval', ${a.id})" class="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 mx-auto" title="Ver Detalle"><span>👁️</span> Ver Detalle</button>`
+          : ''}
         ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin' && a.estado !== 'completado'
           ? `<button onclick="uploadFirmado(${a.id})" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto"><span>📤</span> Subir Firmado</button>`
           : ''}
