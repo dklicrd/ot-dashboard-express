@@ -37,7 +37,7 @@
       "password": "$2a$10$3di6NM5wk1H4ceqmo0VIG.Tv0HDbwtikI.Q9FNNk/cXdBv326X0Sa",
       "rol": "tecnico",
       "telefono": "809-100-2003",
-      "activo": 1,
+      "activo": 0,
       "creado_en": "2026-05-25 22:49:55"
     },
     {
@@ -57,7 +57,7 @@
       "password": "$2a$10$/LoHKFuPgwCUWCQK5wJd9eU6QtGDZc3zZnbU5V40fWyp9HAfDLhJ6",
       "rol": "tecnico",
       "telefono": "809-100-2005",
-      "activo": 1,
+      "activo": 0,
       "creado_en": "2026-05-25 22:49:55"
     },
     {
@@ -84,7 +84,7 @@
       "id": 9,
       "nombre": "Administrador",
       "email": "admin@sistema.com",
-      "password": "$2a$10$jZ3tven/8C0fCpJaUIPgMuVT8NgD7NZ8YwDOHlcnNUE4VKYIhO/Ta",
+      "password": "$2a$10$wY8585IYwWrowz1QBqf6i.017DcB0JafOprw7HuNnAP5I.xO02xzG",
       "rol": "superadmin",
       "telefono": null,
       "activo": 1,
