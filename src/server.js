@@ -1467,6 +1467,22 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
        body.costo_total ?? ot.monto_total ?? 0, body.forma_pago || null, body.garantia || null,
        body.observaciones || null, `/uploads/avales/${pdfFilename}`]);
 
+    // Copiar productos al aval
+    const avalReg = queryFirst('SELECT id FROM avales_legacy WHERE numero_aval = ?', [numAval]);
+    if (avalReg && body.productos) {
+      for (const p of body.productos) {
+        run('INSERT INTO aval_productos (aval_id, producto_id, cantidad_reportada, cantidad_confirmada) VALUES (?, ?, ?, ?)',
+          [avalReg.id, p.producto_id, p.cantidad_ot || 0, p.cantidad || 0]);
+      }
+    } else if (avalReg) {
+      // Si no viene productos en body, copiar de la OT
+      const prodOT = queryAll('SELECT producto_id, cantidad FROM orden_trabajo_productos WHERE orden_trabajo_id = ?', [body.orden_trabajo_id]);
+      for (const p of prodOT) {
+        run('INSERT INTO aval_productos (aval_id, producto_id, cantidad_reportada, cantidad_confirmada) VALUES (?, ?, ?, ?)',
+          [avalReg.id, p.producto_id, p.cantidad, p.cantidad]);
+      }
+}
+
     // Enviar email al técnico
     const tecnico = ot.tecnico_id ? queryFirst('SELECT * FROM usuarios WHERE id = ?', [ot.tecnico_id]) : null;
     if (tecnico && tecnico.email) {
@@ -1492,6 +1508,88 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
   } catch (e) {
     console.error('Error creating aval legacy:', e);
     res.status(500).json({ error: 'Error al crear aval' });
+  }
+});
+
+// Obtener aval legacy con productos
+app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
+  try {
+    const aval = queryFirst(
+      `SELECT a.*, ot.numero_ot, c.nombre as cliente_nombre,
+              c.telefono as cliente_telefono, c.email, c.direccion as cliente_direccion,
+              c.cedula_rnc as cliente_cedula
+       FROM avales_legacy a
+       JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
+       JOIN clientes c ON ot.cliente_id = c.id
+       WHERE a.id = ?`, [req.params.id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    const productos = queryAll(
+      `SELECT ap.*, p.nombre as producto_nombre, p.categoria, p.codigo_producto
+       FROM aval_productos ap
+       JOIN productos p ON ap.producto_id = p.id
+       WHERE ap.aval_id = ?`, [req.params.id]);
+
+    const ot = queryFirst('SELECT numero_ot, cliente_nombre FROM ordenes_trabajo ot JOIN clientes c ON ot.cliente_id = c.id WHERE ot.id = ?', [aval.orden_trabajo_id]);
+
+    res.json({ aval, productos, ot });
+  } catch (e) {
+    console.error('Error getting aval legacy:', e);
+    res.status(500).json({ error: 'Error al obtener aval' });
+  }
+});
+
+// Confirmar aval 100% (sin cambios)
+app.put('/api/avales-legacy/:id/confirmar', authMiddleware, async (req, res) => {
+  try {
+    const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
+
+    res.json({ message: 'Aval confirmado al 100%', estado: 'confirmado' });
+    try { exportDatabase(); } catch(e) { /* ignore */ }
+  } catch (e) {
+    console.error('Error confirming aval:', e);
+    res.status(500).json({ error: 'Error al confirmar aval' });
+  }
+});
+
+// Actualizar cantidades de productos y recalcular bono
+app.put('/api/avales-legacy/:id/productos', authMiddleware, async (req, res) => {
+  try {
+    const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    const { productos } = req.body;
+    if (!Array.isArray(productos) || productos.length === 0) {
+      return res.status(400).json({ error: 'Se requiere array de productos' });
+    }
+
+    for (const p of productos) {
+      run('UPDATE aval_productos SET cantidad_confirmada=? WHERE aval_id=? AND producto_id=?',
+        [p.cantidad, req.params.id, p.producto_id]);
+      run('UPDATE orden_trabajo_productos SET cantidad=? WHERE orden_trabajo_id=? AND producto_id=?',
+        [p.cantidad, aval.orden_trabajo_id, p.producto_id]);
+    }
+
+    // Recalcular bono
+    const prodOT = queryAll(
+      'SELECT otp.cantidad, p.precio_venta as precio FROM orden_trabajo_productos otp JOIN productos p ON otp.producto_id=p.id WHERE otp.orden_trabajo_id=?',
+      [aval.orden_trabajo_id]);
+    const subtotal = prodOT.reduce((sum, p) => sum + (p.cantidad * (p.precio || 0)), 0);
+    const bono = Math.round(subtotal * 0.05);
+
+    run('UPDATE ordenes_trabajo SET bono_tecnico=?, monto_total=?, actualizado_en=datetime("now", "-04:00") WHERE id=?',
+      [bono, subtotal, aval.orden_trabajo_id]);
+
+    run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
+
+    res.json({ message: 'Productos actualizados y bono recalculado', bono_tecnico: bono, monto_total: subtotal });
+    try { exportDatabase(); } catch(e) { /* ignore */ }
+  } catch (e) {
+    console.error('Error updating productos:', e);
+    res.status(500).json({ error: 'Error al actualizar productos' });
   }
 });
 

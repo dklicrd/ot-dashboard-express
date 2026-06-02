@@ -1165,13 +1165,16 @@ function mostrarCompartirAvalPostEntrega(avalId, email, telefono) {
 function renderModalDetalleAval(avalId) {
   (async () => {
     try {
-      const d = await api('GET', '/api/avales/' + avalId);
+      let d;
+      try {
+        d = await api('GET', '/api/avales-legacy/' + avalId);
+      } catch (e1) {
+        d = await api('GET', '/api/avales/' + avalId);
+      }
       const container = document.getElementById('detalle-aval-content');
       if (container) container.innerHTML = renderDetalleAvalContent(d.aval, d.productos || [], d.ot);
-      // Guardar datos del cliente para compartir
       window._lastAvalClienteEmail = d.aval.cliente_email || d.ot?.cliente_email || '';
       window._lastAvalClienteTelefono = d.aval.cliente_telefono || d.ot?.cliente_telefono || '';
-      // Load compartir status
       renderEstadoCompartir(avalId);
     } catch (e) {
       const container = document.getElementById('detalle-aval-content');
@@ -1387,20 +1390,23 @@ function renderDetalleAvalContent(aval, productos, ot) {
   };
   estadoLabel = estadoLabels[aval.estado] || aval.estado;
 
-  const prodRows = productos.map(p => `
-    <tr class="border-b border-gray-100">
+  const prodRows = productos.map(p => {
+    const cantReportada = p.cantidad_reportada || 0;
+    const cantConfirmada = p.cantidad_confirmada !== null ? p.cantidad_confirmada : cantReportada;
+    return `
+    <tr class="border-b border-gray-100" data-prod-id="${p.producto_id}">
       <td class="py-2 px-3">${escHtml(p.producto_nombre || '')}</td>
-      <td class="py-2 px-3 text-center">${p.cantidad_reportada || 0}</td>
+      <td class="py-2 px-3 text-center">${cantReportada}</td>
       <td class="py-2 px-3 text-center">
-        ${isPendiente && state.user?.rol === 'admin' || state.user?.rol === 'superadmin'
-          ? `<input type="number" min="0" value="${p.cantidad_confirmada !== null ? p.cantidad_confirmada : (p.cantidad_reportada || 0)}" 
-              class="input-field w-20 text-center" data-confirm-cantidad="${p.producto_id}">`
-          : (p.cantidad_confirmada !== null ? p.cantidad_confirmada : '-')
+        ${isPendiente && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
+          ? `<input type="number" min="0" value="${cantConfirmada}" 
+              class="input-field w-20 text-center aval-cantidad-input" data-prod-id="${p.producto_id}" disabled>`
+          : cantConfirmada
         }
       </td>
       <td class="py-2 px-3 text-sm text-gray-500">${escHtml(p.comentario || '')}</td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   return `
     <div class="space-y-4">
@@ -1491,11 +1497,13 @@ function renderDetalleAvalContent(aval, productos, ot) {
         ` : ''}
       </div>
 
-      <div class="flex justify-end gap-3 pt-2 border-t">
+      <div class="flex justify-end gap-3 pt-2 border-t flex-wrap">
         <a href="/api/avales/${aval.id}/pdf" target="_blank" class="btn-secondary flex items-center gap-2"><span>🖨️</span> PDF</a>
-        <a href="/api/avales/${aval.id}/pdf?html=true" target="_blank" class="btn-secondary flex items-center gap-2"><span>🌐</span> HTML</a>
-        ${(isPendiente || aval.estado === 'firmado_cliente') && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
-          ? `<button onclick="confirmarAval(${aval.id})" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar</button>`
+        ${isPendiente && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
+          ? `<>
+              <button onclick="confirmarAval100(${aval.id})" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar 100%</button>
+              <button onclick="habilitarEditarCantidades(${aval.id})" class="btn-warning flex items-center gap-2"><span>✏️</span> Cambiar cantidades</button>
+            </>`
           : ''}
         ${(isPendiente || aval.estado === 'firmado_cliente') && (state.user?.rol === 'admin' || state.user?.rol === 'superadmin')
           ? `<button onclick="rechazarAval(${aval.id})" class="btn-danger flex items-center gap-2"><span>❌</span> Rechazar</button>`
@@ -1552,6 +1560,59 @@ async function rechazarAval(avalId) {
   try {
     const r = await api('PUT', '/api/avales/' + avalId + '/rechazar', { motivo: motivo.trim() });
     toast('🚨 ' + (r.message || 'Aval rechazado por calidad'));
+    closeModal();
+    render();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// Confirmar aval al 100%
+async function confirmarAval100(avalId) {
+  if (!confirm('¿Estás seguro de confirmar este aval al 100%? Todos los productos quedarán con las cantidades originales de la OT.')) return;
+  try {
+    const r = await api('PUT', '/api/avales-legacy/' + avalId + '/confirmar');
+    toast('✅ ' + (r.message || 'Aval confirmado al 100%'));
+    closeModal();
+    render();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// Habilitar edición de cantidades
+function habilitarEditarCantidades(avalId) {
+  const inputs = document.querySelectorAll('.aval-cantidad-input');
+  inputs.forEach(inp => {
+    inp.disabled = false;
+    inp.style.backgroundColor = '#fff';
+    inp.style.borderColor = '#3b82f6';
+  });
+  const cont = document.querySelectorAll('.flex.justify-end.pt-2');
+  if (cont && cont.length > 0) {
+    cont[0].innerHTML = `
+      <a href="/api/avales/${avalId}/pdf" target="_blank" class="btn-secondary flex items-center gap-2"><span>🖨️</span> PDF</a>
+      <button onclick="guardarCambiosAval(${avalId})" class="btn-success flex items-center gap-2"><span>💾</span> Guardar cambios</button>
+      <button onclick="closeModal();render()" class="btn-secondary flex items-center gap-2"><span>❌</span> Cancelar</button>
+    `;
+  }
+}
+
+// Guardar cambios y actualizar OT + bono
+async function guardarCambiosAval(avalId) {
+  const inputs = document.querySelectorAll('.aval-cantidad-input');
+  const productos = [];
+  inputs.forEach(inp => {
+    const prodId = inp.dataset.prodId;
+    const cantidad = parseInt(inp.value) || 0;
+    productos.push({ producto_id: parseInt(prodId), cantidad });
+  });
+
+  if (!confirm('¿Guardar cambios? Se actualizarán las cantidades en la OT y se recalculará el bono del técnico.')) return;
+
+  try {
+    const r = await api('PUT', '/api/avales-legacy/' + avalId + '/productos', { productos });
+    toast('✅ ' + (r.message || 'Cambios guardados') + ' — Bono: RD$' + (r.bono_tecnico || 0));
     closeModal();
     render();
   } catch(e) {
@@ -2346,7 +2407,12 @@ window.showModal = function (id, data) {
     }
     // Si es modal de nuevo aval, cargar las OTs en el select
     if (id === 'nuevo-aval') {
-      setTimeout(() => cargarDatosAval(), 50);
+      setTimeout(() => {
+        cargarDatosAval();
+        _productosOT = [];
+        document.getElementById('av-cliente-info')?.classList.add('hidden');
+        document.getElementById('av-productos-section')?.classList.add('hidden');
+      }, 50);
     }
   });
 };
@@ -3307,7 +3373,7 @@ window.submitNuevaOT = async function (e) {
 function renderModalNuevoAval() {
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nuevo-aval')">
-      <div class="modal-content">
+      <div class="modal-content max-w-3xl">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
           <h2 class="text-xl font-bold">Nuevo Aval de Servicio</h2>
           <button onclick="closeModal('nuevo-aval')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
@@ -3315,11 +3381,41 @@ function renderModalNuevoAval() {
         <form onsubmit="submitNuevoAval(event)" class="p-6 space-y-4">
           <div id="av-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
-            <select id="av-ot" class="select-field" onchange="completarDatosAval(this.value)"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo Realizado</label><textarea id="av-desc" class="input-field" rows="3" placeholder="Describa el trabajo realizado..." style="width:100%;min-height:80px"></textarea></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Equipos / Materiales Instalados</label><textarea id="av-mat" class="input-field" rows="5" placeholder="Los materiales se cargarán automáticamente al seleccionar la OT" style="width:100%;min-height:120px"></textarea>
-            <p class="text-xs text-gray-500 mt-1">Los productos de la OT se cargan automáticamente. El técnico puede ajustar cantidades si es necesario.</p></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label><textarea id="av-obs" class="input-field" rows="3" placeholder="Notas adicionales..." style="width:100%;min-height:80px"></textarea></div>
+            <select id="av-ot" class="select-field" onchange="cargarDatosOT(this.value)"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
+          
+          <!-- Datos del cliente (autocompletados) -->
+          <div id="av-cliente-info" class="hidden bg-gray-50 rounded-xl p-4 space-y-1 text-sm">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-gray-700">Datos del Cliente</h3>
+              <span id="av-numero-ot" class="text-xs text-blue-600 font-medium"></span>
+            </div>
+            <p><strong>Nombre:</strong> <span id="av-cliente-nombre"></span></p>
+            <p><strong>Contacto:</strong> <span id="av-cliente-contacto"></span></p>
+            <p><strong>Dirección:</strong> <span id="av-cliente-direccion"></span></p>
+          </div>
+          
+          <!-- Tabla de productos -->
+          <div id="av-productos-section" class="hidden border rounded-xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold text-gray-700 text-sm">Productos de la OT</h3>
+              <span class="text-xs text-gray-400">Ajusta las cantidades si es necesario</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead><tr class="bg-gray-50">
+                  <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Producto</th>
+                  <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Cant. OT</th>
+                  <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase w-24">Cant. Aval</th>
+                </tr></thead>
+                <tbody id="av-productos-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo Realizado</label><textarea id="av-desc" class="input-field" rows="2" placeholder="Describa el trabajo realizado..." style="width:100%"></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Materiales Adicionales</label><textarea id="av-mat" class="input-field" rows="3" placeholder="Materiales no incluidos en los productos de la OT..." style="width:100%"></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label><textarea id="av-obs" class="input-field" rows="2" placeholder="Notas adicionales..." style="width:100%"></textarea></div>
+          
           <div class="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 flex items-center gap-2"><span>📌</span> Se generará un PDF profesional y se enviará al técnico por email</div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" onclick="closeModal('nuevo-aval')" class="btn-secondary">Cancelar</button>
@@ -3331,44 +3427,49 @@ function renderModalNuevoAval() {
 }
 
 let _otsAprobadas = [];
+let _productosOT = [];
 
-window.cargarDatosAval = async function () {
-  try {
-    const d = await api('GET', '/api/ordenes?estado=aprobada,en_curso');
-    _otsAprobadas = d.ordenes || [];
-    const sel = document.getElementById('av-ot');
-    sel.innerHTML = '<option value="">Seleccionar OT...</option>' +
-      _otsAprobadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)} (${o.tipo_servicio}) [${o.estado.replace('_', ' ')}]</option>`).join('');
-
-    // Si ya hay un valor seleccionado (por ejemplo en edición), cargar datos
-    if (sel.value) {
-      await completarDatosAval(sel.value);
-    }
-  } catch (e) { /* ignore */ }
-};
-
-window.completarDatosAval = async function (otId) {
+window.cargarDatosOT = async function (otId) {
   if (!otId) return;
+  
+  // Ocultar secciones hasta cargar
+  document.getElementById('av-cliente-info').classList.add('hidden');
+  document.getElementById('av-productos-section').classList.add('hidden');
+  
+  // Cargar OT
   try {
     const ot = _otsAprobadas.find(o => String(o.id) === String(otId));
-    if (ot) {
-      document.getElementById('av-desc').value = ot.descripcion || ot.tipo_servicio || '';
-    }
-
-    // Solo autocompletar materiales si es instalacion, mantenimiento o reparacion
-    const tiposConMateriales = ['instalacion', 'instalación', 'mantenimiento', 'reparacion', 'reparación', 'montaje'];
-    const esTipoConMateriales = ot.tipo_servicio && tiposConMateriales.some(t => ot.tipo_servicio.toLowerCase().includes(t));
-    if (esTipoConMateriales) {
-      try {
-        const detalles = await api('GET', '/api/ordenes/' + otId);
-        if (detalles && detalles.productos && detalles.productos.length > 0) {
-          const mats = detalles.productos.map(p => `- ${p.cantidad || ''} ${p.nombre || p.producto_nombre || 'Producto'}`).join('\n');
-          const existing = document.getElementById('av-mat').value;
-          if (!existing) {
-            document.getElementById('av-mat').value = mats;
-          }
-        }
-      } catch (e) { /* ignore products */ }
+    if (!ot) return;
+    
+    // Mostrar datos del cliente
+    document.getElementById('av-numero-ot').textContent = ot.numero_ot || '';
+    document.getElementById('av-cliente-nombre').textContent = ot.cliente_nombre || ot.cliente || '-';
+    document.getElementById('av-cliente-contacto').textContent = ot.cliente_telefono || ot.telefono || '-';
+    document.getElementById('av-cliente-direccion').textContent = ot.direccion || ot.cliente_direccion || '-';
+    document.getElementById('av-cliente-info').classList.remove('hidden');
+    
+    // Descripción
+    document.getElementById('av-desc').value = ot.descripcion || ot.tipo_servicio || '';
+    
+    // Cargar productos de la OT
+    const detalles = await api('GET', '/api/ordenes/' + otId);
+    _productosOT = (detalles && detalles.productos) || [];
+    
+    if (_productosOT.length > 0) {
+      const tbody = document.getElementById('av-productos-tbody');
+      tbody.innerHTML = _productosOT.map(p => `
+        <tr class="border-b border-gray-100">
+          <td class="py-2 px-3 text-sm">${escHtml(p.nombre || p.producto_nombre || '')}</td>
+          <td class="py-2 px-3 text-center text-sm">${p.cantidad || 0}</td>
+          <td class="py-2 px-3 text-center">
+            <input type="number" min="0" value="${p.cantidad || 0}" 
+              class="input-field w-20 text-center av-cant-aval-input" 
+              data-prod-id="${p.producto_id || p.id}"
+              data-cant-ot="${p.cantidad || 0}">
+          </td>
+        </tr>
+      `).join('');
+      document.getElementById('av-productos-section').classList.remove('hidden');
     }
   } catch (e) { /* ignore */ }
 };
@@ -3385,11 +3486,22 @@ window.submitNuevoAval = async function (e) {
   btn.disabled = true; btn.innerHTML = '<span class="loading-spinner align-middle mr-2"></span> Generando...';
 
   try {
+    // Recoger productos de la tabla
+    const inputs = document.querySelectorAll('.av-cant-aval-input');
+    const productos = [];
+    inputs.forEach(inp => {
+      const prodId = inp.dataset.prodId;
+      const cant = parseInt(inp.value) || 0;
+      const cantOt = parseInt(inp.dataset.cantOt) || 0;
+      productos.push({ producto_id: parseInt(prodId), cantidad: cant, cantidad_ot: cantOt });
+    });
+
     await api('POST', '/api/avales-legacy', {
       orden_trabajo_id: Number(otId),
       descripcion_trabajo: document.getElementById('av-desc').value,
       materiales: document.getElementById('av-mat').value,
       observaciones: document.getElementById('av-obs').value,
+      productos,
     });
     closeModal('nuevo-aval');
     toast('Aval generado y enviado al técnico');
