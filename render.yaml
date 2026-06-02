@@ -14,7 +14,7 @@ services:
     #   mountPath: /var/data
     #   sizeGB: 1
     buildCommand: npm install --no-optional
-    startCommand: node non-existent-file.js
+    startCommand: node src/server.js
     envVars:
       - key: NODE_ENV
         value: production
