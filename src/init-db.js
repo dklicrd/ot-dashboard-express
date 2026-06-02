@@ -1,4 +1,5 @@
 const { queryAll, queryFirst, run, transaction } = require('./db');
+const bcrypt = require("bcryptjs");
 
 async function initDatabase() {
   console.log('📦 Inicializando base de datos...');
@@ -648,7 +649,6 @@ async function initDatabase() {
   }
 
   // Admin por defecto — solo si no hay backup que restaurar
-  const bcrypt = require('bcryptjs');
   const adminRestored = queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0;
   if (adminRestored > 0) {
     console.log('👤 Usuarios ya restaurados desde backup, saltando seed de admin.');
@@ -748,8 +748,7 @@ async function initDatabase() {
   // ═══════════════════════════════════════════════
   const adminExiste = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
   if (!adminExiste) {
-    const bcrypt2 = require('bcryptjs');
-    const hashed2 = await bcrypt2.hash('3806.Adm', 10);
+    const hashed2 = await bcrypt.hash('3806.Adm', 10);
     run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
       ['Administrador', 'admin@sistema.com', hashed2, 'superadmin']);
     console.log('👤 Admin re-creado post-restore');
@@ -776,7 +775,6 @@ async function initDatabase() {
 async function seedDemo() {
   console.log('🌱 Insertando datos demo...');
   const anio = new Date().getFullYear();
-  const bcrypt = require('bcryptjs');
 
   transaction(() => {
     // Clientes
