@@ -1430,6 +1430,33 @@ app.get('/api/avales-legacy', authMiddleware, (req, res) => {
   res.json({ avales: queryAll(sql, params) });
 });
 
+app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
+  try {
+    const aval = queryFirst(`
+      SELECT a.*, ot.numero_ot, ot.cliente_id, c.nombre as cliente_nombre,
+             c.telefono as cliente_telefono, c.email, c.direccion as cliente_direccion,
+             c.cedula_rnc as cliente_cedula
+      FROM avales_legacy a
+      JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
+      JOIN clientes c ON ot.cliente_id = c.id
+      WHERE a.id = ?
+    `, [req.params.id]);
+    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+
+    const productos = queryAll(`
+      SELECT ap.*, p.nombre as producto_nombre, p.categoria
+      FROM aval_productos ap
+      JOIN productos p ON ap.producto_id = p.id
+      WHERE ap.aval_id = ?
+    `, [req.params.id]);
+
+    res.json({ aval, productos, ot: { numero_ot: aval.numero_ot, cliente_nombre: aval.cliente_nombre } });
+  } catch (e) {
+    console.error('Error getting aval legacy:', e);
+    res.status(500).json({ error: 'Error al obtener aval' });
+  }
+});
+
 app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
   try {
     const body = req.body;

@@ -671,12 +671,15 @@ async function renderAvales() {
           : '<span class="text-gray-400">—</span>'}
       </td>
       <td class="py-3 px-4 text-center">
-        ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin' && a.estado !== 'completado'
-          ? `<button onclick="uploadFirmado(${a.id})" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto"><span>📤</span> Subir Firmado</button>`
-          : ''}
-        ${a.archivo_pdf_firmado
-          ? `<a href="${a.archivo_pdf_firmado}" target="_blank" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto mt-1"><span>📄</span> Ver Firmado</a>`
-          : ''}
+        <div class="flex flex-col items-center gap-1">
+          <button onclick="showModal('detalle-aval', ${a.id})" class="btn-icon bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200" title="Ver Detalle">👁️</button>
+          ${state.user?.rol === 'admin' || state.user?.rol === 'superadmin' && a.estado !== 'completado'
+            ? `<button onclick="uploadFirmado(${a.id})" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto"><span>📤</span> Subir Firmado</button>`
+            : ''}
+          ${a.archivo_pdf_firmado
+            ? `<a href="${a.archivo_pdf_firmado}" target="_blank" class="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 mx-auto mt-1"><span>📄</span> Ver Firmado</a>`
+            : ''}
+        </div>
       </td>
     </tr>
   `).join('');
@@ -699,7 +702,7 @@ async function renderAvales() {
               <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">PDF</th>
               <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase tracking-wider">Acción</th>
             </tr></thead>
-            <tbody>${avales.length === 0 ? '<tr><td colspan="7" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">✅</span>No hay avales registrados</td></tr>' : rows}</tbody>
+            <tbody>${avales.length === 0 ? '<tr><td colspan="8" class="text-center py-12 text-gray-400"><span class="text-4xl block mb-2">✅</span>No hay avales registrados</td></tr>' : rows}</tbody>
           </table>
         </div>
       </div>
@@ -1165,7 +1168,14 @@ function mostrarCompartirAvalPostEntrega(avalId, email, telefono) {
 function renderModalDetalleAval(avalId) {
   (async () => {
     try {
-      const d = await api('GET', '/api/avales/' + avalId);
+      // Intentar primero el nuevo sistema de avales, si falla probar legacy
+      let d;
+      try {
+        d = await api('GET', '/api/avales/' + avalId);
+        if (!d.aval || d.aval.id === undefined) throw new Error('not found');
+      } catch (e1) {
+        d = await api('GET', '/api/avales-legacy/' + avalId);
+      }
       const container = document.getElementById('detalle-aval-content');
       if (container) container.innerHTML = renderDetalleAvalContent(d.aval, d.productos || [], d.ot);
       // Guardar datos del cliente para compartir
