@@ -77,26 +77,38 @@ function exportDatabase() {
 }
 
 /**
- * Verifica si la BD necesita restauración (está vacía/seed y hay backup)
+ * Verifica si la BD necesita restauración.
+ * RESTAURA SOLO si la BD está VACÍA (sin datos reales) y hay backup disponible.
+ * Si la BD ya tiene datos (clientes, OTs, usuarios), los respeta y NO restaura.
  */
 function needsRestore() {
   try {
-    // PASO 1: Intentar descargar backup desde FTP si no hay local válido
-    // (Esto se hace antes de llamar a needsRestore, desde verificarYRestaurarBackup)
-
     const numOrdenes = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0;
     const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
+    const numUsuarios = queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0;
+    // Sólo usuarios de seed (admin y sus variantes), sin datos reales
+    const hasRealData = numOrdenes > 0 || numClientes > 0 || numUsuarios > 2;
+
     const hasBackup = fs.existsSync(BACKUP_FILE) && fs.statSync(BACKUP_FILE).size > 0;
     const limpiadoFlag = fs.existsSync(path.join(path.dirname(BACKUP_FILE), '.limpiado'));
 
     // Si se hizo una limpieza intencional, NO restaurar
     if (limpiadoFlag) {
       console.log('🧹 Limpieza manual detectada (.limpiado), saltando restauracion.');
-      // Eliminar el flag para futuros arranques
       try { fs.unlinkSync(path.join(path.dirname(BACKUP_FILE), '.limpiado')); } catch(e) {}
       return false;
     }
 
+    // Si la BD ya tiene datos reales, NO restaurar — evitar sobreescribir datos actuales
+    if (hasRealData) {
+      console.log('✅ BD ya tiene datos (' + numOrdenes + ' OTs, ' + numClientes + ' clientes, ' + numUsuarios + ' usuarios). Saltando restauración para conservar datos actuales.');
+
+      // Actualizar backup local con los datos actuales (así el backup refleja el estado real)
+      try { exportDatabase(); } catch(e) {}
+      return false;
+    }
+
+    // BD vacía: restaurar desde backup si existe
     if (hasBackup) {
       try {
         const backupContent = JSON.parse(fs.readFileSync(BACKUP_FILE, 'utf-8'));
@@ -107,27 +119,17 @@ function needsRestore() {
           return false;
         }
 
-        // Restaurar SIEMPRE que el backup tenga datos reales
-        // (al menos clientes, OTs o usuarios fuera del seed mínimo)
         const numBackupClientes = (backupContent.clientes || []).length;
         const numBackupOTs = (backupContent.ordenes_trabajo || []).length;
         const numBackupUsuarios = (backupContent.usuarios || []).length;
 
-        // Restaurar si el backup tiene datos que no sean solo el seed vacío
         if (numBackupClientes > 0 || numBackupOTs > 0 || numBackupUsuarios > 0) {
-          console.log('🔄 Backup con datos detectado (' + numBackupClientes + ' clientes, ' + numBackupOTs + ' OTs, ' + numBackupUsuarios + ' usuarios) — restaurando...');
+          console.log('🔄 BD vacía — restaurando desde backup (' + numBackupClientes + ' clientes, ' + numBackupOTs + ' OTs, ' + numBackupUsuarios + ' usuarios)...');
           return true;
         }
       } catch (e) {
         console.log('⚠️ Backup inválido, saltando restauración.');
       }
-      return false;
-    }
-
-    // Si hay datos pero backup no existe, crear backup
-    if (!hasBackup) {
-      console.log('📦 BD con datos detectada sin backup, creando backup...');
-      exportDatabase();
     }
 
     return false;
