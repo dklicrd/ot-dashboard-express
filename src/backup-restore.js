@@ -83,6 +83,13 @@ function exportDatabase() {
  */
 function needsRestore() {
   try {
+    // Si RESET_DB está activo, NO restaurar y borrar backup existente
+    if (process.env.RESET_DB === 'true') {
+      console.log('🧹 RESET_DB activo — eliminando backup existente y saltando restauración');
+      try { fs.unlinkSync(BACKUP_FILE); } catch(e) { /* no backup file */ }
+      try { fs.unlinkSync(path.join(path.dirname(BACKUP_FILE), '.limpiado')); } catch(e) {}
+      return false;
+    }
     const numOrdenes = queryFirst('SELECT COUNT(*) as cnt FROM ordenes_trabajo')?.cnt || 0;
     const numClientes = queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0;
     const numUsuarios = queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0;

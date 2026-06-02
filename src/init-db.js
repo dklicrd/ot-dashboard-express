@@ -662,33 +662,27 @@ async function initDatabase() {
     run("INSERT INTO configuracion_documentos (id, nombre_empresa) VALUES (1, 'DKLIC PLUS INVESTMENT')");
   }
 
-  // Admin por defecto — solo si no hay backup que restaurar
-  const adminRestored = queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0;
-  if (adminRestored > 0) {
-    console.log('👤 Usuarios ya restaurados desde backup, saltando seed de admin.');
-  } else {
-    const adminResult = queryFirst("SELECT id FROM usuarios WHERE email = ? LIMIT 1", ['admin@sistema.com']);
-    if (!adminResult) {
-      const hashed = await bcrypt.hash('3806.Adm', 10);
-      run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
-        ['Administrador', 'admin@sistema.com', hashed, 'superadmin']);
-    }
-
-  } // else de adminRestored > 0
-
   // ═══════════════════════════════════════════════
   // RESTAURAR BACKUP si existe — antes de insertar seeds
   // ═══════════════════════════════════════════════
   await verificarYRestaurarBackup();
 
   // FORZAR password del admin a 3806.Adm (por si el backup trajo un hash diferente)
-  // Esto garantiza que siempre se pueda iniciar sesión
-  const adminExists = queryFirst('SELECT id FROM usuarios WHERE email = ?', ['admin@sistema.com']);
-  if (adminExists) {
+  const adminForce = queryFirst('SELECT id, email FROM usuarios WHERE email = ?', ['admin@sistema.com']);
+  if (adminForce) {
     const hashFijo = bcrypt.hashSync('3806.Adm', 10);
     run('UPDATE usuarios SET password = ? WHERE email = ?', [hashFijo, 'admin@sistema.com']);
     console.log('🔐 Password admin forzada a 3806.Adm');
+  } else {
+    // Si no existe ni siquiera el admin, crearlo
+    const adminHashed = await bcrypt.hash('3806.Adm', 10);
+    run("INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)",
+      ['Administrador', 'admin@sistema.com', adminHashed, 'superadmin']);
+    console.log('👤 Admin creado desde seed después de backup');
   }
+
+  // Admin por defecto — solo si no hay backup que restaurar
+  // (Esta sección ya no se ejecuta porque el backup se restaura arriba)
 
   // Solo insertar seeds demo si la BD está realmente vacía (sin datos reales)
   // Datos reales = tiene clientes u OTs (más allá del admin por defecto)
