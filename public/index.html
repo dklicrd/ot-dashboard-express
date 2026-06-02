@@ -3316,10 +3316,10 @@ function renderModalNuevoAval() {
           <div id="av-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
             <select id="av-ot" class="select-field" onchange="completarDatosAval(this.value)"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo Realizado</label><textarea id="av-desc" class="input-field" rows="3" placeholder="Describa el trabajo realizado..."></textarea></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Equipos / Materiales Instalados</label><textarea id="av-mat" class="input-field" rows="4" placeholder="Ej: 2 Cerraduras biométricas instaladas&#10;Cámara de seguridad exterior&#10;Cableado estructurado"></textarea>
-            <p class="text-xs text-gray-500 mt-1">El técnico puede ajustar cantidades al confirmar</p></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label><textarea id="av-obs" class="input-field" rows="2" placeholder="Notas adicionales..."></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo Realizado</label><textarea id="av-desc" class="input-field" rows="3" placeholder="Describa el trabajo realizado..." style="width:100%;min-height:80px"></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Equipos / Materiales Instalados</label><textarea id="av-mat" class="input-field" rows="5" placeholder="Los materiales se cargarán automáticamente al seleccionar la OT" style="width:100%;min-height:120px"></textarea>
+            <p class="text-xs text-gray-500 mt-1">Los productos de la OT se cargan automáticamente. El técnico puede ajustar cantidades si es necesario.</p></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label><textarea id="av-obs" class="input-field" rows="3" placeholder="Notas adicionales..." style="width:100%;min-height:80px"></textarea></div>
           <div class="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 flex items-center gap-2"><span>📌</span> Se generará un PDF profesional y se enviará al técnico por email</div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" onclick="closeModal('nuevo-aval')" class="btn-secondary">Cancelar</button>
