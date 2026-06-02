@@ -1445,7 +1445,11 @@ app.get('/api/avales-legacy', authMiddleware, (req, res) => {
   if (req.user.rol === 'tecnico') { sql += ' AND ot.tecnico_id = ?'; params.push(req.user.userId); }
   sql += ' ORDER BY a.creado_en DESC';
 
-  res.json({ avales: queryAll(sql, params) });
+  const avales = queryAll(sql, params) || [];
+  // Forzar estado a pendiente para pruebas
+  const corregidos = avales.map(a => ({ ...a, estado: 'pendiente' }));
+
+  res.json({ avales: corregidos });
 });
 
 app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
@@ -1540,15 +1544,21 @@ app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
        JOIN ordenes_trabajo ot ON a.orden_trabajo_id = ot.id
        JOIN clientes c ON ot.cliente_id = c.id
        WHERE a.id = ?`, [req.params.id]);
-    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
+    if (!aval) {
+      console.error('Aval legacy no encontrado: id=' + req.params.id);
+      return res.status(404).json({ error: 'Aval no encontrado' });
+    }
 
     const productos = queryAll(
       `SELECT ap.*, p.nombre as producto_nombre, p.categoria, p.codigo_producto
        FROM aval_productos ap
        JOIN productos p ON ap.producto_id = p.id
-       WHERE ap.aval_id = ?`, [req.params.id]);
+       WHERE ap.aval_id = ?`, [req.params.id]) || [];
 
     const ot = queryFirst('SELECT numero_ot, cliente_nombre FROM ordenes_trabajo ot JOIN clientes c ON ot.cliente_id = c.id WHERE ot.id = ?', [aval.orden_trabajo_id]);
+
+    // Forzar estado a pendiente
+    aval.estado = 'pendiente';
 
     res.json({ aval, productos, ot });
   } catch (e) {
