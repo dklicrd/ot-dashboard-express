@@ -4,6 +4,20 @@ const bcrypt = require("bcryptjs");
 async function initDatabase() {
   console.log('📦 Inicializando base de datos...');
 
+  // Si la variable RESET_DB está activa, borrar todo y empezar de nuevo
+  if (process.env.RESET_DB === 'true') {
+    console.log('⚠️ RESET_DB activo — eliminando todas las tablas...');
+    try {
+      const tables = queryAll("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+      for (const t of tables) {
+        run('DROP TABLE IF EXISTS "' + t.name + '"');
+      }
+      console.log('✅ Todas las tablas eliminadas');
+    } catch (e) {
+      console.error('Error reset:', e.message);
+    }
+  }
+
   run(`
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
