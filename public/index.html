@@ -1045,6 +1045,10 @@ function renderEntregaAvalForm() {
 
       <div class="flex justify-end gap-3 pt-2">
         <button onclick="closeModal('entrega-aval')" class="btn-secondary">Cancelar</button>
+        ${_otParaAval.id ? `
+          <button onclick="confirmarAval100(${_otParaAval.id})" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar 100%</button>
+          <button onclick="habilitarEditarCantidades(${_otParaAval.id})" class="btn-warning flex items-center gap-2"><span>✏️</span> Cambiar cantidades</button>
+        ` : ''}
         <button onclick="submitEntregaAval(${_otParaAval.id})" class="btn-primary">Entregar Aval ✅</button>
       </div>
     </div>
