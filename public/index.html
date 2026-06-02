@@ -3315,7 +3315,7 @@ function renderModalNuevoAval() {
         <form onsubmit="submitNuevoAval(event)" class="p-6 space-y-4">
           <div id="av-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
-            <select id="av-ot" class="select-field" onchange="cargarDatosAval()"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
+            <select id="av-ot" class="select-field" onchange="completarDatosAval(this.value)"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo</label><textarea id="av-desc" class="input-field" rows="3"></textarea></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Materiales / Repuestos</label><textarea id="av-mat" class="input-field" rows="3" placeholder="Lista de materiales utilizados"></textarea></div>
           <div class="grid grid-cols-2 gap-4">
@@ -3343,6 +3343,37 @@ window.cargarDatosAval = async function () {
     const sel = document.getElementById('av-ot');
     sel.innerHTML = '<option value="">Seleccionar OT...</option>' +
       _otsAprobadas.map(o => `<option value="${o.id}">${o.numero_ot} — ${escHtml(o.cliente_nombre)} (${o.tipo_servicio}) [${o.estado.replace('_', ' ')}]</option>`).join('');
+
+    // Si ya hay un valor seleccionado (por ejemplo en edición), cargar datos
+    if (sel.value) {
+      await completarDatosAval(sel.value);
+    }
+  } catch (e) { /* ignore */ }
+};
+
+window.completarDatosAval = async function (otId) {
+  if (!otId) return;
+  try {
+    const ot = _otsAprobadas.find(o => String(o.id) === String(otId));
+    if (ot) {
+      document.getElementById('av-desc').value = ot.descripcion || ot.tipo_servicio || '';
+      // Si tiene monto, sugerirlo como costo
+      if (ot.monto_total) {
+        document.getElementById('av-costo').value = ot.monto_total;
+      }
+    }
+
+    // También intentar obtener los productos asociados a la OT
+    try {
+      const detalles = await api('GET', '/api/ordenes/' + otId);
+      if (detalles && detalles.productos && detalles.productos.length > 0) {
+        const mats = detalles.productos.map(p => `- ${p.cantidad || ''} ${p.nombre || p.producto_nombre || 'Producto'}`).join('\n');
+        const existing = document.getElementById('av-mat').value;
+        if (!existing) {
+          document.getElementById('av-mat').value = mats;
+        }
+      }
+    } catch (e) { /* ignore products */ }
   } catch (e) { /* ignore */ }
 };
 
