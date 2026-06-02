@@ -24,6 +24,9 @@ const { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarEmailCo
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DEPLOY_VERSION = 'v' + Date.now();
+
+console.log('🚀 OT Dashboard ' + DEPLOY_VERSION);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
