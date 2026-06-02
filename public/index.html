@@ -3384,7 +3384,9 @@ window.submitNuevaOT = async function (e) {
   }
 };
 
-// ============ MODAL: NUEVO AVAL ============
+// ============ MODAL: NUEVO AVAL (unificado con Entregar Aval) ============
+let _otParaAvalNuevo = null;
+
 function renderModalNuevoAval() {
   return `
     <div class="modal-overlay fade-in" onclick="if(event.target===this)closeModal('nuevo-aval')">
@@ -3393,100 +3395,165 @@ function renderModalNuevoAval() {
           <h2 class="text-xl font-bold">Nuevo Aval de Servicio</h2>
           <button onclick="closeModal('nuevo-aval')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
         </div>
-        <form onsubmit="submitNuevoAval(event)" class="p-6 space-y-4">
+        <div class="p-6 space-y-4">
           <div id="av-error" class="hidden bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-200"></div>
           <div><label class="block text-sm font-medium text-gray-700 mb-1">Orden de Trabajo *</label>
-            <select id="av-ot" class="select-field" onchange="cargarDatosOT(this.value)"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
-          
-          <!-- Datos del cliente (autocompletados) -->
-          <div id="av-cliente-info" class="hidden bg-gray-50 rounded-xl p-4 space-y-1 text-sm">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold text-gray-700">Datos del Cliente</h3>
-              <span id="av-numero-ot" class="text-xs text-blue-600 font-medium"></span>
-            </div>
-            <p><strong>Nombre:</strong> <span id="av-cliente-nombre"></span></p>
-            <p><strong>Contacto:</strong> <span id="av-cliente-contacto"></span></p>
-            <p><strong>Dirección:</strong> <span id="av-cliente-direccion"></span></p>
+            <select id="av-ot" class="select-field" onchange="cargarDatosOTNuevo(this.value)"><option value="">Seleccionar OT (aprobada o en curso)...</option></select></div>
+          <div id="nuevo-aval-content">
+            <div class="text-center py-8 text-gray-400"><span class="inline-block">👆</span> Selecciona una OT para comenzar</div>
           </div>
-          
-          <!-- Tabla de productos -->
-          <div id="av-productos-section" class="hidden border rounded-xl p-4">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="font-semibold text-gray-700 text-sm">Productos de la OT</h3>
-              <span class="text-xs text-gray-400">Ajusta las cantidades si es necesario</span>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead><tr class="bg-gray-50">
-                  <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Producto</th>
-                  <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Cant. OT</th>
-                  <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase w-24">Cant. Aval</th>
-                </tr></thead>
-                <tbody id="av-productos-tbody"></tbody>
-              </table>
-            </div>
-          </div>
-          
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Trabajo Realizado</label><textarea id="av-desc" class="input-field" rows="2" placeholder="Describa el trabajo realizado..." style="width:100%"></textarea></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Materiales Adicionales</label><textarea id="av-mat" class="input-field" rows="3" placeholder="Materiales no incluidos en los productos de la OT..." style="width:100%"></textarea></div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label><textarea id="av-obs" class="input-field" rows="2" placeholder="Notas adicionales..." style="width:100%"></textarea></div>
-          
-          <div class="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 flex items-center gap-2"><span>📌</span> Se generará un PDF profesional y se enviará al técnico por email</div>
-          <div class="flex justify-end gap-3 pt-2">
-            <button type="button" onclick="closeModal('nuevo-aval')" class="btn-secondary">Cancelar</button>
-            <button type="submit" class="btn-primary">Generar Aval y Enviar</button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>`;
 }
 
-_otsAprobadas = [];
-_productosOT = [];
-
-window.cargarDatosOT = async function (otId) {
-  if (!otId) return;
+window.cargarDatosOTNuevo = async function (otId) {
+  if (!otId) { document.getElementById('nuevo-aval-content').innerHTML = '<div class="text-center py-8 text-gray-400">👆 Selecciona una OT para comenzar</div>'; return; }
   
-  // Ocultar secciones hasta cargar
-  document.getElementById('av-cliente-info').classList.add('hidden');
-  document.getElementById('av-productos-section').classList.add('hidden');
+  const container = document.getElementById('nuevo-aval-content');
+  container.innerHTML = '<div class="text-center py-8 text-gray-400"><span class="loading-spinner border-blue-600 border-4 w-8 h-8 inline-block mb-2"></span><br>Cargando datos de OT...</div>';
   
-  // Cargar OT
   try {
-    const ot = _otsAprobadas.find(o => String(o.id) === String(otId));
-    if (!ot) return;
-    
-    // Mostrar datos del cliente
-    document.getElementById('av-numero-ot').textContent = ot.numero_ot || '';
-    document.getElementById('av-cliente-nombre').textContent = ot.cliente_nombre || ot.cliente || '-';
-    document.getElementById('av-cliente-contacto').textContent = ot.cliente_telefono || ot.telefono || '-';
-    document.getElementById('av-cliente-direccion').textContent = ot.direccion || ot.cliente_direccion || '-';
-    document.getElementById('av-cliente-info').classList.remove('hidden');
-    
-    // Descripción
-    document.getElementById('av-desc').value = ot.descripcion || ot.tipo_servicio || '';
-    
-    // Cargar productos de la OT
-    const detalles = await api('GET', '/api/ordenes/' + otId);
-    _productosOT = (detalles && detalles.productos) || [];
-    
-    if (_productosOT.length > 0) {
-      const tbody = document.getElementById('av-productos-tbody');
-      tbody.innerHTML = _productosOT.map(p => `
-        <tr class="border-b border-gray-100">
-          <td class="py-2 px-3 text-sm">${escHtml(p.nombre || p.producto_nombre || '')}</td>
-          <td class="py-2 px-3 text-center text-sm">${p.cantidad || 0}</td>
-          <td class="py-2 px-3 text-center">
-            <input type="number" min="0" value="${p.cantidad || 0}" 
-              class="input-field w-20 text-center av-cant-aval-input" 
-              data-prod-id="${p.producto_id || p.id}"
-              data-cant-ot="${p.cantidad || 0}">
-          </td>
-        </tr>
-      `).join('');
-      document.getElementById('av-productos-section').classList.remove('hidden');
+    const d = await api('GET', '/api/ordenes');
+    _otParaAvalNuevo = (d.ordenes || []).find(o => String(o.id) === String(otId));
+    if (!_otParaAvalNuevo) {
+      container.innerHTML = '<p class="text-red-500 text-center">Error: OT no encontrada</p>';
+      return;
     }
-  } catch (e) { /* ignore */ }
+    
+    // Cargar productos
+    try {
+      const detalles = await api('GET', '/api/ordenes/' + otId);
+      _otParaAvalNuevo.productos = (detalles && detalles.productos) || [];
+    } catch(e) { _otParaAvalNuevo.productos = []; }
+    
+    _productosOTNuevo = (_otParaAvalNuevo.productos || []).map(p => ({ ...p, cantidad_real: p.cantidad, comentario: '' }));
+    
+    container.innerHTML = renderFormNuevoAval();
+  } catch (e) {
+    container.innerHTML = '<p class="text-red-500 text-center">Error: ' + escHtml(e.message) + '</p>';
+  }
+};
+
+function renderFormNuevoAval() {
+  if (!_otParaAvalNuevo) return '<p class="text-red-500 text-center">Error: No se pudo cargar la OT</p>';
+  
+  const prodRows = _productosOTNuevo.map((p, i) => `
+    <tr class="border-b border-gray-100">
+      <td class="py-2 px-3">${escHtml(p.nombre || p.producto_nombre || '')}</td>
+      <td class="py-2 px-3 text-center">${p.cantidad || 0}</td>
+      <td class="py-2 px-3">
+        <input type="number" min="0" value="${p.cantidad || 0}" 
+          class="input-field w-24 text-center" 
+          onchange="_productosOTNuevo[${i}].cantidad_real = parseInt(this.value) || 0"
+          id="nuev-cant-${p.id}">
+      </td>
+      <td class="py-2 px-3">
+        <input type="text" class="input-field" placeholder="Observación"
+          onchange="_productosOTNuevo[${i}].comentario = this.value">
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="space-y-4">
+      <div class="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
+        <strong>OT:</strong> ${_otParaAvalNuevo.numero_ot} · 
+        <strong>Cliente:</strong> ${escHtml(_otParaAvalNuevo.cliente_nombre || _otParaAvalNuevo.cliente || '')} · 
+        <strong>Técnico:</strong> ${state.user?.nombre}
+      </div>
+
+      <div class="border rounded-xl p-4">
+        <h3 class="font-semibold text-gray-700 text-sm mb-3">Productos Instalados</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50">
+              <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Producto</th>
+              <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase w-20">Cant OT</th>
+              <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs uppercase w-24">Cant. Real</th>
+              <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs uppercase">Comentario</th>
+            </tr></thead>
+            <tbody>${prodRows || '<tr><td colspan="4" class="text-center py-4 text-gray-400">No hay productos asignados</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+        <textarea id="nuev-observaciones" class="input-field" rows="3" placeholder="Observaciones sobre la instalación..."></textarea>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-2">
+        <button onclick="closeModal('nuevo-aval')" class="btn-secondary">Cancelar</button>
+        <button onclick="confirmarAval100DesdeNuevo()" class="btn-success flex items-center gap-2"><span>✅</span> Confirmar 100%</button>
+        <button onclick="guardarNuevoAvalYEditar()" class="btn-warning flex items-center gap-2"><span>✏️</span> Cambiar cantidades</button>
+        <button onclick="submitNuevoAval()" class="btn-primary">Generar Aval ✅</button>
+      </div>
+    </div>`;
+}
+
+let _productosOTNuevo = [];
+
+window.confirmarAval100DesdeNuevo = async function () {
+  if (!_otParaAvalNuevo) return;
+  if (!confirm('¿Estás seguro de confirmar este aval al 100%? Todos los productos quedarán con las cantidades originales de la OT.')) return;
+  try {
+    await api('POST', '/api/avales-legacy', {
+      orden_trabajo_id: _otParaAvalNuevo.id,
+      descripcion_trabajo: document.getElementById('nuev-observaciones')?.value || '',
+      materiales: '',
+      observaciones: document.getElementById('nuev-observaciones')?.value || '',
+      productos: (_productosOTNuevo || []).map(p => ({ producto_id: p.producto_id || p.id, cantidad: p.cantidad || 0, cantidad_ot: p.cantidad || 0 })),
+    });
+    toast('✅ Aval creado y confirmado al 100%');
+    closeModal('nuevo-aval');
+    render();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+};
+
+window.guardarNuevoAvalYEditar = async function () {
+  if (!_otParaAvalNuevo) return;
+  try {
+    const r = await api('POST', '/api/avales-legacy', {
+      orden_trabajo_id: _otParaAvalNuevo.id,
+      descripcion_trabajo: document.getElementById('nuev-observaciones')?.value || '',
+      materiales: '',
+      observaciones: document.getElementById('nuev-observaciones')?.value || '',
+      productos: (_productosOTNuevo || []).map(p => ({ producto_id: p.producto_id || p.id, cantidad: parseInt(document.getElementById('nuev-cant-' + p.id)?.value) || 0, cantidad_ot: p.cantidad || 0 })),
+    });
+    toast('✅ Aval creado. Ahora puedes editar las cantidades en el detalle.');
+    closeModal('nuevo-aval');
+    render();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+};
+
+window.submitNuevoAval = async function () {
+  if (!_otParaAvalNuevo) { toast('Selecciona una OT primero', 'error'); return; }
+  
+  try {
+    const productos = (_productosOTNuevo || []).map(p => ({
+      producto_id: p.producto_id || p.id,
+      cantidad: parseInt(document.getElementById('nuev-cant-' + p.id)?.value) || 0,
+      cantidad_ot: p.cantidad || 0,
+    }));
+
+    await api('POST', '/api/avales-legacy', {
+      orden_trabajo_id: _otParaAvalNuevo.id,
+      descripcion_trabajo: document.getElementById('nuev-observaciones')?.value || '',
+      materiales: '',
+      observaciones: document.getElementById('nuev-observaciones')?.value || '',
+      productos,
+    });
+    closeModal('nuevo-aval');
+    toast('✅ Aval generado y enviado al técnico');
+    render();
+  } catch (e) {
+    showError('av-error', e.message);
+  }
 };
 
 window.submitNuevoAval = async function (e) {
