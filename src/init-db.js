@@ -74,6 +74,7 @@ async function initDatabase() {
     const hasAvalEntregado = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%aval_entregado%'").length > 0;
     if (!hasAvalEntregado) {
       console.log('🔧 Migrando tabla ordenes_trabajo (agregando estado aval_entregado)...');
+      run('DROP TABLE IF EXISTS ordenes_trabajo_old');
       run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_old');
       run(`
         CREATE TABLE ordenes_trabajo (
@@ -107,6 +108,7 @@ async function initDatabase() {
     const hasTipoCheck = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='ordenes_trabajo' AND sql LIKE '%CHECK(tipo_servicio IN%'").length > 0;
     if (hasTipoCheck) {
       console.log('🔧 Migrando tabla ordenes_trabajo (eliminando CHECK en tipo_servicio)...');
+      run('DROP TABLE IF EXISTS ordenes_trabajo_old2');
       run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_old2');
       run(`
         CREATE TABLE ordenes_trabajo (
@@ -162,6 +164,7 @@ async function initDatabase() {
   
   if (avalesExists && !legacyExists) {
     console.log('🔧 Renombrando avales legacy a avales_legacy');
+    run('DROP TABLE IF EXISTS avales_legacy');
     run('ALTER TABLE avales RENAME TO avales_legacy');
   }
 
@@ -272,6 +275,7 @@ async function initDatabase() {
     const hasAvalRef = queryAll("SELECT sql FROM sqlite_master WHERE type='table' AND name='encuestas_satisfaccion' AND sql LIKE '%REFERENCES avales%'").length > 0;
     if (hasAvalRef) {
       console.log('🔧 Migrando referencia aval_id en encuestas...');
+      run('DROP TABLE IF EXISTS encuestas_satisfaccion_old');
       run('ALTER TABLE encuestas_satisfaccion RENAME TO encuestas_satisfaccion_old');
       run(`
         CREATE TABLE encuestas_satisfaccion (
@@ -468,6 +472,8 @@ async function initDatabase() {
     
     run('PRAGMA foreign_keys=OFF');
     
+    run('DROP TABLE IF EXISTS avales_old');
+    run('DROP TABLE IF EXISTS aval_productos_old');
     run('ALTER TABLE avales RENAME TO avales_old');
     run('ALTER TABLE aval_productos RENAME TO aval_productos_old');
     
@@ -554,6 +560,7 @@ async function initDatabase() {
   if (hasOtCheck) {
     console.log('🔧 Migrando tabla ordenes_trabajo (eliminando CHECK constraint)...');
     run('PRAGMA foreign_keys=OFF');
+    run('DROP TABLE IF EXISTS ordenes_trabajo_v2_old');
     run('ALTER TABLE ordenes_trabajo RENAME TO ordenes_trabajo_v2_old');
     run(`
       CREATE TABLE ordenes_trabajo (
