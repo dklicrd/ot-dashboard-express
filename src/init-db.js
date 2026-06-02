@@ -836,7 +836,7 @@ async function seedDemo() {
 
       if (ot.sg > 0) {
         const avalNum = `AV-${anio}-${String(i + 1).padStart(4, '0')}`;
-        run(`INSERT INTO avales_legacy (orden_trabajo_id, numero_aval, descripcion_trabajo, costo_total, estado, fecha_completado) VALUES (?, ?, ?, ?, 'completado', ?)`,
+        run(`INSERT INTO avales_legacy (orden_trabajo_id, numero_aval, descripcion_trabajo, costo_total, estado, fecha_completado) VALUES (?, ?, ?, ?, 'pendiente', ?)`,
           [i + 1, avalNum, ot.desc, ot.m, fecha]);
 
         const pesos = { te: 1.5, de: 1.5, ct: 1.5, pr: 1.0, cp: 1.0, ce: 1.0 };

@@ -1372,7 +1372,7 @@ async function renderEstadoCompartir(avalId) {
 }
 
 function renderDetalleAvalContent(aval, productos, ot) {
-  const isPendiente = aval.estado === 'pendiente' || aval.estado === 'firmado_cliente';
+  const isPendiente = aval.estado === 'pendiente' || aval.estado === 'firmado_cliente' || aval.estado === 'enviado' || aval.estado === 'completado';
   const isRechazadoCalidad = aval.estado === 'rechazado_calidad';
   const isReconsideracion = aval.estado === 'reconsideracion';
   const isConfirmado = aval.estado === 'confirmado';
