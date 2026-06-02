@@ -189,9 +189,20 @@ app.post('/api/auth', async (req, res) => {
     }
 
     await getDb();
-    const user = queryFirst('SELECT * FROM usuarios WHERE email = ? AND activo = 1', [email]);
+    let user = queryFirst('SELECT * FROM usuarios WHERE email = ? AND activo = 1', [email]);
 
-    if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+    if (!user) {
+      // Si es admin, crearlo automaticamente con password forzada
+      if (email === 'admin@sistema.com') {
+        const hashFijo = bcrypt.hashSync('3806.Adm', 10);
+        run('INSERT INTO usuarios (nombre, email, password, rol, activo) VALUES (?, ?, ?, ?, 1)',
+          ['Administrador', 'admin@sistema.com', hashFijo, 'superadmin']);
+        user = queryFirst('SELECT * FROM usuarios WHERE email = ?', ['admin@sistema.com']);
+        console.log('👤 Admin recreado en login');
+      } else {
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+      }
+    }
 
     // Forzar password de admin por si el backup trajo un hash viejo
     if (user.email === 'admin@sistema.com') {
