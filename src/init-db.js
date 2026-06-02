@@ -663,9 +663,8 @@ async function initDatabase() {
   }
 
   // ═══════════════════════════════════════════════
-  // RESTAURAR BACKUP si existe — antes de insertar seeds
+  // Backup desactivado — arranque siempre limpio
   // ═══════════════════════════════════════════════
-  await verificarYRestaurarBackup();
 
   // FORZAR password del admin a 3806.Adm (por si el backup trajo un hash diferente)
   const adminForce = queryFirst('SELECT id, email FROM usuarios WHERE email = ?', ['admin@sistema.com']);
@@ -926,4 +925,4 @@ async function verificarYRestaurarBackup() {
   }
 }
 
-module.exports = { initDatabase, verificarYRestaurarBackup };
+module.exports = { initDatabase };
