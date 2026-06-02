@@ -155,16 +155,39 @@ function restoreDatabase() {
     console.log(`🔄 Restaurando BD desde backup (${tableCount} tablas)...`);
 
     transaction(() => {
-      // Desactivar foreign keys y limpiar tablas en orden inverso
-      const allTables = Object.keys(backup).reverse();
+      // Desactivar foreign keys
+      run('PRAGMA foreign_keys = OFF');
 
-      // Primera pasada: limpiar
-      for (const table of allTables) {
+      // Orden de limpieza e inserción: usuarios primero para evitar FK issues
+      const orderedTables = ['usuarios', 'clientes', 'productos', 'presupuestos', 'ordenes_trabajo',
+        'orden_trabajo_productos', 'avales', 'avales_legacy', 'encuestas_satisfaccion',
+        'configuracion_incentivos', 'configuracion_documentos', 'reportes_incentivos', 'notificaciones_ot'];
+
+      // Primera pasada: limpiar todo EXCEPTO usuarios
+      for (const table of orderedTables) {
+        if (table === 'usuarios') continue;
         try {
           run(`DELETE FROM ${table}`);
         } catch (e) {
           console.warn(`⚠️ No se pudo limpiar ${table}: ${e.message}`);
         }
+      }
+
+      // Limpiar usuarios existentes — SOLO los que NO estén en el backup
+      const backupEmails = (backup.usuarios || []).map(u => u.email).filter(Boolean);
+      if (backupEmails.length > 0) {
+        // Eliminar usuarios que ya existen y están en el backup (para reemplazarlos)
+        // Pero mantener usuarios que NO están en el backup (ej: admin creado por init-db)
+        for (const email of backupEmails) {
+          try {
+            run('DELETE FROM usuarios WHERE email = ?', [email]);
+          } catch (e) {
+            console.warn(`⚠️ No se pudo eliminar usuario ${email}: ${e.message}`);
+          }
+        }
+      } else {
+        // Sin emails en backup, eliminar todo
+        try { run('DELETE FROM usuarios'); } catch(e) {}
       }
 
       // Segunda pasada: insertar datos
@@ -177,6 +200,21 @@ function restoreDatabase() {
 
         for (const row of rows) {
           try {
+            // Para usuarios: si ya existe con este email (insertado por init-db), actualizar en vez de insertar
+            if (table === 'usuarios' && row.email) {
+              const existing = queryFirst('SELECT id FROM usuarios WHERE email = ?', [row.email]);
+              if (existing) {
+                // Actualizar datos del usuario existente sin tocar password
+                const setClauses = columns.filter(c => c !== 'password' && c !== 'id' && c !== 'email')
+                  .map(c => `${c} = ?`).join(', ');
+                const setValues = columns.filter(c => c !== 'password' && c !== 'id' && c !== 'email')
+                  .map(c => row[c] ?? null);
+                if (setClauses) {
+                  run(`UPDATE usuarios SET ${setClauses} WHERE email = ?`, [...setValues, row.email]);
+                }
+                continue;
+              }
+            }
             const values = columns.map(col => row[col] ?? null);
             run(`INSERT INTO ${table} (${colNames}) VALUES (${placeholders})`, values);
           } catch (e) {
@@ -185,6 +223,8 @@ function restoreDatabase() {
         }
         console.log(`  ✓ ${table}: ${rows.length} registros restaurados`);
       }
+
+      run('PRAGMA foreign_keys = ON');
     });
 
     console.log('✅ BD restaurada exitosamente');
