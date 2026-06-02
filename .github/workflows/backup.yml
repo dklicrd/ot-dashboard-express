@@ -9,6 +9,9 @@ on:
         description: 'Motivo del backup manual'
         required: false
         default: 'manual'
+  schedule:
+    # Cada hora, minutos 05 y 35 — para que siempre haya backup reciente
+    - cron: '5,35 * * * *'
 
 jobs:
   export-backup:
