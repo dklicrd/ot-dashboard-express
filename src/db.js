@@ -15,6 +15,13 @@ async function initDb() {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
   
+  // RESET_DB=true: borrar BD existente por completo
+  if (process.env.RESET_DB === 'true' && fs.existsSync(DB_PATH)) {
+    console.log('🧹 RESET_DB activo — eliminando BD existente');
+    try { fs.unlinkSync(DB_PATH); } catch(e) {}
+    try { fs.unlinkSync(DB_PATH + '.tmp'); } catch(e) {}
+  }
+  
   const initSqlJs = require('sql.js');
   const SQL = await initSqlJs();
   
