@@ -2344,6 +2344,10 @@ window.showModal = function (id, data) {
         if (firstRadio) firstRadio.focus({ preventScroll: true });
       }, 100);
     }
+    // Si es modal de nuevo aval, cargar las OTs en el select
+    if (id === 'nuevo-aval') {
+      setTimeout(() => cargarDatosAval(), 50);
+    }
   });
 };
 
