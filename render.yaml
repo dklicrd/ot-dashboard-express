@@ -13,7 +13,7 @@ services:
     #   name: data
     #   mountPath: /var/data
     #   sizeGB: 1
-    buildCommand: npm install
+    buildCommand: npm install --no-optional
     startCommand: node src/server.js
     envVars:
       - key: NODE_ENV
