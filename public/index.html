@@ -3355,17 +3355,21 @@ window.completarDatosAval = async function (otId) {
       document.getElementById('av-desc').value = ot.descripcion || ot.tipo_servicio || '';
     }
 
-    // También intentar obtener los productos asociados a la OT
-    try {
-      const detalles = await api('GET', '/api/ordenes/' + otId);
-      if (detalles && detalles.productos && detalles.productos.length > 0) {
-        const mats = detalles.productos.map(p => `- ${p.cantidad || ''} ${p.nombre || p.producto_nombre || 'Producto'}`).join('\n');
-        const existing = document.getElementById('av-mat').value;
-        if (!existing) {
-          document.getElementById('av-mat').value = mats;
+    // Solo autocompletar materiales si es instalacion, mantenimiento o reparacion
+    const tiposConMateriales = ['instalacion', 'instalación', 'mantenimiento', 'reparacion', 'reparación', 'montaje'];
+    const esTipoConMateriales = ot.tipo_servicio && tiposConMateriales.some(t => ot.tipo_servicio.toLowerCase().includes(t));
+    if (esTipoConMateriales) {
+      try {
+        const detalles = await api('GET', '/api/ordenes/' + otId);
+        if (detalles && detalles.productos && detalles.productos.length > 0) {
+          const mats = detalles.productos.map(p => `- ${p.cantidad || ''} ${p.nombre || p.producto_nombre || 'Producto'}`).join('\n');
+          const existing = document.getElementById('av-mat').value;
+          if (!existing) {
+            document.getElementById('av-mat').value = mats;
+          }
         }
-      }
-    } catch (e) { /* ignore products */ }
+      } catch (e) { /* ignore products */ }
+    }
   } catch (e) { /* ignore */ }
 };
 
