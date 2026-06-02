@@ -1467,16 +1467,6 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
        body.costo_total ?? ot.monto_total ?? 0, body.forma_pago || null, body.garantia || null,
        body.observaciones || null, `/uploads/avales/${pdfFilename}`]);
 
-    // Copiar productos de la OT al aval
-    const avalReg = queryFirst('SELECT id FROM avales_legacy WHERE numero_aval = ?', [numAval]);
-    if (avalReg) {
-      const prodOT = queryAll('SELECT otp.producto_id, otp.cantidad FROM orden_trabajo_productos otp WHERE otp.orden_trabajo_id = ?', [body.orden_trabajo_id]);
-      for (const p of prodOT) {
-        run('INSERT INTO aval_productos (aval_id, producto_id, cantidad_reportada, cantidad_confirmada) VALUES (?, ?, ?, ?)',
-          [avalReg.id, p.producto_id, p.cantidad, p.cantidad]);
-      }
-    }
-
     // Enviar email al técnico
     const tecnico = ot.tecnico_id ? queryFirst('SELECT * FROM usuarios WHERE id = ?', [ot.tecnico_id]) : null;
     if (tecnico && tecnico.email) {
@@ -1502,90 +1492,6 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
   } catch (e) {
     console.error('Error creating aval legacy:', e);
     res.status(500).json({ error: 'Error al crear aval' });
-  }
-});
-
-// Obtener productos de un aval específico
-app.get('/api/avales-legacy/:id/productos', authMiddleware, (req, res) => {
-  try {
-    const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
-    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
-    const productos = queryAll(`
-      SELECT ap.*, p.nombre as producto_nombre, p.codigo_producto
-      FROM aval_productos ap
-      JOIN productos p ON ap.producto_id = p.id
-      WHERE ap.aval_id = ?
-    `, [req.params.id]);
-    res.json({ productos });
-  } catch (e) {
-    console.error('Error getting aval productos:', e);
-    res.status(500).json({ error: 'Error al obtener productos del aval' });
-  }
-});
-
-// Confirmar aval 100% (sin cambios)
-app.put('/api/avales-legacy/:id/confirmar', authMiddleware, async (req, res) => {
-  try {
-    const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
-    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
-
-    run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
-
-    res.json({ message: 'Aval confirmado al 100%', estado: 'confirmado' });
-    try { exportDatabase(); } catch(e) { /* ignore */ }
-  } catch (e) {
-    console.error('Error confirming aval:', e);
-    res.status(500).json({ error: 'Error al confirmar aval' });
-  }
-});
-
-// Actualizar cantidades de productos y recalcular bono en OT
-app.put('/api/avales-legacy/:id/productos', authMiddleware, async (req, res) => {
-  try {
-    const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
-    if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
-
-    const { productos } = req.body; // [{producto_id, cantidad_reporte, cantidad}]
-    if (!Array.isArray(productos) || productos.length === 0) {
-      return res.status(400).json({ error: 'Se requiere array de productos' });
-    }
-
-    // Actualizar cantidades confirmadas en aval_productos
-    for (const p of productos) {
-      run('UPDATE aval_productos SET cantidad_reportada=?, cantidad_confirmada=? WHERE aval_id=? AND producto_id=?',
-        [p.cantidad_reporte ?? p.cantidad, p.cantidad, req.params.id, p.producto_id]);
-
-      // Actualizar cantidad en la OT original
-      if (p.cantidad !== undefined) {
-        run('UPDATE orden_trabajo_productos SET cantidad=? WHERE orden_trabajo_id=? AND producto_id=?',
-          [p.cantidad, aval.orden_trabajo_id, p.producto_id]);
-      }
-    }
-
-    // Recalcular bono del técnico en la OT
-    const prodOT = queryAll(
-      'SELECT otp.producto_id, otp.cantidad, p.precio_venta as precio FROM orden_trabajo_productos otp JOIN productos p ON otp.producto_id=p.id WHERE otp.orden_trabajo_id=?',
-      [aval.orden_trabajo_id]);
-    
-    const porcentajeBono = 0.05; // 5%
-    const subtotal = prodOT.reduce((sum, p) => sum + (p.cantidad * (p.precio || 0)), 0);
-    const nuevoBono = Math.round(subtotal * porcentajeBono);
-
-    run('UPDATE ordenes_trabajo SET bono_tecnico=?, monto_total=?, actualizado_en=datetime("now", "-04:00") WHERE id=?',
-      [nuevoBono, subtotal, aval.orden_trabajo_id]);
-
-    // Marcar aval como confirmado con cambios
-    run("UPDATE avales_legacy SET estado='confirmado_cambios', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
-
-    res.json({
-      message: 'Productos actualizados y bono recalculado',
-      bono_tecnico: nuevoBono,
-      monto_total: subtotal
-    });
-    try { exportDatabase(); } catch(e) { /* ignore */ }
-  } catch (e) {
-    console.error('Error updating productos:', e);
-    res.status(500).json({ error: 'Error al actualizar productos' });
   }
 });
 
