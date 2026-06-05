@@ -1114,6 +1114,9 @@ window.submitEntregaAval = async function (otId) {
   if (!_cantidadesConfirmadas) { toast('Debes confirmar las cantidades primero', 'error'); return; }
   if (!_datosClienteConfirmados) { toast('Debes registrar los datos del cliente primero', 'error'); return; }
 
+  const observaciones = document.getElementById('ent-observaciones')?.value?.trim();
+  if (!observaciones) { toast('Debes escribir observaciones generales antes de entregar el aval', 'error'); return; }
+
   const clienteNombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const clienteContacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const clienteTelefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
@@ -1131,7 +1134,7 @@ window.submitEntregaAval = async function (otId) {
     cliente_cedula: document.getElementById('ent-cliente-cedula')?.value || '',
     cliente_telefono: document.getElementById('ent-cliente-telefono')?.value || '',
     cliente_email: document.getElementById('ent-cliente-email')?.value || '',
-    observaciones: document.getElementById('ent-observaciones')?.value || '',
+    observaciones: observaciones,
     productos: productos
   };
 
@@ -1142,7 +1145,7 @@ window.submitEntregaAval = async function (otId) {
     const r = await api('POST', '/api/avales', body);
     closeModal('entrega-aval');
     toast('Aval entregado correctamente. OT pasa a "Aval Entregado".');
-    render();
+    try { render(); } catch (renderErr) { console.error('Error en render post-aval:', renderErr); }
     // Mostrar modal de compartir justo después de entregar
     if (r && r.aval_id) {
       setTimeout(function() { mostrarCompartirAvalPostEntrega(r.aval_id, body.cliente_email, body.cliente_telefono); }, 500);
