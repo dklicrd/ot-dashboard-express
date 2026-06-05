@@ -69,6 +69,17 @@ function crearTablasBase() {
   run(`CREATE TABLE IF NOT EXISTS configuracion_documentos (
     id INTEGER PRIMARY KEY, nombre_empresa TEXT, logo_url TEXT
   )`);
+  run(`CREATE TABLE IF NOT EXISTS configuracion_incentivos (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    frecuencia TEXT DEFAULT 'trimestral',
+    ponderacion REAL DEFAULT 80,
+    bono_fijo REAL DEFAULT 3000,
+    bono_por_ot REAL DEFAULT 500,
+    bono_encuesta_minima REAL DEFAULT 0.7,
+    umbral_calificacion REAL DEFAULT 4.5,
+    activo INTEGER DEFAULT 1,
+    actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
   console.log('✅ Tablas base verificadas/creadas');
 }
 
