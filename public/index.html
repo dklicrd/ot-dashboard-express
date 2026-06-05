@@ -922,6 +922,7 @@ async function initEncuestasAlertas() {
 let _otParaAval = null;
 let _productosOT = [];
 let _cantidadesConfirmadas = false;
+let _datosClienteConfirmados = false;
 
 function renderModalEntregaAval(otId) {
   (async () => {
@@ -956,13 +957,29 @@ function renderModalEntregaAval(otId) {
 }
 
 function _checkPuedeEntregar() {
+  const btn = document.getElementById('ent-btn-entregar');
+  if (!btn) return;
+  btn.disabled = !(_datosClienteConfirmados && _cantidadesConfirmadas);
+}
+
+function _confirmarCliente() {
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
-  const btn = document.getElementById('ent-btn-entregar');
-  if (!btn) return;
-  const clienteOk = nombre && (contacto || telefono);
-  btn.disabled = !(clienteOk && _cantidadesConfirmadas);
+  if (!nombre) { toast('El nombre del cliente que recibe es obligatorio', 'error'); return; }
+  if (!contacto && !telefono) { toast('Debes proporcionar al menos un contacto o teléfono', 'error'); return; }
+
+  _datosClienteConfirmados = true;
+  const btn = document.getElementById('ent-btn-confirmar-cliente');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '✅ Cliente Registrado';
+    btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+    btn.classList.add('bg-green-700', 'cursor-default', 'opacity-70');
+  }
+  // Deshabilitar inputs del cliente
+  document.querySelectorAll('#ent-cliente-nombre, #ent-cliente-contacto, #ent-cliente-telefono, #ent-cliente-cedula, #ent-cliente-email').forEach(inp => inp.disabled = true);
+  _checkPuedeEntregar();
 }
 
 function _confirmarCantidades() {
@@ -982,6 +999,7 @@ function _confirmarCantidades() {
 function renderEntregaAvalForm() {
   if (!_otParaAval) return '<p class="text-red-500 text-center">Error: No se pudo cargar la OT</p>';
   _cantidadesConfirmadas = false;
+  _datosClienteConfirmados = false;
 
   const prodRows = _productosOT.map((p, i) => `
     <tr class="border-b border-gray-100">
@@ -1002,62 +1020,45 @@ function renderEntregaAvalForm() {
 
   return `
     <div class="space-y-4">
-      <div class="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
-        <strong>OT:</strong> ${_otParaAval.numero_ot} · 
+      <div class="bg-blue-50 rounded-xl p-4 text-sm text-blue-800 flex items-center justify-between">
+        <div><strong>OT:</strong> ${_otParaAval.numero_ot} · 
         <strong>Cliente:</strong> ${escHtml(_otParaAval.cliente_nombre)} · 
-        <strong>Técnico:</strong> ${state.user?.nombre}
+        <strong>Técnico:</strong> ${state.user?.nombre}</div>
       </div>
 
-      <!-- 🆕 TRABAJO COMPLETADO v2 -->
-      <div class="border rounded-xl p-4 space-y-3">
-        <h3 class="font-semibold text-gray-700 text-sm">Estado del Trabajo</h3>
-        <div>
-          <label class="block text-xs font-medium text-gray-600 mb-2">¿Se completó el 100% de los trabajos asignados?</label>
-          <div class="flex gap-3">
-            <label class="flex items-center gap-2 p-2 border-2 rounded-lg cursor-pointer transition-all" id="ent-completado-si" style="border-color:#22c55e;background:#f0fdf4" onclick="seleccionarCompletado(true)">
-              <input type="radio" name="trabajo-completado" value="1" checked onchange="seleccionarCompletado(true)">
-              <span class="text-sm font-medium text-green-700">✅ Sí, 100% completado</span>
-            </label>
-            <label class="flex items-center gap-2 p-2 border-2 rounded-lg cursor-pointer transition-all" id="ent-completado-no" style="border-color:#e5e7eb" onclick="seleccionarCompletado(false)">
-              <input type="radio" name="trabajo-completado" value="0" onchange="seleccionarCompletado(false)">
-              <span class="text-sm font-medium text-gray-600">⚠️ No, solo parcial</span>
-            </label>
-          </div>
-        </div>
-        <div id="ent-detalle-container" class="hidden">
-          <label class="block text-xs font-medium text-gray-600 mb-1">Detalle del trabajo realizado *</label>
-          <textarea id="ent-detalle-trabajo" class="input-field" rows="3" placeholder="Describe qué trabajos se realizaron realmente..."></textarea>
-        </div>
-      </div>
-
-      <div class="border rounded-xl p-4 space-y-3">
-        <h3 class="font-semibold text-gray-700 text-sm">Datos del Cliente (quien recibe) <span class="text-red-500">*</span></h3>
+      <div class="border-2 border-dashed border-red-300 rounded-xl p-4 space-y-3" id="ent-cliente-section">
+        <h3 class="font-semibold text-gray-700 text-sm">📍 Paso 1 — Datos del Cliente (quien recibe) <span class="text-red-500">*</span></h3>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Nombre <span class="text-red-500">*</span></label>
-            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required oninput="_checkPuedeEntregar()">
+            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required>
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-orange-500">* sin teléfono</span></label>
-            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" oninput="_checkPuedeEntregar()">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-orange-500">* si no hay teléfono</span></label>
+            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
             <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0">
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-orange-500">* sin contacto</span></label>
-            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_checkPuedeEntregar()">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-orange-500">* si no hay contacto</span></label>
+            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}">
           </div>
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
             <input type="email" id="ent-cliente-email" class="input-field" placeholder="cliente@email.com">
           </div>
         </div>
+        <div class="text-center pt-2">
+          <button type="button" id="ent-btn-confirmar-cliente" onclick="_confirmarCliente()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium text-sm transition-all">
+            ✅ Registrar Cliente
+          </button>
+        </div>
       </div>
 
-      <div class="border rounded-xl p-4">
-        <h3 class="font-semibold text-gray-700 text-sm mb-3">Productos Instalados</h3>
+      <div class="border-2 border-dashed border-amber-300 rounded-xl p-4" id="ent-productos-section">
+        <h3 class="font-semibold text-gray-700 text-sm mb-3">📍 Paso 2 — Productos Instalados</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="bg-gray-50">
@@ -1070,22 +1071,21 @@ function renderEntregaAvalForm() {
           </table>
         </div>
         <div class="mt-3 text-center">
-          <button type="button" id="ent-btn-confirmar-cant" onclick="_confirmarCantidades()" class="btn-secondary">
+          <button type="button" id="ent-btn-confirmar-cant" onclick="_confirmarCantidades()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium text-sm transition-all">
             ✅ Confirmar Cantidades
           </button>
-          <p class="text-xs text-gray-400 mt-1">Revisa y ajusta las cantidades reales, luego confírmalas</p>
+          <p class="text-xs text-gray-400 mt-2">Revisa y ajusta las cantidades reales, luego confírmalas</p>
         </div>
       </div>
 
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Observaciones Generales</label>
+      <div class="border rounded-xl p-4">
+        <h3 class="font-semibold text-gray-700 text-sm mb-1">Observaciones Generales</h3>
         <textarea id="ent-observaciones" class="input-field" rows="3" placeholder="Observaciones sobre la instalación..."></textarea>
       </div>
 
       <div class="flex justify-end gap-3 pt-2 border-t border-gray-100 pt-4">
         <button onclick="closeModal('entrega-aval')" class="btn-secondary">Cancelar</button>
         <button id="ent-btn-entregar" onclick="submitEntregaAval(${_otParaAval.id})" class="btn-primary" disabled>Entregar Aval ✅</button>
-      </div>
       </div>
     </div>
   `;
@@ -1112,12 +1112,11 @@ window.seleccionarCompletado = function (completado) {
 
 window.submitEntregaAval = async function (otId) {
   if (!_cantidadesConfirmadas) { toast('Debes confirmar las cantidades primero', 'error'); return; }
+  if (!_datosClienteConfirmados) { toast('Debes registrar los datos del cliente primero', 'error'); return; }
 
   const clienteNombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
-  if (!clienteNombre) { toast('Nombre del cliente es requerido', 'error'); return; }
   const clienteContacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const clienteTelefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
-  if (!clienteContacto && !clienteTelefono) { toast('Debes proporcionar un contacto o teléfono del cliente', 'error'); return; }
 
   const productos = _productosOT.map(p => ({
     producto_id: p.id,
