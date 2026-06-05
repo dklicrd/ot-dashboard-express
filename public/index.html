@@ -934,8 +934,8 @@ function renderModalEntregaAval(otId) {
       const container = document.getElementById('entrega-aval-content');
       if (container) {
         container.innerHTML = renderEntregaAvalForm();
-        // Forzar validación inicial del estado del botón
-        setTimeout(_checkPuedeEntregar, 50);
+        // Forzar chequeo inicial del boton Registrar Cliente
+        setTimeout(_checkClienteForm, 50);
       }
     } catch (e) {
       toast('Error cargando OT: ' + e.message, 'error');
@@ -956,6 +956,16 @@ function renderModalEntregaAval(otId) {
     </div>`;
 }
 
+function _checkClienteForm() {
+  const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
+  const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
+  const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
+  const btn = document.getElementById('ent-btn-confirmar-cliente');
+  if (!btn) return;
+  const ok = nombre && (contacto || telefono);
+  btn.disabled = !ok;
+}
+
 function _checkPuedeEntregar() {
   const btn = document.getElementById('ent-btn-entregar');
   if (!btn) return;
@@ -966,8 +976,9 @@ function _confirmarCliente() {
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
-  if (!nombre) { toast('El nombre del cliente que recibe es obligatorio', 'error'); return; }
-  if (!contacto && !telefono) { toast('Debes proporcionar al menos un contacto o teléfono', 'error'); return; }
+  if (!nombre || (!contacto && !telefono)) {
+    toast('Completa todos los campos obligatorios del cliente', 'error'); return;
+  }
 
   _datosClienteConfirmados = true;
   const btn = document.getElementById('ent-btn-confirmar-cliente');
@@ -977,7 +988,6 @@ function _confirmarCliente() {
     btn.classList.remove('bg-green-600', 'hover:bg-green-700');
     btn.classList.add('bg-green-700', 'cursor-default', 'opacity-70');
   }
-  // Deshabilitar inputs del cliente
   document.querySelectorAll('#ent-cliente-nombre, #ent-cliente-contacto, #ent-cliente-telefono, #ent-cliente-cedula, #ent-cliente-email').forEach(inp => inp.disabled = true);
   _checkPuedeEntregar();
 }
@@ -1031,11 +1041,11 @@ function renderEntregaAvalForm() {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Nombre <span class="text-red-500">*</span></label>
-            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required>
+            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required oninput="_checkClienteForm()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-orange-500">* si no hay teléfono</span></label>
-            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe">
+            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" oninput="_checkClienteForm()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
@@ -1043,7 +1053,7 @@ function renderEntregaAvalForm() {
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-orange-500">* si no hay contacto</span></label>
-            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}">
+            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_checkClienteForm()">
           </div>
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
@@ -1051,7 +1061,7 @@ function renderEntregaAvalForm() {
           </div>
         </div>
         <div class="text-center pt-2">
-          <button type="button" id="ent-btn-confirmar-cliente" onclick="_confirmarCliente()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium text-sm transition-all">
+          <button type="button" id="ent-btn-confirmar-cliente" onclick="_confirmarCliente()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
             ✅ Registrar Cliente
           </button>
         </div>
