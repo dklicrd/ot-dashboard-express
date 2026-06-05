@@ -963,12 +963,13 @@ function _tocarCliente() {
 function _checkClienteForm() {
   const btn = document.getElementById('ent-btn-confirmar-cliente');
   if (!btn || _datosClienteConfirmados) return;
-  // El boton solo se habilita si el usuario TOCÓ los campos Y están completos
   if (!_clienteTocado) { btn.disabled = true; return; }
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
+  const cedula = document.getElementById('ent-cliente-cedula')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
-  btn.disabled = !(nombre && (contacto || telefono));
+  const email = document.getElementById('ent-cliente-email')?.value?.trim();
+  btn.disabled = !(nombre && contacto && cedula && telefono && email);
 }
 
 function _checkPuedeEntregar() {
@@ -980,9 +981,12 @@ function _checkPuedeEntregar() {
 function _confirmarCliente() {
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
+  const cedula = document.getElementById('ent-cliente-cedula')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
-  if (!nombre || (!contacto && !telefono)) {
-    toast('Completa todos los campos obligatorios del cliente', 'error'); return;
+  const email = document.getElementById('ent-cliente-email')?.value?.trim();
+  if (!nombre || !contacto || !cedula || !telefono || !email) {
+    toast('Completa todos los campos del cliente: Nombre, Contacto, Cédula, Teléfono y Email', 'error');
+    return;
   }
 
   _datosClienteConfirmados = true;
@@ -1049,20 +1053,20 @@ function renderEntregaAvalForm() {
             <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required oninput="_tocarCliente()">
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-orange-500">* si no hay teléfono</span></label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-red-500">*</span></label>
             <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" oninput="_tocarCliente()">
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
-            <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Cédula <span class="text-red-500">*</span></label>
+            <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0" oninput="_tocarCliente()">
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-orange-500">* si no hay contacto</span></label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-red-500">*</span></label>
             <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_tocarCliente()">
           </div>
           <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
-            <input type="email" id="ent-cliente-email" class="input-field" placeholder="cliente@email.com">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+            <input type="email" id="ent-cliente-email" class="input-field" placeholder="cliente@email.com" oninput="_tocarCliente()">
           </div>
         </div>
         <div class="text-center pt-2">
