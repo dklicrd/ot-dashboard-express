@@ -1,6 +1,77 @@
 const { queryAll, queryFirst, run, transaction } = require('./db');
 const bcrypt = require("bcryptjs");
 
+/**
+ * Crea solo las tablas base si no existen.
+ * Se usa cuando la BD ya tiene datos en disco persistente,
+ * para no ejecutar migraciones ni seeds destructivos.
+ */
+function crearTablasBase() {
+  console.log('📋 Verificando tablas base...');
+  run(`CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL, rol TEXT NOT NULL, telefono TEXT, activo INTEGER DEFAULT 1,
+    creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS clientes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, telefono TEXT, email TEXT,
+    direccion TEXT, cedula_rnc TEXT, tipo TEXT DEFAULT 'particular',
+    referencias_ubicacion TEXT, creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS productos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, categoria TEXT,
+    descripcion TEXT, precio REAL DEFAULT 0, creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS ordenes_trabajo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, numero_ot TEXT UNIQUE NOT NULL,
+    cliente_id INTEGER, tipo_servicio TEXT, descripcion TEXT, presupuesto_aprobado INTEGER DEFAULT 0,
+    monto_total REAL DEFAULT 0, tecnico_id INTEGER, estado TEXT DEFAULT 'pendiente',
+    fuente TEXT, archivo_presupuesto TEXT, notas TEXT, creada_por INTEGER,
+    fecha_programada TEXT, fecha_inicio TEXT, fecha_fin TEXT,
+    creado_en TEXT DEFAULT (datetime('now', '-04:00')), actualizado_en TEXT
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS orden_trabajo_productos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, orden_trabajo_id INTEGER, producto_id INTEGER,
+    cantidad INTEGER DEFAULT 1, precio_unitario REAL DEFAULT 0
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS avales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, orden_trabajo_id INTEGER NOT NULL,
+    numero_aval TEXT UNIQUE NOT NULL, cliente_nombre TEXT, cliente_contacto TEXT,
+    cliente_cedula TEXT, cliente_telefono TEXT, cliente_email TEXT, observaciones TEXT,
+    estado TEXT DEFAULT 'pendiente', creado_por INTEGER, fecha_creacion TEXT
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS aval_productos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, aval_id INTEGER NOT NULL,
+    producto_id INTEGER, cantidad INTEGER, comentario TEXT
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS avales_legacy (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, orden_trabajo_id INTEGER NOT NULL,
+    numero_aval TEXT, descripcion_trabajo TEXT, costo_total REAL DEFAULT 0,
+    estado TEXT DEFAULT 'pendiente', fecha_completado TEXT, creado_en TEXT
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS presupuestos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, descripcion TEXT,
+    monto_total REAL DEFAULT 0, creado_por INTEGER, creado_en TEXT
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS encuestas_satisfaccion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, orden_trabajo_id INTEGER, aval_legacy_id INTEGER,
+    satisfaccion_general INTEGER, tiempo_entrega INTEGER, desempeno_equipo INTEGER,
+    presentacion_equipo INTEGER, calidad_productos INTEGER, conocimientos_tecnicos INTEGER,
+    calidad_entrenamientos INTEGER, recomendaria INTEGER, porcentaje_final REAL,
+    realizada_por INTEGER, fecha_encuesta TEXT, email_enviado INTEGER DEFAULT 0,
+    creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS reportes_incentivos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, periodo TEXT, tecnico_id INTEGER,
+    total_ots INTEGER, puntuacion_promedio REAL, bono_generado REAL,
+    fecha_calculo TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
+  run(`CREATE TABLE IF NOT EXISTS configuracion_documentos (
+    id INTEGER PRIMARY KEY, nombre_empresa TEXT, logo_url TEXT
+  )`);
+  console.log('✅ Tablas base verificadas/creadas');
+}
+
 async function initDatabase() {
   console.log('📦 Inicializando base de datos...');
 
@@ -17,6 +88,24 @@ async function initDatabase() {
       console.error('Error reset:', e.message);
     }
   }
+
+  // Verificar si la BD ya tiene datos reales (disco persistente)
+  try {
+    const tieneUsuarios = (queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0) > 0;
+    const tieneClientes = (queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0) > 0;
+
+    if (tieneUsuarios && tieneClientes) {
+      console.log('💾 BD con datos existentes detectada (disco persistente). Saltando seeds y migraciones.');
+      // Solo asegurar que tablas esenciales existen (por si agregamos tablas nuevas en el futuro)
+      crearTablasBase();
+      return;
+    }
+  } catch (e) {
+    // Las tablas pueden no existir aún (primera ejecución), continuar con inicialización completa
+    console.log('⚠️ No se pudo verificar BD existente:', e.message);
+  }
+
+  console.log('🆕 BD vacía o sin datos — ejecutando inicialización completa...');
 
   run(`
     CREATE TABLE IF NOT EXISTS usuarios (
