@@ -1110,25 +1110,6 @@ function renderEntregaAvalForm() {
   `;
 }
 
-// 🆕 v2: Toggle trabajo completado / parcial
-window.seleccionarCompletado = function (completado) {
-  const siLabel = document.getElementById('ent-completado-si');
-  const noLabel = document.getElementById('ent-completado-no');
-  const detalleContainer = document.getElementById('ent-detalle-container');
-  if (siLabel) {
-    siLabel.style.borderColor = completado ? '#22c55e' : '#e5e7eb';
-    siLabel.style.background = completado ? '#f0fdf4' : 'white';
-  }
-  if (noLabel) {
-    noLabel.style.borderColor = completado ? '#e5e7eb' : '#ef4444';
-    noLabel.style.background = completado ? 'white' : '#fef2f2';
-  }
-  if (detalleContainer) {
-    detalleContainer.classList.toggle('hidden', completado);
-    if (!completado) setTimeout(function() { document.getElementById('ent-detalle-trabajo')?.focus(); }, 100);
-  }
-};
-
 window.submitEntregaAval = async function (otId) {
   if (!_cantidadesConfirmadas) { toast('Debes confirmar las cantidades primero', 'error'); return; }
   if (!_datosClienteConfirmados) { toast('Debes registrar los datos del cliente primero', 'error'); return; }
@@ -1143,19 +1124,8 @@ window.submitEntregaAval = async function (otId) {
     comentario: p.comentario || ''
   }));
 
-  const trabajoCompletado = document.querySelector('input[name="trabajo-completado"]:checked')?.value === '1';
-  const detalleTrabajoReal = document.getElementById('ent-detalle-trabajo')?.value?.trim() || '';
-
-  if (!trabajoCompletado && !detalleTrabajoReal) {
-    toast('Debes detallar qué trabajos se realizaron si no se completó el 100%', 'error');
-    btn.disabled = false; btn.textContent = 'Entregar Aval ✅';
-    return;
-  }
-
   const body = {
     orden_trabajo_id: otId,
-    trabajo_completado: trabajoCompletado,
-    detalle_trabajo_real: detalleTrabajoReal,
     cliente_nombre: clienteNombre,
     cliente_contacto: document.getElementById('ent-cliente-contacto')?.value || '',
     cliente_cedula: document.getElementById('ent-cliente-cedula')?.value || '',
