@@ -7,12 +7,11 @@ services:
     name: ot-dashboard
     env: node
     region: ohio
-    plan: free # ⚠️ CAMBIAR a 'starter' para activar disco persistente y NO perder datos
-    # Cuando cambies al plan Starter ($7/mes), Render usara automaticamente el disco:
-    # disk:
-    #   name: data
-    #   mountPath: /var/data
-    #   sizeGB: 1
+    plan: starter
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
     buildCommand: npm install --no-optional
     startCommand: node src/server.js
     envVars:
@@ -25,7 +24,7 @@ services:
         # ⚠️ No usar generateValue: true porque cada deploy regenera el secret
         # e invalida todos los tokens existentes. Usar valor fijo.
       - key: DASHBOARD_URL
-        value: https://ot-dashboard-9mn9.onrender.com
+        value: https://ot-dashboard-xje7.onrender.com
       # ⚠️ Free tier de Render NO tiene disco persistente.
       # Los datos en SQLite se pierden con cada deploy.
       # Para persistencia: actualizar a plan Starter ($7/mes)
@@ -44,7 +43,6 @@ services:
         sync: false
       - key: SMTP_FROM
         value: notificaciones@dklicplus.com
-      # ⚠️ DB_PATH: en Render se puede usar un disco persistente.
-      # Si usas plan Starter+, descomenta disk: arriba y setea:
-      # - key: DB_PATH
-      #   value: /var/data/ot-dashboard.db
+      # 💾 DB_PATH: Ruta del disco persistente en Render Starter+
+      - key: DB_PATH
+        value: /var/data/ot-dashboard.db
