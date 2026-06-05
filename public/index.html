@@ -923,6 +923,7 @@ let _otParaAval = null;
 let _productosOT = [];
 let _cantidadesConfirmadas = false;
 let _datosClienteConfirmados = false;
+let _clienteTocado = false;
 
 function renderModalEntregaAval(otId) {
   (async () => {
@@ -934,8 +935,6 @@ function renderModalEntregaAval(otId) {
       const container = document.getElementById('entrega-aval-content');
       if (container) {
         container.innerHTML = renderEntregaAvalForm();
-        // Forzar chequeo inicial del boton Registrar Cliente
-        setTimeout(_checkClienteForm, 50);
       }
     } catch (e) {
       toast('Error cargando OT: ' + e.message, 'error');
@@ -956,14 +955,20 @@ function renderModalEntregaAval(otId) {
     </div>`;
 }
 
+function _tocarCliente() {
+  _clienteTocado = true;
+  _checkClienteForm();
+}
+
 function _checkClienteForm() {
+  const btn = document.getElementById('ent-btn-confirmar-cliente');
+  if (!btn || _datosClienteConfirmados) return;
+  // El boton solo se habilita si el usuario TOCÓ los campos Y están completos
+  if (!_clienteTocado) { btn.disabled = true; return; }
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
-  const btn = document.getElementById('ent-btn-confirmar-cliente');
-  if (!btn) return;
-  const ok = nombre && (contacto || telefono);
-  btn.disabled = !ok;
+  btn.disabled = !(nombre && (contacto || telefono));
 }
 
 function _checkPuedeEntregar() {
@@ -1041,11 +1046,11 @@ function renderEntregaAvalForm() {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Nombre <span class="text-red-500">*</span></label>
-            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required oninput="_checkClienteForm()">
+            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required onchange="_tocarCliente()" onkeyup="_tocarCliente()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-orange-500">* si no hay teléfono</span></label>
-            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" oninput="_checkClienteForm()">
+            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" onchange="_tocarCliente()" onkeyup="_tocarCliente()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
@@ -1053,7 +1058,7 @@ function renderEntregaAvalForm() {
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-orange-500">* si no hay contacto</span></label>
-            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_checkClienteForm()">
+            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" onchange="_tocarCliente()" onkeyup="_tocarCliente()">
           </div>
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
