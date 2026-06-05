@@ -1046,11 +1046,11 @@ function renderEntregaAvalForm() {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Nombre <span class="text-red-500">*</span></label>
-            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required onchange="_tocarCliente()" onkeyup="_tocarCliente()">
+            <input type="text" id="ent-cliente-nombre" class="input-field" value="${escHtml(_otParaAval.cliente_nombre)}" required oninput="_tocarCliente()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Contacto <span class="text-orange-500">* si no hay teléfono</span></label>
-            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" onchange="_tocarCliente()" onkeyup="_tocarCliente()">
+            <input type="text" id="ent-cliente-contacto" class="input-field" placeholder="Persona que recibe" oninput="_tocarCliente()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Cédula</label>
@@ -1058,7 +1058,7 @@ function renderEntregaAvalForm() {
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-orange-500">* si no hay contacto</span></label>
-            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" onchange="_tocarCliente()" onkeyup="_tocarCliente()">
+            <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_tocarCliente()">
           </div>
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
