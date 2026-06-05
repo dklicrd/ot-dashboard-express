@@ -1144,11 +1144,17 @@ window.submitEntregaAval = async function (otId) {
   try {
     const r = await api('POST', '/api/avales', body);
     closeModal('entrega-aval');
-    toast('Aval entregado correctamente. OT pasa a "Aval Entregado".');
-    try { render(); } catch (renderErr) { console.error('Error en render post-aval:', renderErr); }
-    // Mostrar modal de compartir justo después de entregar
-    if (r && r.aval_id) {
-      setTimeout(function() { mostrarCompartirAvalPostEntrega(r.aval_id, body.cliente_email, body.cliente_telefono); }, 500);
+    // Renderizar el dashboard de nuevo estable
+    try {
+      render();
+      // Pequeña pausa para que el DOM se estabilice antes del toast
+      setTimeout(function() {
+        toast('✅ Aval #' + (r?.numero_aval || '') + ' entregado. OT pasa a estado "Aval Entregado".');
+      }, 100);
+    } catch (renderErr) {
+      console.error('Error en render post-aval:', renderErr);
+      // Si el render falla, recargar la pagina como fallback
+      setTimeout(function() { location.reload(); }, 1000);
     }
   } catch (e) {
     toast('Error: ' + e.message, 'error');
