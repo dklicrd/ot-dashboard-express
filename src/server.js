@@ -2775,7 +2775,7 @@ app.get('/api/confirmar-ot/:token', async function(req, res) {
     var adminEmails = admins.map(function(a) { return a.email; }).filter(Boolean);
 
     if (adminEmails.length > 0) {
-      var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+      var dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
       var htmlNotif = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:20px"><div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;padding:24px"><h2 style="color:#16a34a">&#9989; Fecha Confirmada por T&eacute;cnico</h2><p>El t&eacute;cnico ha <strong style="color:#16a34a">confirmado la fecha</strong> para la OT <strong>' + escHtml(ot.numero_ot) + '</strong>.</p><p>La OT ha pasado autom&aacute;ticamente a <strong>En Curso</strong>.</p><a href="' + escHtml(dashUrl) + '/orden/' + row.orden_trabajo_id + '" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold">Ver OT</a></div></body></html>';
       enviarEmail({ to: adminEmails, subject: '✅ Fecha confirmada - OT ' + ot.numero_ot, html: htmlNotif }).catch(function(e) {
         console.error('Error notificando admins:', e.message);
@@ -3214,7 +3214,7 @@ app.post('/api/avales/:id/enviar', authMiddleware, async (req, res) => {
       run('UPDATE avales SET token_publico = ?, token_enviado_en = datetime(\'now\', \'-04:00\') WHERE id = ?', [token, id]);
     }
 
-    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
     const publicUrl = dashUrl + '/aval-publico/' + token;
     const { metodo, destinatario } = req.body;
 
@@ -3256,7 +3256,7 @@ app.post('/api/avales/:id/compartir', authMiddleware, async (req, res) => {
       }
     }
 
-    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
     const publicUrl = dashUrl + '/aval-publico/' + token;
 
     res.json({
@@ -3276,7 +3276,7 @@ app.get('/api/avales/:id/compartir', authMiddleware, (req, res) => {
     const aval = queryFirst('SELECT id, numero_aval, token_publico, token_enviado_en, token_visto_en, fecha_firma_cliente FROM avales WHERE id = ?', [Number(req.params.id)]);
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
 
-    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+    const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
     res.json({
       numero_aval: aval.numero_aval,
       enlace: aval.token_publico ? dashUrl + '/aval-publico/' + aval.token_publico : null,
@@ -3325,7 +3325,7 @@ function iniciarCronEncuestas() {
           console.log(`⚠️ Encuesta #${enc.id} (OT ${enc.numero_ot}) marcada como expirada`);
 
           // Enviar alerta a admin
-          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
           const adminEmails = queryAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
           const scEmails = queryAll("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' AND email IS NOT NULL");
           const recipients = [...adminEmails.map(a => a.email), ...scEmails.map(s => s.email)].filter(Boolean);
@@ -3355,7 +3355,7 @@ function iniciarCronEncuestas() {
           run('UPDATE encuestas_satisfaccion SET recordatorio_2_enviado = 1 WHERE id = ?', [enc.id]);
           console.log(`⏰ Recordatorio 2 enviado para encuesta #${enc.id} (OT ${enc.numero_ot})`);
 
-          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
           const adminEmails = queryAll("SELECT email FROM usuarios WHERE rol IN ('admin','superadmin') AND email IS NOT NULL");
           const scEmails = queryAll("SELECT email FROM usuarios WHERE rol = 'servicio_cliente' AND email IS NOT NULL");
           const recipients = [...adminEmails.map(a => a.email), ...scEmails.map(s => s.email)].filter(Boolean);
@@ -3381,7 +3381,7 @@ function iniciarCronEncuestas() {
           // Enviar recordatorio al cliente
           run(`UPDATE encuestas_satisfaccion SET recordatorio_1_enviado = 1 WHERE id = ${enc.id}`);
 
-          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+          const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
           const encuestaUrl = `${dashUrl}/encuesta-publica/${enc.token_publico}`;
           const emailCliente = enc.aval_cliente_email || enc.cliente_email;
 
@@ -3417,7 +3417,7 @@ function iniciarCronEncuestas() {
   function verificarAvalesPendientes() {
     try {
       const ahora = new Date();
-      const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-9mn9.onrender.com';
+      const dashUrl = process.env.DASHBOARD_URL || 'https://ot-dashboard-xje7.onrender.com';
 
       const avalesVencidos = queryAll(`
         SELECT a.id, a.orden_trabajo_id, a.estado, a.fecha_entrega_tecnico,

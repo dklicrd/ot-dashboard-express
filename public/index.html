@@ -931,7 +931,11 @@ function renderModalEntregaAval(otId) {
       _productosOT = _otParaAval?.productos || [];
       _productosOT = _productosOT.map(p => ({ ...p, cantidad_real: p.cantidad, comentario: '' }));
       const container = document.getElementById('entrega-aval-content');
-      if (container) container.innerHTML = renderEntregaAvalForm();
+      if (container) {
+        container.innerHTML = renderEntregaAvalForm();
+        // Forzar validación inicial del estado del botón
+        setTimeout(_checkPuedeEntregar, 50);
+      }
     } catch (e) {
       toast('Error cargando OT: ' + e.message, 'error');
     }
