@@ -2539,27 +2539,12 @@ app.get('/orden/:id', async (req, res) => {
       const catBase = ot.categoria_servicio || ot.tipo_servicio;
       const precioBase = precios[catBase] || 0;
       montoTotal = precioBase;
-      prodRows = `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(ot.tipo_servicio)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${escHtml2(catBase)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">1</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${precioBase.toFixed(2)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${precioBase.toFixed(2)}</td></tr>`;
-      desgRows = `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(catBase.replace(/_/g, ' '))}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">1</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${precioBase.toFixed(2)}</td></tr>`;
+      prodRows = `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(ot.tipo_servicio)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${escHtml2(catBase)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">1</td></tr>`;
     } else {
       prodRows = productos.map(p => {
-        const pu = precios[p.categoria] || 0;
-        const sub = pu * p.cantidad;
-        montoTotal += sub;
-        return `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(p.nombre)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.categoria}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${pu.toFixed(2)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${sub.toFixed(2)}</td></tr>`;
+        montoTotal += 0;
+        return `<tr><td style="border:1px solid #e5e7eb;padding:8px">${escHtml2(p.nombre)}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.categoria}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${p.cantidad}</td></tr>`;
       }).join('');
-
-      const desglose = {};
-      for (const p of productos) {
-        const cat = p.categoria || 'otro';
-        const pu = precios[cat] || 0;
-        if (!desglose[cat]) desglose[cat] = { cantidad: 0, subtotal: 0 };
-        desglose[cat].cantidad += p.cantidad;
-        desglose[cat].subtotal += pu * p.cantidad;
-      }
-      desgRows = Object.entries(desglose).map(([cat, v]) =>
-        `<tr><td style="border:1px solid #e5e7eb;padding:8px">${cat.replace(/_/g, ' ')}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center">${v.cantidad}</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:right">RD$ ${v.subtotal.toFixed(2)}</td></tr>`
-      ).join('');
     }
 
     // Aval
@@ -2653,30 +2638,12 @@ app.get('/orden/:id', async (req, res) => {
               <th class="text-left py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Producto</th>
               <th class="text-center py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Categoría</th>
               <th class="text-center py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Cant.</th>
-              <th class="text-right py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Precio Unit.</th>
-              <th class="text-right py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Subtotal</th>
             </tr></thead>
-            <tbody>${productos.length === 0 ? '<tr><td colspan="5" class="text-center py-8 text-gray-400">Sin productos asignados</td></tr>' : prodRows}</tbody>
+            <tbody>${productos.length === 0 ? '<tr><td colspan="3" class="text-center py-8 text-gray-400">Sin productos asignados</td></tr>' : prodRows}</tbody>
           </table>
         </div>
       </div>
 
-      <!-- DESGLOSE DE MONTOS -->
-      <div class="border border-gray-200 rounded-xl overflow-hidden">
-        <div class="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-gray-700 flex items-center gap-2"><span>💰</span> Desglose de Montos</div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead><tr class="bg-gray-50 border-b border-gray-200">
-              <th class="text-left py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Categoría</th>
-              <th class="text-center py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Cant.</th>
-              <th class="text-right py-2.5 px-4 font-semibold text-gray-600 text-xs uppercase">Subtotal</th>
-            </tr></thead>
-            <tbody>${desgRows}</tbody>
-            <tfoot><tr class="bg-gray-50 border-t-2 border-gray-200">
-              <td class="py-3 px-4 font-bold text-gray-800">TOTAL</td>
-              <td class="py-3 px-4 text-center font-bold">${productos.reduce((s,p) => s + p.cantidad, 0)}</td>
-              <td class="py-3 px-4 text-right font-bold text-blue-700">RD$ ${montoTotal.toFixed(2)}</td>
-            </tr></tfoot>
           </table>
         </div>
       </div>
