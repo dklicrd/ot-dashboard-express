@@ -83,6 +83,12 @@ function crearTablasBase() {
     actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
   )`);
   run("INSERT OR IGNORE INTO configuracion_incentivos (id) VALUES (1)");
+  run(`CREATE TABLE IF NOT EXISTS confirmacion_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL,
+    tipo TEXT NOT NULL, orden_trabajo_id INTEGER NOT NULL,
+    tecnico_id INTEGER, usado INTEGER DEFAULT 0,
+    expira_en TEXT, creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
   console.log('✅ Tablas base verificadas/creadas');
 }
 
