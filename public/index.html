@@ -2987,18 +2987,12 @@ function renderModalNuevaOT() {
   cargarPresupuestosSelect();
   preloadNPClientes();
 
-  // Cargar tipos de servicio desde BD en el select
-  var sel = document.getElementById('ot-tipo');
-  if (sel) {
-    sel.innerHTML = '<option value="">Cargando...</option>';
-  }
-  window.cargarTiposEnSelect();
-
-  setTimeout(() => {
+  // Cargar tipos de servicio DESPUES de que el modal esté en el DOM
+  setTimeout(function() {
+    window.cargarTiposEnSelect();
     toggleOrigenOT();
-    // Atar eventos del modal via JS
-    setTimeout(() => bindModalEvents(), 50);
-  }, 150);
+    setTimeout(function() { bindModalEvents(); }, 50);
+  }, 100);
 
   return `
     <div class="modal-overlay fade-in" id="modal-overlay-nueva-ot">
