@@ -17,6 +17,7 @@ window.cargarTiposServicio = async function () {
     return window._tiposServicioCache;
   } catch (e) {
     console.error('Error cargando tipos_servicio:', e);
+    if (typeof toast === 'function') toast('Error cargando tipos de servicio', 'error');
     return [];
   }
 };
