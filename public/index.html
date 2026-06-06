@@ -2789,7 +2789,11 @@ async function render() {
 
   // Post-render: cargar admin de tipos de servicio si estamos en config
   if (state.view === 'config') {
-    renderTiposServicioConfig();
+    renderTiposServicioConfig().catch(function(e) {
+      console.error('Error cargando admin tipos:', e);
+      var el = document.getElementById('cfg-tipos-list');
+      if (el) el.innerHTML = '<div class="text-center text-red-400 py-4">Error al cargar. <button onclick="renderTiposServicioConfig()" class="text-blue-500 underline">Reintentar</button></div>';
+    });
   }
 
   // Modals after main content
@@ -3139,10 +3143,14 @@ window._otCategoriasCache = {}; // { tipo_nombre: [categorias] }
 window._otTiposCache = []; // tipos_servicio completos
 
 window.cargarTiposEnSelect = async function () {
+  // Use raw fetch to avoid api() 401 loop
   try {
-    const d = await api('GET', '/api/tipos-servicio');
+    const res = await fetch('/api/tipos-servicio', {
+      headers: { Authorization: 'Bearer ' + state.token }
+    });
+    if (!res.ok) { console.warn('cargarTiposEnSelect: status', res.status); return; }
+    const d = await res.json();
     window._otTiposCache = d.tipos_servicio || [];
-    // Build cache
     window._otCategoriasCache = {};
     for (const t of window._otTiposCache) {
       window._otCategoriasCache[t.nombre] = t.categorias || [];
