@@ -105,7 +105,7 @@
 
 <script>
 // ============ STATE ============
-const state = {
+window.state = {
   token: localStorage.getItem('token') || null,
   user: JSON.parse(localStorage.getItem('user') || 'null'),
   view: 'login',
