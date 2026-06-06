@@ -26,8 +26,10 @@ window.renderTiposServicioConfig = async function () {
   if (!container) return;
   container.innerHTML = '<div class="text-center text-gray-400 py-8">Cargando tipos de servicio...</div>';
   var data = await window.cargarTiposServicio();
-  if (!data.length) {
-    container.innerHTML = '<div class="text-center text-gray-400 py-8">No hay tipos de servicio configurados.</div>';
+  if (!data || !data.length) {
+    container.innerHTML = '<div class="text-center text-gray-400 py-8">No hay tipos de servicio configurados en la base de datos. ' +
+      'Haz clic en "➕ Nuevo Tipo" para crear el primero.' +
+      '<br><br><small class="text-red-400">(Si esperabas ver datos, revisa la consola F12 para errores)</small></div>';
     return;
   }
   container.innerHTML = data.map(function (t) {
