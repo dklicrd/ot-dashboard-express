@@ -89,6 +89,53 @@ function crearTablasBase() {
     tecnico_id INTEGER, usado INTEGER DEFAULT 0,
     expira_en TEXT, creado_en TEXT DEFAULT (datetime('now', '-04:00'))
   )`);
+
+  // ═══════════════════════════════════════════════
+  // TIPOS DE SERVICIO + CATEGORÍAS (configurables desde BD)
+  // ═══════════════════════════════════════════════
+  run(`CREATE TABLE IF NOT EXISTS tipos_servicio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT UNIQUE NOT NULL,
+    label TEXT NOT NULL,
+    activo INTEGER DEFAULT 1
+  )`);
+
+  run(`CREATE TABLE IF NOT EXISTS categorias_servicio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo_servicio_id INTEGER NOT NULL REFERENCES tipos_servicio(id),
+    key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    icon TEXT DEFAULT '📦',
+    precio REAL DEFAULT 0,
+    activo INTEGER DEFAULT 1
+  )`);
+
+  // Migrar datos actuales si la tabla está vacía
+  const tieneTiposSc = queryFirst('SELECT COUNT(*) as cnt FROM tipos_servicio')?.cnt > 0;
+  if (!tieneTiposSc) {
+    console.log('⚙️ Insertando tipos de servicio por defecto...');
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('proyecto_nuevo', 'Proyecto Nuevo')");
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('mantenimiento', 'Mantenimiento')");
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('reparacion', 'Reparación')");
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('garantia', 'Garantía')");
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('levantamiento', 'Levantamiento')");
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('vtc', 'VTC')");
+    run("INSERT INTO tipos_servicio (nombre, label) VALUES ('instalacion', 'Instalación')");
+
+    // Proyecto Nuevo (id=1) -> categorias
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (1, 'cerradura', 'Cerradura Electrónica', '🔒', 150)");
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (1, 'control_acceso', 'Control de Acceso', '🛡️', 300)");
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (1, 'caja_fuerte', 'Caja Fuerte', '🔐', 60)");
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (1, 'ahorro_energia', 'Ahorro de Energía', '💡', 105)");
+
+    // Mantenimiento (id=2) -> categorias
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (2, 'cerradura', 'Mant. Cerradura Elect.', '🔧', 82.50)");
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (2, 'caja_fuerte', 'Mant. Caja Fuerte', '🔩', 30)");
+    run("INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (2, 'ahorro_energia', 'Mant. Ahorro de Energía', '⚡', 37.50)");
+
+    console.log('✅ Tipos de servicio y categorías insertados');
+  }
+
   console.log('✅ Tablas base verificadas/creadas');
 }
 

@@ -138,8 +138,25 @@ function getPreciosFromDB() {
       return _preciosCache;
     }
 
-    const config = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1');
-    if (!config) {
+    // Cargar precios desde la nueva tabla categorias_servicio (configurable)
+    const result = {};
+
+    try {
+      const tipos = queryAll('SELECT * FROM tipos_servicio WHERE activo = 1');
+      for (const tipo of tipos) {
+        const cats = queryAll('SELECT key, precio FROM categorias_servicio WHERE tipo_servicio_id = ? AND activo = 1', [tipo.id]);
+        const precios = {};
+        for (const c of cats) {
+          precios[c.key] = c.precio;
+        }
+        result[tipo.nombre] = precios;
+      }
+    } catch (e2) {
+      console.error('Error leyendo categorias_servicio:', e2.message);
+    }
+
+    // Fallback a valores hardcodeados si no hay datos en BD
+    if (Object.keys(result).length === 0) {
       _preciosCache = {
         proyecto_nuevo: { ...PRECIOS_PROYECTO_NUEVO },
         mantenimiento: { ...PRECIOS_MANTENIMIENTO }
@@ -148,19 +165,7 @@ function getPreciosFromDB() {
       return _preciosCache;
     }
 
-    const pn = {
-      cerradura: parseFloat(config.valor_cerradura) || PRECIOS_PROYECTO_NUEVO.cerradura,
-      caja_fuerte: parseFloat(config.valor_caja_fuerte) || PRECIOS_PROYECTO_NUEVO.caja_fuerte,
-      control_acceso: parseFloat(config.valor_control_acceso) || PRECIOS_PROYECTO_NUEVO.control_acceso,
-      ahorro_energia: parseFloat(config.valor_ahorro_energia) || PRECIOS_PROYECTO_NUEVO.ahorro_energia,
-    };
-    const mt = {
-      cerradura: parseFloat(config.mant_cerradura) || PRECIOS_MANTENIMIENTO.cerradura,
-      caja_fuerte: parseFloat(config.mant_caja_fuerte) || PRECIOS_MANTENIMIENTO.caja_fuerte,
-      ahorro_energia: parseFloat(config.mant_ahorro_energia) || PRECIOS_MANTENIMIENTO.ahorro_energia,
-    };
-
-    _preciosCache = { proyecto_nuevo: pn, mantenimiento: mt };
+    _preciosCache = result;
     _preciosCacheTime = now;
     return _preciosCache;
   } catch (e) {
@@ -1987,6 +1992,129 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
   } catch (e) {
     console.error('Error updating config:', e);
     res.status(500).json({ error: 'Error al actualizar configuración' });
+  }
+});
+
+
+// ==================== API: TIPOS DE SERVICIO (configurables) ====================
+
+// GET /api/tipos-servicio — lista todos los tipos activos con sus categorías
+app.get('/api/tipos-servicio', authMiddleware, (req, res) => {
+  try {
+    const tipos = queryAll('SELECT * FROM tipos_servicio WHERE activo = 1 ORDER BY id');
+    for (const t of tipos) {
+      t.categorias = queryAll('SELECT * FROM categorias_servicio WHERE tipo_servicio_id = ? AND activo = 1 ORDER BY id', [t.id]);
+    }
+    res.json({ tipos_servicio: tipos });
+  } catch (e) {
+    console.error('Error cargando tipos_servicio:', e);
+    res.status(500).json({ error: 'Error al cargar tipos de servicio' });
+  }
+});
+
+// GET /api/tipos-servicio/:id/categorias — categorías de un tipo específico
+app.get('/api/tipos-servicio/:id/categorias', authMiddleware, (req, res) => {
+  try {
+    const categorias = queryAll('SELECT * FROM categorias_servicio WHERE tipo_servicio_id = ? AND activo = 1 ORDER BY id', [req.params.id]);
+    res.json({ categorias });
+  } catch (e) {
+    console.error('Error cargando categorias:', e);
+    res.status(500).json({ error: 'Error al cargar categorías' });
+  }
+});
+
+// POST /api/tipos-servicio — crear nuevo tipo de servicio
+app.post('/api/tipos-servicio', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const { nombre, label } = req.body;
+    if (!nombre || !label) return res.status(400).json({ error: 'nombre y label son requeridos' });
+    const result = run('INSERT INTO tipos_servicio (nombre, label) VALUES (?, ?)', [nombre, label]);
+    res.json({ message: 'Tipo de servicio creado', id: result.lastInsertRowid });
+  } catch (e) {
+    console.error('Error creando tipo_servicio:', e);
+    res.status(500).json({ error: 'Error al crear tipo de servicio' });
+  }
+});
+
+// PUT /api/tipos-servicio/:id — actualizar tipo de servicio
+app.put('/api/tipos-servicio/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const { nombre, label, activo } = req.body;
+    const sets = [];
+    const params = [];
+    if (nombre !== undefined) { sets.push('nombre = ?'); params.push(nombre); }
+    if (label !== undefined) { sets.push('label = ?'); params.push(label); }
+    if (activo !== undefined) { sets.push('activo = ?'); params.push(activo); }
+    if (sets.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    params.push(req.params.id);
+    run(`UPDATE tipos_servicio SET ${sets.join(', ')} WHERE id = ?`, params);
+    res.json({ message: 'Tipo de servicio actualizado' });
+  } catch (e) {
+    console.error('Error actualizando tipo_servicio:', e);
+    res.status(500).json({ error: 'Error al actualizar tipo de servicio' });
+  }
+});
+
+// DELETE /api/tipos-servicio/:id — desactivar tipo de servicio (baja lógica)
+app.delete('/api/tipos-servicio/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    run('UPDATE tipos_servicio SET activo = 0 WHERE id = ?', [req.params.id]);
+    // Desactivar también sus categorías
+    run('UPDATE categorias_servicio SET activo = 0 WHERE tipo_servicio_id = ?', [req.params.id]);
+    res.json({ message: 'Tipo de servicio desactivado' });
+  } catch (e) {
+    console.error('Error eliminando tipo_servicio:', e);
+    res.status(500).json({ error: 'Error al eliminar tipo de servicio' });
+  }
+});
+
+// POST /api/tipos-servicio/:id/categorias — agregar categoría a un tipo
+app.post('/api/tipos-servicio/:id/categorias', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const { key, label, icon, precio } = req.body;
+    if (!key || !label) return res.status(400).json({ error: 'key y label son requeridos' });
+    const result = run('INSERT INTO categorias_servicio (tipo_servicio_id, key, label, icon, precio) VALUES (?, ?, ?, ?, ?)',
+      [req.params.id, key, label, icon || '📦', precio || 0]);
+    // Invalidar cache de precios
+    invalidarPreciosCache();
+    res.json({ message: 'Categoría agregada', id: result.lastInsertRowid });
+  } catch (e) {
+    console.error('Error creando categoria:', e);
+    res.status(500).json({ error: 'Error al crear categoría' });
+  }
+});
+
+// PUT /api/tipos-servicio/:tipoId/categorias/:catId — actualizar categoría
+app.put('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const { key, label, icon, precio, activo } = req.body;
+    const sets = [];
+    const params = [];
+    if (key !== undefined) { sets.push('key = ?'); params.push(key); }
+    if (label !== undefined) { sets.push('label = ?'); params.push(label); }
+    if (icon !== undefined) { sets.push('icon = ?'); params.push(icon); }
+    if (precio !== undefined) { sets.push('precio = ?'); params.push(parseFloat(precio) || 0); }
+    if (activo !== undefined) { sets.push('activo = ?'); params.push(activo); }
+    if (sets.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    params.push(req.params.catId);
+    run(`UPDATE categorias_servicio SET ${sets.join(', ')} WHERE id = ?`, params);
+    invalidarPreciosCache();
+    res.json({ message: 'Categoría actualizada' });
+  } catch (e) {
+    console.error('Error actualizando categoria:', e);
+    res.status(500).json({ error: 'Error al actualizar categoría' });
+  }
+});
+
+// DELETE /api/tipos-servicio/:tipoId/categorias/:catId — desactivar categoría
+app.delete('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, adminOnly, (req, res) => {
+  try {
+    run('UPDATE categorias_servicio SET activo = 0 WHERE id = ?', [req.params.catId]);
+    invalidarPreciosCache();
+    res.json({ message: 'Categoría desactivada' });
+  } catch (e) {
+    console.error('Error eliminando categoria:', e);
+    res.status(500).json({ error: 'Error al eliminar categoría' });
   }
 });
 
