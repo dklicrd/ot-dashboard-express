@@ -2983,14 +2983,20 @@ function bindModalEvents() {
 
 function renderModalNuevaOT() {
   loadTecnicos();
-  cargarCategoriasOT();
   _productosSeleccionados = [];
   cargarPresupuestosSelect();
   preloadNPClientes();
 
+  // Cargar tipos de servicio desde BD en el select
+  var sel = document.getElementById('ot-tipo');
+  if (sel) {
+    sel.innerHTML = '<option value="">Cargando...</option>';
+  }
+  window.cargarTiposEnSelect();
+
   setTimeout(() => {
     toggleOrigenOT();
-    // Atar eventos del modal via JS (los onclick inline no siempre funcionan en innerHTML)
+    // Atar eventos del modal via JS
     setTimeout(() => bindModalEvents(), 50);
   }, 150);
 
@@ -3139,15 +3145,23 @@ window._otTiposCache = []; // tipos_servicio completos
 
 window.cargarTiposEnSelect = async function () {
   try {
+    var sel = document.getElementById('ot-tipo');
+    if (!sel) { console.warn('cargarTiposEnSelect: no hay select ot-tipo'); return; }
+    
     const res = await fetch('/api/tipos-servicio', {
       headers: { Authorization: '***' + (window.state ? window.state.token : '') }
     });
     if (!res.ok) {
-      console.warn('cargarTiposEnSelect: status', res.status);
+      console.warn('cargarTiposEnSelect: status ' + res.status);
+      sel.innerHTML = '<option value="">Error al cargar tipos</option>';
       return;
     }
     const d = await res.json();
     window._otTiposCache = d.tipos_servicio || [];
+    if (!window._otTiposCache.length) {
+      sel.innerHTML = '<option value="">No hay tipos configurados</option>';
+      return;
+    }
     window._otCategoriasCache = {};
     for (var _i = 0; _i < window._otTiposCache.length; _i++) {
       var _t = window._otTiposCache[_i];
@@ -3155,15 +3169,15 @@ window.cargarTiposEnSelect = async function () {
         return c.activo || c.activo === undefined || c.activo === null;
       });
     }
-    var sel = document.getElementById('ot-tipo');
-    if (!sel) return;
     sel.innerHTML = '<option value="">Seleccionar...</option>'
       + window._otTiposCache.map(function(t) {
         return '<option value="' + t.nombre + '">' + escHtml(t.label) + '</option>';
       }).join('');
-    renderCategoriasOT();
+    if (typeof renderCategoriasOT === 'function') renderCategoriasOT();
   } catch (e) {
     console.error('Error cargando tipos:', e);
+    var sel = document.getElementById('ot-tipo');
+    if (sel) sel.innerHTML = '<option value="">Error red: ' + e.message + '</option>';
   }
 };
 
