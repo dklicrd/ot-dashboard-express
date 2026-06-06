@@ -82,6 +82,7 @@ function crearTablasBase() {
     activo INTEGER DEFAULT 1,
     actualizado_en TEXT DEFAULT (datetime('now', '-04:00'))
   )`);
+  run("INSERT OR IGNORE INTO configuracion_incentivos (id) VALUES (1)");
   console.log('✅ Tablas base verificadas/creadas');
 }
 
