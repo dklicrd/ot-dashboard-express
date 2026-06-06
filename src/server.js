@@ -1998,30 +1998,36 @@ app.put('/api/config', authMiddleware, adminOnly, (req, res) => {
 
 // ==================== API: TIPOS DE SERVICIO (configurables) ====================
 
-// GET /api/tipos-servicio — lista todos los tipos activos con sus categorías
+// GET /api/tipos-servicio — lista todos los tipos activos con sus categorías (requiere auth)
 app.get('/api/tipos-servicio', authMiddleware, (req, res) => {
   try {
-    const tipos = queryAll('SELECT * FROM tipos_servicio WHERE activo = 1 ORDER BY id');
-    for (const t of tipos) {
-      t.categorias = queryAll('SELECT * FROM categorias_servicio WHERE tipo_servicio_id = ? AND activo = 1 ORDER BY id', [t.id]);
-    }
-    res.json({ tipos_servicio: tipos });
+    const data = getTiposServicio();
+    res.json({ tipos_servicio: data });
   } catch (e) {
     console.error('Error cargando tipos_servicio:', e);
     res.status(500).json({ error: 'Error al cargar tipos de servicio' });
   }
 });
 
-// GET /api/tipos-servicio/:id/categorias — categorías de un tipo específico
-app.get('/api/tipos-servicio/:id/categorias', authMiddleware, (req, res) => {
+// GET /api/public/tipos-servicio — endpoint público (sin auth) para poblar selects del frontend
+app.get('/api/public/tipos-servicio', (req, res) => {
   try {
-    const categorias = queryAll('SELECT * FROM categorias_servicio WHERE tipo_servicio_id = ? AND activo = 1 ORDER BY id', [req.params.id]);
-    res.json({ categorias });
+    const data = getTiposServicio();
+    res.json({ tipos_servicio: data });
   } catch (e) {
-    console.error('Error cargando categorias:', e);
-    res.status(500).json({ error: 'Error al cargar categorías' });
+    console.error('Error cargando tipos_servicio public:', e);
+    res.status(500).json({ error: 'Error al cargar tipos de servicio' });
   }
 });
+
+// Helper para obtener tipos con categorías
+function getTiposServicio() {
+  const tipos = queryAll('SELECT * FROM tipos_servicio WHERE activo = 1 ORDER BY id');
+  for (const t of tipos) {
+    t.categorias = queryAll('SELECT * FROM categorias_servicio WHERE tipo_servicio_id = ? AND activo = 1 ORDER BY id', [t.id]);
+  }
+  return tipos;
+}
 
 // POST /api/tipos-servicio — crear nuevo tipo de servicio
 app.post('/api/tipos-servicio', authMiddleware, adminOnly, (req, res) => {

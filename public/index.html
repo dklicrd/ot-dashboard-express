@@ -3148,35 +3148,17 @@ window.cargarTiposEnSelect = async function () {
     
     // Intentar usar cache primero (poblado por Config)
     var tipos = window._tiposServicioCache || window._otTiposCache;
+    
     if (!tipos || !tipos.length) {
-      // Cache vacio — cargar desde BD
       sel.innerHTML = '<option value="">Cargando...</option>';
-      var token = '';
-      try { token = localStorage.getItem('token') || ''; } catch(e) {}
-      if (!token && window.state && window.state.token) { token = window.state.token; }
-      
-      // Fallback: robar token de cualquier request previo
-      if (!token) {
-        try { token = sessionStorage.getItem('token') || ''; } catch(e) {}
-      }
-      
-      if (!token) {
-        sel.innerHTML = '<option value="">Re-logueate (sin token)</option>';
-        return;
-      }
-      
-      const res = await fetch('/api/tipos-servicio', {
-        headers: { Authorization: '***' + token }
-      });
+      const res = await fetch('/api/public/tipos-servicio');
       if (!res.ok) {
-        var msg = 'Error (' + res.status + ')';
-        try { var e = await res.json(); msg = e.error || msg; } catch(e) {}
-        sel.innerHTML = '<option value="">' + msg + '</option>';
+        sel.innerHTML = '<option value="">Error ' + res.status + '</option>';
         return;
       }
       const d = await res.json();
       tipos = d.tipos_servicio || [];
-      window._tiposServicioCache = tipos; // actualizar cache
+      window._tiposServicioCache = tipos;
     }
     
     window._otTiposCache = tipos;
