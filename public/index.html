@@ -2688,23 +2688,18 @@ window.toggleOrigenOT = function () {
     presupSection.style.display = 'block';
     clienteSection.style.display = 'none';
     document.getElementById('ot-categorias-section').style.display = 'block';
-    // El select ya fue poblado por cargarTiposEnSelect, solo resetear valor
-    tipoSelect.value = '';
-    renderCategoriasOT();
+    // No tocar innerHTML del select — ya fue poblado por cargarTiposEnSelect
   } else if (origen === 'garantia') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
-    tipoSelect.innerHTML = '<option value="garantia" selected>Garantía</option>';
     document.getElementById('ot-categorias-section').style.display = 'none';
   } else if (origen === 'levantamiento') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
-    tipoSelect.innerHTML = '<option value="levantamiento" selected>Levantamiento</option>';
     document.getElementById('ot-categorias-section').style.display = 'none';
   } else if (origen === 'vtc') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
-    tipoSelect.innerHTML = '<option value="vtc" selected>VTC</option>';
     document.getElementById('ot-categorias-section').style.display = 'none';
   }
 };
@@ -2994,9 +2989,10 @@ function renderModalNuevaOT() {
   preloadNPClientes();
 
   setTimeout(() => {
+    toggleOrigenOT();
     // Atar eventos del modal via JS (los onclick inline no siempre funcionan en innerHTML)
     setTimeout(() => bindModalEvents(), 50);
-  }, 0);
+  }, 150);
 
   return `
     <div class="modal-overlay fade-in" id="modal-overlay-nueva-ot">
@@ -3176,7 +3172,6 @@ async function cargarCategoriasOT() {
     var dp = await api('GET', '/api/productos');
     _productos = dp.productos || [];
     await window.cargarTiposEnSelect();
-    toggleOrigenOT();
   } catch (e) {
     console.error('Error cargando categorias:', e);
   }
