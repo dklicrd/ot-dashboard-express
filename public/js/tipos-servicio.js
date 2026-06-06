@@ -5,9 +5,7 @@ window._tiposServicioCache = null;
 
 window.cargarTiposServicio = async function () {
   try {
-    const res = await fetch('/api/tipos-servicio', {
-      headers: { Authorization: 'Bearer ' + (window.state ? window.state.token : '') }
-    });
+    const res = await fetch('/api/public/tipos-servicio');
     if (!res.ok) {
       console.warn('cargarTiposServicio: status', res.status);
       return [];
