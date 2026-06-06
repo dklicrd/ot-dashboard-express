@@ -2688,16 +2688,9 @@ window.toggleOrigenOT = function () {
     presupSection.style.display = 'block';
     clienteSection.style.display = 'none';
     document.getElementById('ot-categorias-section').style.display = 'block';
-    if (window._otTiposCache && window._otTiposCache.length) {
-      // Ya cargados — solo usar el cache
-      tipoSelect.innerHTML = '<option value="">Seleccionar...</option>'
-        + window._otTiposCache.map(function(t) {
-          return '<option value="' + t.nombre + '">' + escHtml(t.label) + '</option>';
-        }).join('');
-    } else {
-      // Primera vez — cargar desde BD
-      window.cargarTiposEnSelect();
-    }
+    // El select ya fue poblado por cargarTiposEnSelect, solo resetear valor
+    tipoSelect.value = '';
+    renderCategoriasOT();
   } else if (origen === 'garantia') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
@@ -3001,7 +2994,6 @@ function renderModalNuevaOT() {
   preloadNPClientes();
 
   setTimeout(() => {
-    toggleOrigenOT();
     // Atar eventos del modal via JS (los onclick inline no siempre funcionan en innerHTML)
     setTimeout(() => bindModalEvents(), 50);
   }, 0);
@@ -3184,6 +3176,7 @@ async function cargarCategoriasOT() {
     var dp = await api('GET', '/api/productos');
     _productos = dp.productos || [];
     await window.cargarTiposEnSelect();
+    toggleOrigenOT();
   } catch (e) {
     console.error('Error cargando categorias:', e);
   }
