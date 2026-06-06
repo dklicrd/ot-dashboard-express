@@ -2688,8 +2688,16 @@ window.toggleOrigenOT = function () {
     presupSection.style.display = 'block';
     clienteSection.style.display = 'none';
     document.getElementById('ot-categorias-section').style.display = 'block';
-    // Allow all service types for presupuesto
-    tipoSelect.innerHTML = '<option value="instalacion">Instalación</option><option value="mantenimiento">Mantenimiento</option><option value="reparacion">Reparación</option>';
+    if (window._otTiposCache && window._otTiposCache.length) {
+      // Ya cargados — solo usar el cache
+      tipoSelect.innerHTML = '<option value="">Seleccionar...</option>'
+        + window._otTiposCache.map(function(t) {
+          return '<option value="' + t.nombre + '">' + escHtml(t.label) + '</option>';
+        }).join('');
+    } else {
+      // Primera vez — cargar desde BD
+      window.cargarTiposEnSelect();
+    }
   } else if (origen === 'garantia') {
     presupSection.style.display = 'none';
     clienteSection.style.display = 'block';
@@ -3098,7 +3106,7 @@ function renderModalNuevaOT() {
           <div class="grid grid-cols-2 gap-4">
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Tipo Servicio</label>
               <select id="ot-tipo" class="select-field" onchange="onCambiarTipoOT()">
-                <option value="proyecto_nuevo">Proyecto Nuevo</option><option value="mantenimiento">Mantenimiento</option>
+                <option value="">Seleccionar...</option>
               </select></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">T\u00e9cnico Asignado</label>
               <select id="ot-tecnico" class="select-field"><option value="">Sin asignar...</option></select></div>
@@ -3137,33 +3145,45 @@ async function cargarProductosSelect() {
 }
 
 // Categorias de servicio para el modal de OT
-var _categoriasServicio = [
-  { key: 'cerradura', label: 'Cerradura Electr\u00f3nica', icon: '\ud83d\udd12' },
-  { key: 'control_acceso', label: 'Control de Acceso', icon: '\ud83d\udee1\ufe0f' },
-  { key: 'caja_fuerte', label: 'Caja Fuerte', icon: '\ud83d\udd10' },
-  { key: 'ahorro_energia', label: 'Ahorro de Energ\u00eda', icon: '\ud83d\udca1' },
-];
-var _categoriasMant = [
-  { key: 'cerradura', label: 'Mant. Cerradura Elect.', icon: '\ud83d\udd27' },
-  { key: 'caja_fuerte', label: 'Mant. Caja Fuerte', icon: '\ud83d\udd29' },
-  { key: 'ahorro_energia', label: 'Mant. Ahorro de Energ\u00eda', icon: '\u26a1' },
-];
-var _preciosCategorias = {};
+// Cache de tipos y categorias desde BD para el form OT
+window._otCategoriasCache = {}; // { tipo_nombre: [categorias] }
+window._otTiposCache = []; // tipos_servicio completos
+
+window.cargarTiposEnSelect = async function () {
+  try {
+    const res = await fetch('/api/tipos-servicio', {
+      headers: { Authorization: '***' + (window.state ? window.state.token : '') }
+    });
+    if (!res.ok) {
+      console.warn('cargarTiposEnSelect: status', res.status);
+      return;
+    }
+    const d = await res.json();
+    window._otTiposCache = d.tipos_servicio || [];
+    window._otCategoriasCache = {};
+    for (var _i = 0; _i < window._otTiposCache.length; _i++) {
+      var _t = window._otTiposCache[_i];
+      window._otCategoriasCache[_t.nombre] = (_t.categorias || []).filter(function(c) {
+        return c.activo || c.activo === undefined || c.activo === null;
+      });
+    }
+    var sel = document.getElementById('ot-tipo');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Seleccionar...</option>'
+      + window._otTiposCache.map(function(t) {
+        return '<option value="' + t.nombre + '">' + escHtml(t.label) + '</option>';
+      }).join('');
+    renderCategoriasOT();
+  } catch (e) {
+    console.error('Error cargando tipos:', e);
+  }
+};
 
 async function cargarCategoriasOT() {
   try {
-    // Cargar productos reales tambien para mapeo categoria->id
     var dp = await api('GET', '/api/productos');
     _productos = dp.productos || [];
-    var d = await api('GET', '/api/config');
-    var cfg = d.config || {};
-    // Mapear keys de config (valor_X) a keys de categoria (X)
-    _preciosCategorias = {};
-    var mapKeys = { 'valor_cerradura':'cerradura', 'valor_control_acceso':'control_acceso', 'valor_caja_fuerte':'caja_fuerte', 'valor_ahorro_energia':'ahorro_energia', 'mant_cerradura':'cerradura', 'mant_caja_fuerte':'caja_fuerte', 'mant_ahorro_energia':'ahorro_energia' };
-    for (var ck in mapKeys) {
-      if (cfg[ck] !== undefined) _preciosCategorias[mapKeys[ck]] = cfg[ck];
-    }
-    renderCategoriasOT();
+    await window.cargarTiposEnSelect();
   } catch (e) {
     console.error('Error cargando categorias:', e);
   }
@@ -3173,21 +3193,21 @@ function renderCategoriasOT() {
   var container = document.getElementById('ot-categorias-list');
   if (!container) return;
   _productosSeleccionados = [];
-  var tipo = document.getElementById('ot-tipo') ? document.getElementById('ot-tipo').value : 'proyecto_nuevo';
-  var cats;
-  if (tipo === 'mantenimiento') {
-    cats = _categoriasMant;
-  } else {
-    cats = _categoriasServicio;
+  var tipo = document.getElementById('ot-tipo') ? document.getElementById('ot-tipo').value : '';
+  var cats = window._otCategoriasCache[tipo] || [];
+  if (!tipo || cats.length === 0) {
+    container.innerHTML = '<div class="text-center text-gray-400 py-4">Selecciona un tipo de servicio para ver sus categorías.</div>';
+    return;
   }
   container.innerHTML = cats.map(function(c) {
-    var precio = _preciosCategorias[c.key] || 0;
+    var precio = Number(c.precio) || 0;
+    var icono = c.icon || '📦';
     return '<div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">' +
       '<div class="flex items-center gap-3">' +
-        '<span class="text-xl">' + c.icon + '</span>' +
+        '<span class="text-xl">' + icono + '</span>' +
         '<div>' +
           '<p class="text-sm font-semibold text-gray-700">' + escHtml(c.label) + '</p>' +
-          '<p class="text-xs text-gray-400">RD$ ' + Number(precio).toFixed(2) + ' c/u</p>' +
+          '<p class="text-xs text-gray-400">RD$ ' + precio.toFixed(2) + ' c/u</p>' +
         '</div>' +
       '</div>' +
       '<div class="flex items-center gap-2">' +
@@ -3200,19 +3220,14 @@ function renderCategoriasOT() {
 
 function actualizarCategoriaOT() {
   _productosSeleccionados = [];
-  var tipo = document.getElementById('ot-tipo') ? document.getElementById('ot-tipo').value : 'proyecto_nuevo';
-  var cats;
-  if (tipo === 'mantenimiento') {
-    cats = _categoriasMant;
-  } else {
-    cats = _categoriasServicio;
-  }
+  var tipo = document.getElementById('ot-tipo') ? document.getElementById('ot-tipo').value : '';
+  var cats = window._otCategoriasCache[tipo] || [];
   cats.forEach(function(c) {
     var inp = document.getElementById('ot-cat-' + c.key);
     if (inp) {
       var qty = parseInt(inp.value) || 0;
       if (qty > 0) {
-        var precio = _preciosCategorias[c.key] || 0;
+        var precio = Number(c.precio) || 0;
         _productosSeleccionados.push({
           producto_id: 0,
           categoria: c.key,
