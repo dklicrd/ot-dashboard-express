@@ -3,8 +3,16 @@
 window._tiposServicioCache = null;
 
 window.cargarTiposServicio = async function () {
+  // Use raw fetch to avoid api() 401 redirect loop
   try {
-    const d = await api('GET', '/api/tipos-servicio');
+    const res = await fetch('/api/tipos-servicio', {
+      headers: { Authorization: 'Bearer ' + state.token }
+    });
+    if (!res.ok) {
+      console.warn('cargarTiposServicio: status', res.status);
+      return [];
+    }
+    const d = await res.json();
     window._tiposServicioCache = d.tipos_servicio || [];
     return window._tiposServicioCache;
   } catch (e) {
@@ -41,10 +49,10 @@ window.renderTiposServicioConfig = async function () {
             '<div class="flex items-center gap-1">' +
               '<span class="text-xs text-gray-500">RD$</span>' +
               '<input type="number" min="0" step="0.01" value="' + Number(c.precio).toFixed(2) + '"' +
-                ' onchange="window.actualizarPrecioCategoria(' + c.id + ', this.value)"' +
+                ' onchange="window.actualizarPrecioCategoria(' + t.id + ', ' + c.id + ', this.value)"' +
                 ' class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-400">' +
             '</div>' +
-            '<button onclick="window.eliminarCategoriaTipo(' + c.id + ', ' + JSON.stringify(c.label) + ')" class="text-red-400 hover:text-red-600 text-xs shrink-0">\u2715</button>' +
+            '<button onclick="window.eliminarCategoriaTipo(' + t.id + ', ' + c.id + ', ' + JSON.stringify(c.label) + ')" class="text-red-400 hover:text-red-600 text-xs shrink-0">\u2715</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -68,9 +76,13 @@ window.renderTiposServicioConfig = async function () {
   }).join('');
 };
 
-window.actualizarPrecioCategoria = async function (catId, precio) {
+window.actualizarPrecioCategoria = async function (tipoId, catId, precio) {
   try {
-    await api('PUT', '/api/tipos-servicio/1/categorias/' + catId, { precio: parseFloat(precio) || 0 });
+    await fetch('/api/tipos-servicio/' + tipoId + '/categorias/' + catId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + state.token },
+      body: JSON.stringify({ precio: parseFloat(precio) || 0 })
+    });
   } catch (e) {
     console.error('Error actualizando precio:', e);
   }
@@ -82,15 +94,24 @@ window.agregarCategoriaTipo = function (tipoId) {
   var label = prompt('Etiqueta visible (ej: Cerradura Electr\u00f3nica):');
   if (!label) return;
   var precio = parseFloat(prompt('Precio (RD$):', '0')) || 0;
-  api('POST', '/api/tipos-servicio/' + tipoId + '/categorias', { key: key, label: label, precio: precio })
-    .then(function() { toast('Categor\u00eda agregada', 'success'); renderTiposServicioConfig(); })
-    .catch(function(e) { toast('Error: ' + e.message, 'error'); });
+  fetch('/api/tipos-servicio/' + tipoId + '/categorias', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + state.token },
+    body: JSON.stringify({ key: key, label: label, precio: precio })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    toast('Categor\u00eda agregada', 'success');
+    renderTiposServicioConfig();
+  }).catch(function(e) { toast('Error: ' + e.message, 'error'); });
 };
 
-window.eliminarCategoriaTipo = async function (catId, label) {
+window.eliminarCategoriaTipo = async function (tipoId, catId, label) {
   if (!confirm('\u00BFDesactivar categor\u00EDa "' + label + '"?')) return;
   try {
-    await api('DELETE', '/api/tipos-servicio/1/categorias/' + catId);
+    await fetch('/api/tipos-servicio/' + tipoId + '/categorias/' + catId, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + state.token }
+    });
     toast('Categor\u00EDa desactivada', 'success');
     renderTiposServicioConfig();
   } catch (e) {
@@ -103,22 +124,39 @@ window.abrirModalNuevoTipo = function () {
   if (!nombre) return;
   var label = prompt('Nombre visible (ej: Proyecto Nuevo):');
   if (!label) return;
-  api('POST', '/api/tipos-servicio', { nombre: nombre, label: label })
-    .then(function() { toast('Tipo de servicio creado', 'success'); renderTiposServicioConfig(); })
-    .catch(function(e) { toast('Error: ' + e.message, 'error'); });
+  fetch('/api/tipos-servicio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + state.token },
+    body: JSON.stringify({ nombre: nombre, label: label })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    toast('Tipo de servicio creado', 'success');
+    renderTiposServicioConfig();
+  }).catch(function(e) { toast('Error: ' + e.message, 'error'); });
 };
 
 window.editarTipoServicio = function (id, labelActual) {
   var label = prompt('Nuevo nombre visible:', labelActual);
   if (!label) return;
-  api('PUT', '/api/tipos-servicio/' + id, { label: label })
-    .then(function() { toast('Tipo actualizado', 'success'); renderTiposServicioConfig(); })
-    .catch(function(e) { toast('Error: ' + e.message, 'error'); });
+  fetch('/api/tipos-servicio/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + state.token },
+    body: JSON.stringify({ label: label })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    toast('Tipo actualizado', 'success');
+    renderTiposServicioConfig();
+  }).catch(function(e) { toast('Error: ' + e.message, 'error'); });
 };
 
 window.eliminarTipoServicio = function (id, label) {
   if (!confirm('\u00BFDesactivar tipo de servicio "' + label + '" y todas sus categor\u00EDas?')) return;
-  api('DELETE', '/api/tipos-servicio/' + id)
-    .then(function() { toast('Tipo desactivado', 'success'); renderTiposServicioConfig(); })
-    .catch(function(e) { toast('Error: ' + e.message, 'error'); });
+  fetch('/api/tipos-servicio/' + id, {
+    method: 'DELETE',
+    headers: { Authorization: 'Bearer ' + state.token }
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    toast('Tipo desactivado', 'success');
+    renderTiposServicioConfig();
+  }).catch(function(e) { toast('Error: ' + e.message, 'error'); });
 };
