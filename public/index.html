@@ -3137,44 +3137,63 @@ async function cargarProductosSelect() {
 window._otCategoriasCache = {}; // { tipo_nombre: [categorias] }
 window._otTiposCache = []; // tipos_servicio completos
 
+// Cache de tipos y categorias desde BD para el form OT
+window._otTiposCache = [];
+window._otCategoriasCache = {};
+
 window.cargarTiposEnSelect = async function () {
   try {
     var sel = document.getElementById('ot-tipo');
     if (!sel) { console.warn('cargarTiposEnSelect: no hay select ot-tipo'); return; }
     
-    // Obtener token desde localStorage (fuente primaria) o window.state
-    var token = '';
-    try { token = localStorage.getItem('token') || ''; } catch(e) {}
-    if (!token && window.state && window.state.token) { token = window.state.token; }
-    if (!token) {
-      sel.innerHTML = '<option value="">No hay sesion activa</option>';
-      return;
+    // Intentar usar cache primero (poblado por Config)
+    var tipos = window._tiposServicioCache || window._otTiposCache;
+    if (!tipos || !tipos.length) {
+      // Cache vacio — cargar desde BD
+      sel.innerHTML = '<option value="">Cargando...</option>';
+      var token = '';
+      try { token = localStorage.getItem('token') || ''; } catch(e) {}
+      if (!token && window.state && window.state.token) { token = window.state.token; }
+      
+      // Fallback: robar token de cualquier request previo
+      if (!token) {
+        try { token = sessionStorage.getItem('token') || ''; } catch(e) {}
+      }
+      
+      if (!token) {
+        sel.innerHTML = '<option value="">Re-logueate (sin token)</option>';
+        return;
+      }
+      
+      const res = await fetch('/api/tipos-servicio', {
+        headers: { Authorization: '***' + token }
+      });
+      if (!res.ok) {
+        var msg = 'Error (' + res.status + ')';
+        try { var e = await res.json(); msg = e.error || msg; } catch(e) {}
+        sel.innerHTML = '<option value="">' + msg + '</option>';
+        return;
+      }
+      const d = await res.json();
+      tipos = d.tipos_servicio || [];
+      window._tiposServicioCache = tipos; // actualizar cache
     }
     
-    const res = await fetch('/api/tipos-servicio', {
-      headers: { Authorization: '***' + token }
-    });
-    if (!res.ok) {
-      console.warn('cargarTiposEnSelect: status ' + res.status);
-      sel.innerHTML = '<option value="">Error al cargar tipos (status ' + res.status + ')</option>';
-      return;
-    }
-    const d = await res.json();
-    window._otTiposCache = d.tipos_servicio || [];
-    if (!window._otTiposCache.length) {
-      sel.innerHTML = '<option value="">No hay tipos configurados</option>';
-      return;
-    }
+    window._otTiposCache = tipos;
     window._otCategoriasCache = {};
-    for (var _i = 0; _i < window._otTiposCache.length; _i++) {
-      var _t = window._otTiposCache[_i];
+    for (var _i = 0; _i < tipos.length; _i++) {
+      var _t = tipos[_i];
       window._otCategoriasCache[_t.nombre] = (_t.categorias || []).filter(function(c) {
         return c.activo || c.activo === undefined || c.activo === null;
       });
     }
+    if (!tipos.length) {
+      sel.innerHTML = '<option value="">No hay tipos configurados</option>';
+      return;
+    }
     sel.innerHTML = '<option value="">Seleccionar...</option>'
-      + window._otTiposCache.map(function(t) {
-        return '<option value="' + t.nombre + '">' + escHtml(t.label) + '</option>';
+      + tipos.map(function(t) {
+        return '<option value="' + t.nombre + '">' + (typeof escHtml === 'function' ? escHtml(t.label) : t.label) + '</option>';
       }).join('');
     if (typeof renderCategoriasOT === 'function') renderCategoriasOT();
   } catch (e) {
