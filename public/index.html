@@ -3142,10 +3142,13 @@ window.cargarTiposEnSelect = async function () {
     var sel = document.getElementById('ot-tipo');
     if (!sel) { console.warn('cargarTiposEnSelect: no hay select ot-tipo'); return; }
     
-    // Obtener token desde state o localStorage como fallback
-    var token = window.state ? window.state.token : null;
+    // Obtener token desde localStorage (fuente primaria) o window.state
+    var token = '';
+    try { token = localStorage.getItem('token') || ''; } catch(e) {}
+    if (!token && window.state && window.state.token) { token = window.state.token; }
     if (!token) {
-      try { token = localStorage.getItem('token'); } catch(e) {}
+      sel.innerHTML = '<option value="">No hay sesion activa</option>';
+      return;
     }
     
     const res = await fetch('/api/tipos-servicio', {
