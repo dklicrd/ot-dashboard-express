@@ -923,7 +923,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
 
     // OT must be en_curso
     if (ot.estado !== 'en_curso') {
-      return res.status(400).json({ error: 'La OT debe estar en curso para entregar aval' });
+      return res.status(400).json({ error: 'La OT debe estar en curso para entregar aval', estado_actual: ot.estado, ot_id: ot.id, ot_numero: ot.numero_ot });
     }
 
     // Check no existing aval
