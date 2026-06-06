@@ -57,9 +57,11 @@ function crearTablasBase() {
     id INTEGER PRIMARY KEY AUTOINCREMENT, orden_trabajo_id INTEGER, aval_legacy_id INTEGER,
     satisfaccion_general INTEGER, tiempo_entrega INTEGER, desempeno_equipo INTEGER,
     presentacion_equipo INTEGER, calidad_productos INTEGER, conocimientos_tecnicos INTEGER,
-    calidad_entrenamientos INTEGER, recomendaria INTEGER, porcentaje_final REAL,
+    calidad_entrenamientos INTEGER, recomendaria INTEGER, recomendaciones TEXT, porcentaje_final REAL,
     realizada_por INTEGER, fecha_encuesta TEXT, email_enviado INTEGER DEFAULT 0,
-    creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+    creado_en TEXT DEFAULT (datetime('now', '-04:00')), estado TEXT DEFAULT 'pendiente',
+    fecha_limite TEXT, aval_id INTEGER, token_publico TEXT, motivo_sin_encuesta TEXT,
+    numero_encuesta TEXT
   )`);
   run(`CREATE TABLE IF NOT EXISTS reportes_incentivos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, periodo TEXT, tecnico_id INTEGER,

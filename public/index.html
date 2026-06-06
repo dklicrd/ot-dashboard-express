@@ -779,10 +779,10 @@ async function renderEncuestas() {
 
       return '<tr>' +
         '<td class="py-3 px-3">' + escHtml(e.numero_ot) + '</td>' +
+        '<td class="py-3 px-3">' + escHtml(e.numero_encuesta || 'ENC-' + e.id) + '</td>' +
         '<td class="py-3 px-3">' + escHtml(e.cliente_nombre) + '</td>' +
         '<td class="py-3 px-3">' + estadoBadge + '</td>' +
         '<td class="py-3 px-3 text-sm">' + (e.fecha_limite || '-') + '</td>' +
-        '<td class="py-3 px-3">' + (e.numero_aval ? '<span class="text-sm">' + escHtml(e.numero_aval) + '</span>' : '<span class="text-xs text-gray-400">-</span>') + '</td>' +
         '<td class="py-3 px-3">' + diasBadge + '</td>' +
         '<td class="py-3 px-3">' + accionesBtn + '</td>' +
         '</tr>';
@@ -803,10 +803,10 @@ async function renderEncuestas() {
               <thead>
                 <tr class="bg-gray-50 border-b border-gray-200">
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">OT</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">ID Encuesta</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Cliente</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Estado</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Fecha Límite</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Aval</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>
                 </tr>

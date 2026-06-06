@@ -935,9 +935,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     const tecnicoId = body.tecnico_id || req.user.userId;
 
     // Generar número de aval: AV-OT-{OTnumero}
-    const anio = new Date().getFullYear();
-    const conteo = queryFirst("SELECT COUNT(*) as cnt FROM avales WHERE strftime('%Y', creado_en) = ?", [String(anio)])?.cnt || 0;
-    const numeroAval = 'AV-' + anio + '-' + String(conteo + 1).padStart(4, '0');
+    const numeroAval = 'AV-OT-' + ot.numero_ot;
 
     // Generar token público único
     const crypto = require('crypto');
@@ -1034,9 +1032,12 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
         const hoy = new Date().toISOString().split('T')[0];
         const fechaLimite = sumarDiasHabiles(hoy, 3);
         const tokenEnc = generarTokenEncuesta();
-        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico)
-          VALUES (?, ?, 'pendiente', ?, ?, ?)`,
-          [aval.orden_trabajo_id, id, fechaLimite, req.user.userId, tokenEnc]);
+        const numeroEncuesta = 'ENC-OT-' + ot.numero_ot;
+        // Asegurar columna numero_encuesta
+        try { run("ALTER TABLE encuestas_satisfaccion ADD COLUMN numero_encuesta TEXT"); } catch(e) {}
+        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta)
+          VALUES (?, ?, 'pendiente', ?, ?, ?, ?)`,
+          [aval.orden_trabajo_id, id, fechaLimite, req.user.userId, tokenEnc, numeroEncuesta]);
       }
     });
 
@@ -1461,12 +1462,7 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
       [body.orden_trabajo_id]);
     if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
 
-    const numAval = (() => {
-      const year = new Date().getFullYear();
-      const row = queryFirst("SELECT COUNT(*) as cnt FROM avales_legacy WHERE strftime('%Y', creado_en) = ?", [String(year)]);
-      const count = row?.cnt || 0;
-      return `AV-${year}-${String(count + 1).padStart(4, '0')}`;
-    })();
+    const numAval = 'AV-OT-' + ot.numero_ot;
 
     const pdfBuffer = await generarAvalPDF({
       numero_aval: numAval, numero_ot: ot.numero_ot, cliente: ot.cliente_nombre,
