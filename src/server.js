@@ -935,7 +935,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     const tecnicoId = body.tecnico_id || req.user.userId;
 
     // Generar número de aval: AV-OT-{OTnumero}
-    const numeroAval = 'AV-OT-' + ot.numero_ot;
+    const numeroAval = 'AV-' + ot.numero_ot;
 
     // Generar token público único
     const crypto = require('crypto');
@@ -1462,7 +1462,7 @@ app.post('/api/avales-legacy', authMiddleware, adminOnly, async (req, res) => {
       [body.orden_trabajo_id]);
     if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
 
-    const numAval = 'AV-OT-' + ot.numero_ot;
+    const numAval = 'AV-' + ot.numero_ot;
 
     const pdfBuffer = await generarAvalPDF({
       numero_aval: numAval, numero_ot: ot.numero_ot, cliente: ot.cliente_nombre,
