@@ -973,19 +973,18 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
         [body.orden_trabajo_id]);
     });
 
-    res.status(201).json({ message: 'Aval creado correctamente', aval_id: queryFirst(`SELECT id FROM avales WHERE orden_trabajo_id = ?`, [body.orden_trabajo_id]).id, numero_aval: numeroAval, token_publico: tokenPublico });
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+    res.status(201).json({ message: 'Aval creado correctamente', aval_id: avalId.id, numero_aval: numeroAval, token_publico: tokenPublico });
 
-    // Enviar notificación por email con enlace de aval
-    const avalCreado = queryFirst('SELECT id FROM avales WHERE orden_trabajo_id = ?', [body.orden_trabajo_id]);
-    if (avalCreado) {
-      enviarNotificacionAval(avalCreado.id).catch(function(err) {
-        console.error('Error enviando notificación de aval:', err);
-      });
-    }
+    // Cosas post-response: backup y notificaciones (no deben romper el flujo)
+    setImmediate(() => {
+      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+      if (avalId && avalId.id) {
+        enviarNotificacionAval(avalId.id).catch(err => console.error('Notif aval error:', err));
+      }
+    });
   } catch (e) {
-    console.error('Error creating aval de entrega:', e);
-    res.status(500).json({ error: 'Error al registrar aval' });
+    console.error('Error creating aval de entrega:', e.stack || e.message || e);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al registrar aval' });
   }
 });
 
