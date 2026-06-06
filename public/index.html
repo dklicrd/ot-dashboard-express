@@ -3406,17 +3406,22 @@ window.submitNuevaOT = async function (e) {
       const formData = new FormData();
       formData.append('presupuesto_id', presupuesto_id);
       formData.append('archivo', pdfInput.files[0]);
-      await fetch('/api/presupuestos/upload', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + state.token },
-        body: formData,
-      });
+      try {
+        await fetch('/api/presupuestos/upload', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + state.token },
+          body: formData,
+        });
+      } catch (pdfErr) {
+        console.warn('Error subiendo PDF (no critico):', pdfErr.message);
+      }
     }
 
     closeModal('nueva-ot');
-    toast('OT creada: ' + result.numero_ot);
+    toast('OT creada: ' + (result.numero_ot || 'OK'));
   } catch (e) {
-    err.textContent = e.message;
+    console.error('submitNuevaOT error:', e);
+    err.textContent = e.message || 'Error desconocido al crear OT';
     err.classList.remove('hidden');
     btn.disabled = false; btn.innerHTML = 'Crear OT';
   }
