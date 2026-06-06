@@ -655,6 +655,21 @@ async function renderOrdenes() {
 async function renderAvales() {
   let avales = [];
   try { const d = await api('GET', '/api/avales-legacy'); avales = d.avales || []; } catch (e) { /* ignore */ }
+  // Unificar con avales nuevos del flujo Entregar Aval
+  try {
+    const d2 = await api('GET', '/api/avales');
+    const nuevos = (d2.avales || []).map(a => ({
+      ...a,
+      numero_ot: a.numero_ot || '',
+      cliente_nombre: a.cliente_nombre || '',
+      costo_total: a.costo_total || 0
+    }));
+    // Mezclar evitando duplicados por numero_aval
+    const existentes = new Set(avales.map(a => a.numero_aval));
+    for (const n of nuevos) {
+      if (!existentes.has(n.numero_aval)) { avales.push(n); existentes.add(n.numero_aval); }
+    }
+  } catch (e) { /* ignore */ }
   const estadoLabel = { pendiente: 'Pendiente', enviado: 'Enviado', firmado: 'Firmado', completado: 'Completado' };
   const estadoColor = { pendiente: 'badge-pendiente', enviado: 'badge-aprobada', firmado: 'badge-en_curso', completado: 'badge-completada' };
 
