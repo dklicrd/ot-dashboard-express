@@ -615,7 +615,7 @@ app.post('/api/ordenes', authMiddleware, (req, res) => {
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error creating OT:', e);
-    res.status(500).json({ error: 'Error al crear OT' });
+    res.status(500).json({ error: 'Error al crear OT: ' + e.message });
   }
 });
 
