@@ -526,7 +526,7 @@ app.get('/api/ordenes', authMiddleware, (req, res) => {
   res.json({ ordenes });
 });
 
-app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
+app.post('/api/ordenes', authMiddleware, (req, res) => {
   try {
     const num = generarNumeroOT();
     const body = req.body;
@@ -619,7 +619,7 @@ app.post('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-app.put('/api/ordenes', authMiddleware, adminOnly, (req, res) => {
+app.put('/api/ordenes', authMiddleware, (req, res) => {
   try {
     const b = req.body;
     run(`UPDATE ordenes_trabajo SET cliente_id=?, tipo_servicio=?, descripcion=?, monto_total=?, tecnico_id=?,
