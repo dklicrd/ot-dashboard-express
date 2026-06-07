@@ -15,7 +15,7 @@ const upload = multer({
     }
   }
 });
-const { initDatabase, verificarYRestaurarBackup } = require('./init-db');
+const { initDatabase, verificarYRestaurarBackup, migrarEncuestasLegacy } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
@@ -37,6 +37,11 @@ async function start() {
   try {
     await getDb();
     await initDatabase();
+    // Restaurar backup (esto sobreescribe los datos, por eso la migración
+    // de datos debe ir DESPUÉS)
+    await verificarYRestaurarBackup();
+    // Migración retroactiva: crear encuestas para avales legacy confirmados
+    migrarEncuestasLegacy();
   } catch (e) {
     console.error('⚠️ Error inicializando BD (el servidor intentará arrancar de todas formas):', e.message);
     console.error(e.stack);
