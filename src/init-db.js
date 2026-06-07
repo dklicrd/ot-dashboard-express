@@ -162,9 +162,11 @@ async function initDatabase() {
     const tieneClientes = (queryFirst('SELECT COUNT(*) as cnt FROM clientes')?.cnt || 0) > 0;
 
     if (tieneUsuarios && tieneClientes) {
-      console.log('💾 BD con datos existentes detectada (disco persistente). Saltando seeds y migraciones.');
-      // Solo asegurar que tablas esenciales existen (por si agregamos tablas nuevas en el futuro)
+      console.log('💾 BD con datos existentes detectada (disco persistente). Asegurando tablas base y ejecutando migraciones...');
       crearTablasBase();
+      // Las migraciones de columnas nuevas SIEMPRE deben ejecutarse
+      await ejecutarMigraciones();
+      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
       return;
     }
   } catch (e) {
@@ -508,6 +510,15 @@ async function initDatabase() {
       creado_en TEXT DEFAULT (datetime('now', '-04:00'))
     );
   `);
+  // Ejecutar migraciones de columnas nuevas (para BD con datos existentes o nueva)
+  await ejecutarMigraciones();
+
+  console.log('✅ Base de datos lista');
+}
+
+
+async function ejecutarMigraciones() {
+  console.log('🔧 Ejecutando migraciones de columnas nuevas...');
   // ═══════════════════════════════════════════════
   // ENCUESTAS DE SATISFACCIÓN — migración columnas nuevas
   // ═══════════════════════════════════════════════
@@ -950,8 +961,10 @@ async function initDatabase() {
     );
   `);
 
-  console.log('✅ Base de datos lista');
+  console.log('✅ Migraciones de columnas ejecutadas');
 }
+
+
 
 async function seedDemo() {
   console.log('🌱 Insertando datos demo...');
