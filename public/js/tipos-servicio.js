@@ -47,13 +47,13 @@ window.renderTiposServicioConfig = async function () {
         '<div class="flex items-center gap-2 shrink-0">' +
           '<span class="text-sm text-gray-500">RD$</span>' +
           '<input type="number" min="0" step="0.01" value="' + (Number(c.precio) || 0).toFixed(2) + '"' +
-            ' onchange="window._actualizarPrecioCategoria(' + t.id + ',' + c.id + ',this)"' +
+            ' data-actualizar-precio="' + t.id + ':' + c.id + '"' +
             ' class="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-right">' +
-          '<button onclick="window._eliminarCategoriaTipo(' + t.id + ',' + c.id + ',' + JSON.stringify(c.label) + ')" class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>' +
+          '<button data-eliminar-cat="' + t.id + ':' + c.id + '" data-label="' + escHtml(c.label) + '" class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>' +
         '</div>' +
       '</div>';
     }).join('');
-    return '<div class="card p-4">' +
+    return '<div class="card p-4 cfg-tipo-card" data-tipo-id="' + t.id + '">' +
       '<div class="flex items-center justify-between mb-3">' +
         '<div class="flex items-center gap-2">' +
           '<span class="text-lg">' + (t.icon || '📋') + '</span>' +
@@ -61,14 +61,58 @@ window.renderTiposServicioConfig = async function () {
           '<code class="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-500">' + escHtml(t.nombre) + '</code>' +
         '</div>' +
         '<div class="flex items-center gap-2">' +
-          '<button onclick="window._editarTipoServicio(' + t.id + ',' + JSON.stringify(t.label) + ')" class="text-sm text-blue-600 hover:text-blue-800">✎ Editar</button>' +
-          '<button onclick="window._eliminarTipoServicio(' + t.id + ',' + JSON.stringify(t.label) + ')" class="text-sm text-red-500 hover:text-red-700 ml-2">✕ Eliminar</button>' +
-          '<button onclick="window._agregarCategoriaTipo(' + t.id + ')" class="btn-primary text-xs px-2 py-1">+ Categoria</button>' +
+          '<button data-editar-tipo="' + t.id + '" data-label="' + escHtml(t.label) + '" class="text-sm text-blue-600 hover:text-blue-800">✎ Editar</button>' +
+          '<button data-eliminar-tipo="' + t.id + '" data-label="' + escHtml(t.label) + '" class="text-sm text-red-500 hover:text-red-700 ml-2">✕ Eliminar</button>' +
+          '<button data-agregar-cat="' + t.id + '" class="btn-primary text-xs px-2 py-1">+ Categoria</button>' +
         '</div>' +
       '</div>' +
       '<div class="space-y-2">' + cats + '</div>' +
     '</div>';
   }).join('');
+
+  // Event delegation para todos los botones
+  var cfgTipsList = document.getElementById('cfg-tipos-list');
+  if (cfgTipsList) {
+    cfgTipsList.onclick = function (e) {
+      var btn = e.target.closest('[data-editar-tipo]');
+      if (btn) {
+        var id = parseInt(btn.getAttribute('data-editar-tipo'));
+        var label = btn.getAttribute('data-label');
+        window._editarTipoServicio(id, label);
+        return;
+      }
+      btn = e.target.closest('[data-eliminar-tipo]');
+      if (btn) {
+        var id = parseInt(btn.getAttribute('data-eliminar-tipo'));
+        var label = btn.getAttribute('data-label');
+        window._eliminarTipoServicio(id, label);
+        return;
+      }
+      btn = e.target.closest('[data-agregar-cat]');
+      if (btn) {
+        var id = parseInt(btn.getAttribute('data-agregar-cat'));
+        window._agregarCategoriaTipo(id);
+        return;
+      }
+      btn = e.target.closest('[data-eliminar-cat]');
+      if (btn) {
+        var ids = btn.getAttribute('data-eliminar-cat').split(':');
+        var tipoId = parseInt(ids[0]);
+        var catId = parseInt(ids[1]);
+        var label = btn.getAttribute('data-label');
+        window._eliminarCategoriaTipo(tipoId, catId, label);
+        return;
+      }
+      btn = e.target.closest('[data-actualizar-precio]');
+      if (btn) {
+        var ids = btn.getAttribute('data-actualizar-precio').split(':');
+        var tipoId = parseInt(ids[0]);
+        var catId = parseInt(ids[1]);
+        window._actualizarPrecioCategoria(tipoId, catId, btn);
+        return;
+      }
+    };
+  }
 };
 
 // ============ Helpers internos con fetch auth ============
@@ -102,7 +146,7 @@ window._actualizarPrecioCategoria = async function (tipoId, catId, input) {
       method: 'PUT',
       body: JSON.stringify({ precio: precio })
     });
-    toast('Precio actualizado', 'success');
+    toast('Precio actualizado: RD$ ' + precio.toFixed(2), 'success');
   } catch (e) {
     toast('Error: ' + e.message, 'error');
   }
