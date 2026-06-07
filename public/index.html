@@ -292,7 +292,10 @@ window.ejecutarConfirmarAval = async function (avalId) {
       skip_survey_motivo: skipSurveyMotivo
     });
     closeModal();
-    toast(r.message || (skipSurvey ? 'Aval confirmado sin encuesta.' : 'Aval confirmado. OT completada.'));
+    var msg = skipSurvey
+      ? '✅ Aval confirmado (sin encuesta). OT completada.'
+      : '✅ Aval confirmado. OT completada. 📋 Encuesta creada — vence ' + (r.fechaLimite || 'en 3 días hábiles');
+    toast(msg, 'success');
     render();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
