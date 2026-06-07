@@ -198,4 +198,20 @@ async function enviarNotificacionOT(otId) {
   return result;
 }
 
-module.exports = { enviarEmail, enviarNotificacionOT };
+module.exports = { enviarEmail, enviarNotificacionOT, enviarNotificacionAval, enviarNotificacionCambioFecha, enviarEmailConfirmacionOT };
+
+// Stubs para funciones que aun no estan implementadas
+async function enviarNotificacionAval(id, destinatario) {
+  console.log('Stub: enviarNotificacionAval(' + id + ') omitido');
+  return { success: true };
+}
+
+async function enviarNotificacionCambioFecha(otId, nuevaFecha, tecnicoNombre) {
+  console.log('Stub: enviarNotificacionCambioFecha(' + otId + ') omitido');
+  return { success: true };
+}
+
+async function enviarEmailConfirmacionOT(otId, tokenConfirmar, tokenCambio) {
+  console.log('Stub: enviarEmailConfirmacionOT(' + otId + ') omitido');
+  return { success: true };
+}

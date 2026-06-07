@@ -592,7 +592,7 @@ app.post('/api/ordenes', authMiddleware, (req, res) => {
       }
     }
 
-    // Si la OT se crea con tecnico asignado y estado pendiente, generar tokens y enviar email de confirmacion
+    // Si la OT se crea con tecnico asignado y estado pendiente, generar tokens (sin enviar email por ahora)
     if (otRow && body.tecnico_id && (body.estado || 'pendiente') === 'pendiente') {
       var tokenConfirmar = uuidv4();
       var tokenCambio = uuidv4();
@@ -602,11 +602,8 @@ app.post('/api/ordenes', authMiddleware, (req, res) => {
         [tokenConfirmar, otRow.id, body.tecnico_id, expiraEn]);
       run("INSERT INTO confirmacion_tokens (token, tipo, orden_trabajo_id, tecnico_id, expira_en) VALUES (?, 'solicitar_cambio', ?, ?, ?)",
         [tokenCambio, otRow.id, body.tecnico_id, expiraEn]);
-
-      // Enviar email en segundo plano
-      enviarEmailConfirmacionOT(otRow.id, tokenConfirmar, tokenCambio).then(function(r) {
-        console.log('Email confirmacion OT', num, ':', r.success ? 'enviado' : 'fallo (' + (r.error || '') + ')');
-      }).catch(function(e) {
+      // Enviar email en segundo plano (con catch para no romper la creacion)
+      enviarEmailConfirmacionOT(otRow.id, tokenConfirmar, tokenCambio).catch(function(e) {
         console.error('Error enviando email confirmacion OT', num, ':', e.message);
       });
     }
