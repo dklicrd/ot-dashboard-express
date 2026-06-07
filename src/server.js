@@ -1935,6 +1935,30 @@ app.put('/api/encuestas/:id/llenar-telefono', authMiddleware, (req, res) => {
   }
 });
 
+// PUT /api/encuestas/:id/cerrar-admin — cerrar encuesta por admin (tras 3 intentos)
+app.put('/api/encuestas/:id/cerrar-admin', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const motivo = req.body.motivo || 'Cerrada por administración';
+
+    const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
+    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
+
+    run(`UPDATE encuestas_satisfaccion SET
+      estado = 'expirada',
+      notas_contacto = COALESCE(?, notas_contacto),
+      motivo_sin_encuesta = ?
+      WHERE id = ?`,
+      ['Cerrada por admin: ' + motivo, motivo, id]);
+
+    res.json({ message: 'Encuesta cerrada por administración' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error cerrando encuesta:', e);
+    res.status(500).json({ error: 'Error al cerrar encuesta' });
+  }
+});
+
 // GET /api/encuestas/reportes — stats y promedios
 app.get('/api/encuestas/reportes', authMiddleware, (req, res) => {
   try {

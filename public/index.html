@@ -748,76 +748,116 @@ async function uploadFirmado(id) {
 }
 
 // ============ ENCUESTAS ============
+let _encuestasFiltro = 'todas';
+
 async function renderEncuestas() {
   try {
     const d = await api('GET', '/api/encuestas');
-    const encuestas = d.encuestas || [];
+    const todas = d.encuestas || [];
 
-    const rows = encuestas.map(e => {
-      let estadoBadge = '';
+    // Filtrar
+    let encuestas = todas;
+    if (_encuestasFiltro === 'pendientes') {
+      encuestas = todas.filter(function(e) { return e.estado === 'pendiente' || e.estado === 'pendiente_admin'; });
+    } else if (_encuestasFiltro === 'completadas') {
+      encuestas = todas.filter(function(e) { return e.estado === 'completada'; });
+    } else if (_encuestasFiltro === 'expiradas') {
+      encuestas = todas.filter(function(e) { return e.estado === 'expirada'; });
+    } else if (_encuestasFiltro === 'admin') {
+      encuestas = todas.filter(function(e) { return e.estado === 'pendiente_admin'; });
+    }
+
+    // Totales para badges
+    var totales = { todas: todas.length, pendientes: 0, completadas: 0, expiradas: 0, admin: 0 };
+    todas.forEach(function(e) {
+      if (e.estado === 'pendiente' || e.estado === 'pendiente_admin') totales.pendientes++;
+      if (e.estado === 'completada') totales.completadas++;
+      if (e.estado === 'expirada') totales.expiradas++;
+      if (e.estado === 'pendiente_admin') totales.admin++;
+    });
+
+    function filtroBtn(val, label, badge) {
+      var active = _encuestasFiltro === val ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+      var badgeHtml = badge ? '<span class="ml-1 text-xs ' + (badge > 0 ? (active.indexOf('bg-blue') >= 0 ? 'text-blue-200' : 'text-blue-600') : 'text-gray-400') + '">(' + badge + ')</span>' : '';
+      return '<button class="px-3 py-1.5 rounded-lg text-sm font-medium ' + active + '" onclick="_encuestasFiltro=\\"' + val + '\\";render()">' + label + badgeHtml + '</button>';
+    }
+
+    var rowsHtml = encuestas.map(function(e) {
+      var estadoBadge, accionesBtn, historialBtn;
+
       if (e.estado === 'completada') {
         estadoBadge = '<span class="badge badge-success flex items-center gap-1">✅ ' + (e.porcentaje_final || 0) + '%</span>';
+        accionesBtn = '<span class="text-xs text-green-600">' + (e.fecha_encuesta ? new Date(e.fecha_encuesta).toLocaleDateString() : 'Completada') + '</span>';
       } else if (e.estado === 'expirada') {
+        var contactado = e.contactado_por ? '✅' : '❌';
         estadoBadge = '<span class="badge badge-error flex items-center gap-1">❌ Expirada</span>';
+        accionesBtn = '<button class="text-sm px-3 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100" onclick="renderModalContactarEncuesta(' + e.id + ')">📞 Contactar</button>';
+      } else if (e.estado === 'pendiente_admin') {
+        estadoBadge = '<span class="badge badge-warning flex items-center gap-1">🔴 Pendiente Admin</span>';
+        accionesBtn = '<button class="text-sm px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100" onclick="renderModalCerrarEncuesta(' + e.id + ')">🔒 Cerrar OT</button>';
       } else {
         estadoBadge = '<span class="badge badge-warning flex items-center gap-1">⏳ Pendiente</span>';
+        accionesBtn = '<div class="flex flex-wrap gap-1">' +
+          '<button class="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100" onclick="renderModalContactarEncuesta(' + e.id + ')">📞 Contactar</button>' +
+          '<button class="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100" onclick="renderModalLlenarEncuestaTelefono(' + e.id + ')">📱 Telefónica</button>' +
+          '<button class="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100" onclick="enviarLinkEncuesta(' + e.id + ')">🔗 Enviar Link</button>' +
+        '</div>';
       }
 
-      let diasBadge = '';
+      historialBtn = '<button class="text-xs text-gray-400 hover:text-gray-600" onclick="renderModalHistorialContactos(' + e.id + ')">📋 ' + (e.intentos || 0) + ' intentos</button>';
+
+      var diasBadge = '';
       if (e.dias_restantes > 0 && e.estado === 'pendiente') {
         diasBadge = '<span class="text-xs text-blue-600">' + e.dias_restantes + ' días</span>';
       } else if (e.dias_restantes <= 0 && e.estado === 'pendiente') {
         diasBadge = '<span class="text-xs text-red-600 font-semibold">⚠️ Vence hoy</span>';
-      } else if (e.estado === 'expirada') {
-        diasBadge = '<span class="text-xs text-red-600">Expirada</span>';
       }
 
-      const accionesBtn = e.estado === 'expirada' || (e.estado === 'pendiente' && e.fecha_limite && e.fecha_limite < new Date().toISOString().split('T')[0])
-        ? '<button class="text-sm px-3 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100" onclick="renderModalContactarEncuesta(' + e.id + ')">📞 Contactar</button>'
-        : e.estado === 'pendiente'
-          ? '<span class="text-xs text-gray-400">Esperando respuesta...</span>'
-          : '<span class="text-xs text-green-600">' + (e.fecha_encuesta ? new Date(e.fecha_encuesta).toLocaleDateString() : 'Completada') + '</span>';
-
-      return '<tr>' +
-        '<td class="py-3 px-3">' + escHtml(e.numero_ot) + '</td>' +
-        '<td class="py-3 px-3">' + escHtml(e.numero_encuesta || 'ENC-' + e.id) + '</td>' +
+      return '<tr class="hover:bg-gray-50">' +
+        '<td class="py-3 px-3 font-medium">' + escHtml(e.numero_ot) + '</td>' +
         '<td class="py-3 px-3">' + escHtml(e.cliente_nombre) + '</td>' +
         '<td class="py-3 px-3">' + estadoBadge + '</td>' +
-        '<td class="py-3 px-3 text-sm">' + (e.fecha_limite || '-') + '</td>' +
-        '<td class="py-3 px-3">' + diasBadge + '</td>' +
+        '<td class="py-3 px-3 text-sm">' + diasBadge + '</td>' +
         '<td class="py-3 px-3">' + accionesBtn + '</td>' +
+        '<td class="py-3 px-3">' + historialBtn + '</td>' +
         '</tr>';
     }).join('');
 
-    return `
-      <div class="fade-in">
-        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <h2 class="text-2xl font-bold text-gray-900">⭐ Encuestas de Satisfacción</h2>
-          <button class="btn-primary flex items-center gap-2" onclick="renderModalNuevaEncuesta()">
-            <span>+</span> Nueva Encuesta
-          </button>
-        </div>
+    return '<div class="fade-in">' +
+      '<div class="flex flex-wrap items-center justify-between gap-4 mb-6">' +
+        '<h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">⭐ Encuestas de Satisfacción</h2>' +
+        '<div class="flex gap-2">' +
+          '<button class="btn-primary text-sm px-3 py-1.5 flex items-center gap-1" onclick="renderModalNuevaEncuesta()"><span>+</span> Nueva</button>' +
+          '<button class="btn-secondary text-sm px-3 py-1.5" onclick="renderReportesEncuestas()">📊 Reportes</button>' +
+        '</div>' +
+      '</div>' +
 
-        <div class="card overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-              <thead>
-                <tr class="bg-gray-50 border-b border-gray-200">
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">OT</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">ID Encuesta</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Cliente</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Estado</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Fecha Límite</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>
-                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>
-                </tr>
-              </thead>
-              <tbody>${rows || '<tr><td colspan="7" class="text-center py-8 text-gray-400">No hay encuestas registradas</td></tr>'}</tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
+      '<div class="flex flex-wrap gap-2 mb-4">' +
+        filtroBtn('todas', 'Todas', totales.todas) +
+        filtroBtn('pendientes', 'Pendientes', totales.pendientes) +
+        filtroBtn('completadas', 'Completadas', totales.completadas) +
+        filtroBtn('expiradas', 'Expiradas', totales.expiradas) +
+        (totales.admin > 0 ? filtroBtn('admin', 'Admin', totales.admin) : '') +
+      '</div>' +
+
+      '<div class="card overflow-hidden">' +
+        '<div class="overflow-x-auto">' +
+          '<table class="min-w-full text-sm">' +
+            '<thead>' +
+              '<tr class="bg-gray-50 border-b border-gray-200">' +
+                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">OT</th>' +
+                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Cliente</th>' +
+                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Estado</th>' +
+                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>' +
+                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>' +
+                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Historial</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' + (rowsHtml || '<tr><td colspan="6" class="text-center py-8 text-gray-400">No hay encuestas</td></tr>') + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   } catch (e) {
     console.error('Error loading encuestas:', e);
     return '<div class="text-center py-8 text-red-500">Error al cargar encuestas: ' + e.message + '</div>';
@@ -825,7 +865,7 @@ async function renderEncuestas() {
 }
 
 // ═══════════════════════════════════════════════
-// MODAL: Contactar Encuesta
+// MODAL: Contactar Encuesta (con tipo y registro de intentos)
 // ═══════════════════════════════════════════════
 async function renderModalContactarEncuesta(encuestaId) {
   const container = document.getElementById('modal-content');
@@ -834,35 +874,49 @@ async function renderModalContactarEncuesta(encuestaId) {
     const e = (d.encuestas || [])[0];
     if (!e) { toast('Encuesta no encontrada', 'error'); return; }
 
-    const diasVencido = Math.abs(e.dias_restantes || 0);
-    container.innerHTML = `
-      <div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()" id="contactar-enc-overlay">
-        <div class="modal-content max-w-lg">
-          <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-            <h2 class="text-xl font-bold flex items-center gap-2">📞 Contactar Cliente</h2>
-            <button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-          </div>
-          <div class="p-6 space-y-4">
-            <div class="bg-orange-50 rounded-xl p-4 text-sm space-y-2">
-              <p><strong>OT:</strong> ${escHtml(e.numero_ot)}</p>
-              <p><strong>Cliente:</strong> ${escHtml(e.cliente_nombre)}</p>
-              <p><strong>Fecha Límite:</strong> ${e.fecha_limite || 'N/A'}</p>
-              <p><strong>Días vencido:</strong> <span class="text-red-600 font-semibold">${diasVencido} días</span></p>
-              <p><strong>Email:</strong> ${escHtml(e.cliente_email) || 'No registrado'}</p>
-              <p><strong>Teléfono:</strong> ${escHtml(e.aval_cliente_telefono || e.cliente_telefono || 'No registrado')}</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Notas de Contacto</label>
-              <textarea id="contactar-notas" class="input-field w-full" rows="3" placeholder="¿Cómo se contactó al cliente? ¿Qué respondió?"></textarea>
-            </div>
-            <div class="flex justify-end gap-3">
-              <button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>
-              <button class="btn-primary" onclick="submitContactarEncuesta(${encuestaId})">Marcar como Contactado</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    var diasVencido = Math.abs(e.dias_restantes || 0);
+    var intentos = e.intentos || 0;
+    var limiteAlcanzado = intentos >= 3;
+
+    container.innerHTML = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
+      '<div class="modal-content max-w-lg">' +
+        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
+          '<h2 class="text-xl font-bold flex items-center gap-2">📞 Contactar Cliente</h2>' +
+          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
+        '</div>' +
+        '<div class="p-6 space-y-4">' +
+          '<div class="bg-orange-50 rounded-xl p-4 text-sm space-y-2">' +
+            '<p><strong>OT:</strong> ' + escHtml(e.numero_ot) + '</p>' +
+            '<p><strong>Cliente:</strong> ' + escHtml(e.cliente_nombre) + '</p>' +
+            '<p><strong>Fecha Límite:</strong> ' + (e.fecha_limite || 'N/A') + '</p>' +
+            '<p><strong>Intentos:</strong> <span class="font-semibold ' + (limiteAlcanzado ? 'text-red-600' : '') + '">' + intentos + '/3</span></p>' +
+            (e.cliente_email ? '<p><strong>Email:</strong> ' + escHtml(e.cliente_email) + '</p>' : '') +
+            '<p><strong>Teléfono:</strong> ' + escHtml(e.aval_cliente_telefono || e.cliente_telefono || 'No registrado') + '</p>' +
+            '<p><strong>Link Encuesta:</strong> <code class="text-xs bg-gray-100 px-2 py-1 rounded select-all">' + window.location.origin + '/encuesta-publico.html?token=' + e.token_publico + '</code></p>' +
+            '<button class="text-xs text-blue-600 hover:text-blue-800" onclick="navigator.clipboard.writeText(\'' + window.location.origin + '/encuesta-publico.html?token=' + e.token_publico + '\');toast(\'✅ Link copiado\',\'success\')">📋 Copiar link</button>' +
+          '</div>' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">Medio de contacto</label>' +
+            '<select id="contactar-tipo" class="input-field w-full">' +
+              '<option value="telefono">📞 Teléfono</option>' +
+              '<option value="whatsapp">💬 WhatsApp</option>' +
+              '<option value="email">📧 Email</option>' +
+              '<option value="visita">🏠 Visita</option>' +
+              '<option value="otro">🔄 Otro</option>' +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">Notas del contacto</label>' +
+            '<textarea id="contactar-notas" class="input-field w-full" rows="3" placeholder="¿Cómo respondió el cliente? ¿Qué acordaron?"></textarea>' +
+          '</div>' +
+          (limiteAlcanzado ? '<div class="bg-red-50 rounded-lg p-3 text-sm text-red-700">⚠️ Ya se han realizado ' + intentos + ' intentos sin éxito. Este contacto pasará a revisión de administración.</div>' : '') +
+          '<div class="flex justify-end gap-3">' +
+            '<button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>' +
+            '<button class="btn-primary" onclick="submitContactarEncuesta(' + encuestaId + ')">📞 Registrar Contacto</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   } catch (e) {
     toast('Error: ' + e.message, 'error');
   }
@@ -870,14 +924,262 @@ async function renderModalContactarEncuesta(encuestaId) {
 
 async function submitContactarEncuesta(encuestaId) {
   try {
-    const notas = document.getElementById('contactar-notas').value;
-    await api('PUT', '/api/encuestas/' + encuestaId + '/contactar', { notas_contacto: notas });
+    var notas = document.getElementById('contactar-notas').value;
+    var tipo = document.getElementById('contactar-tipo') ? document.getElementById('contactar-tipo').value : 'telefono';
+    await api('PUT', '/api/encuestas/' + encuestaId + '/contactar', { tipo: tipo, notas: notas });
     toast('✅ Contacto registrado exitosamente', 'success');
     closeAllModals();
-    if (state.view === 'encuestas') render();
-    if (state.view === 'inicio') initEncuestasAlertas();
+    render();
   } catch (e) {
     toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MODAL: Historial de contactos
+// ═══════════════════════════════════════════════
+async function renderModalHistorialContactos(encuestaId) {
+  const container = document.getElementById('modal-content');
+  try {
+    var d = await api('GET', '/api/encuestas/' + encuestaId + '/contactos');
+    var contactos = d.contactos || [];
+    var html = contactos.length ? contactos.map(function(c) {
+      return '<div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">' +
+        '<span class="mt-1">' + (c.tipo === 'telefono' ? '📞' : c.tipo === 'whatsapp' ? '💬' : c.tipo === 'email' ? '📧' : c.tipo === 'visita' ? '🏠' : '🔄') + '</span>' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center justify-between">' +
+            '<p class="text-sm font-medium text-gray-700">' + (c.contacto_por_nombre || 'Usuario #' + c.contacto_por) + '</p>' +
+            '<p class="text-xs text-gray-400">' + new Date(c.creado_en).toLocaleString() + '</p>' +
+          '</div>' +
+          (c.notas ? '<p class="text-sm text-gray-600 mt-1">' + escHtml(c.notas) + '</p>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="text-center py-4 text-gray-400">Sin contactos registrados</div>';
+
+    container.innerHTML = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
+      '<div class="modal-content max-w-md">' +
+        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
+          '<h2 class="text-xl font-bold flex items-center gap-2">📋 Historial de Contactos</h2>' +
+          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
+        '</div>' +
+        '<div class="p-6 space-y-3">' + html + '</div>' +
+        '<div class="p-4 border-t border-gray-200 flex justify-end">' +
+          '<button class="btn-secondary" onclick="closeAllModals()">Cerrar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MODAL: Llenar Encuesta Telefónica
+// ═══════════════════════════════════════════════
+async function renderModalLlenarEncuestaTelefono(encuestaId) {
+  const container = document.getElementById('modal-content');
+  try {
+    const d = await api('GET', '/api/encuestas?id=' + encuestaId);
+    const e = (d.encuestas || [])[0];
+    if (!e) { toast('Encuesta no encontrada', 'error'); return; }
+
+    var preguntas = [
+      { key: 'satisfaccion_general', label: 'Satisfacción General', desc: 'Evaluación global del servicio recibido' },
+      { key: 'tiempo_entrega', label: 'Tiempo de Entrega', desc: 'Cumplimiento del tiempo acordado' },
+      { key: 'desempeno_equipo', label: 'Desempeño del Equipo', desc: 'Profesionalismo del equipo técnico' },
+      { key: 'presentacion_equipo', label: 'Presentación del Equipo', desc: 'Presentación personal y uso de uniforme' },
+      { key: 'calidad_productos', label: 'Calidad de los Productos', desc: 'Evaluación de los materiales instalados' },
+      { key: 'calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Explicación del uso del sistema' },
+      { key: 'recomendaria', label: '¿Recomendaría el servicio?', desc: 'Puntuación del 1 (nunca) al 5 (definitivamente)' }
+    ];
+
+    var preguntasHtml = preguntas.map(function(p) {
+      return '<div class="p-3 bg-gray-50 rounded-lg border border-gray-200">' +
+        '<p class="text-sm font-medium text-gray-700 mb-1">' + p.label + '</p>' +
+        '<p class="text-xs text-gray-400 mb-2">' + p.desc + '</p>' +
+        '<div class="flex gap-1' + (p.key === 'recomendaria' ? '' : '') + '">' +
+          [1,2,3,4,5].map(function(v) {
+            return '<label class="flex items-center gap-1 cursor-pointer">' +
+              '<input type="radio" name="enc-' + p.key + '" value="' + v + '">' +
+              '<span class="text-sm">' + v + '</span>' +
+            '</label>';
+          }).join('<span class="text-gray-200">|</span>') +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    container.innerHTML = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
+      '<div class="modal-content max-w-lg">' +
+        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
+          '<h2 class="text-xl font-bold flex items-center gap-2">📱 Encuesta Telefónica</h2>' +
+          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
+        '</div>' +
+        '<div class="p-4 bg-blue-50 rounded-xl mx-6 mt-4 text-sm">' +
+          '<p><strong>OT:</strong> ' + escHtml(e.numero_ot) + '</p>' +
+          '<p><strong>Cliente:</strong> ' + escHtml(e.cliente_nombre) + '</p>' +
+          '<p class="text-xs text-gray-500 mt-1">Lee cada pregunta al cliente y selecciona su respuesta (1=peor, 5=mejor)</p>' +
+        '</div>' +
+        '<div class="p-6 space-y-3 max-h-96 overflow-y-auto">' + preguntasHtml + '</div>' +
+        '<div class="p-4 border-t border-gray-200 flex justify-end gap-3">' +
+          '<button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>' +
+          '<button class="btn-primary" onclick="submitEncuestaTelefono(' + encuestaId + ')">✅ Enviar Encuesta</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function submitEncuestaTelefono(encuestaId) {
+  try {
+    var body = {};
+    ['satisfaccion_general','tiempo_entrega','desempeno_equipo','presentacion_equipo','calidad_productos','calidad_entrenamientos','recomendaria'].forEach(function(k) {
+      var el = document.querySelector('input[name="enc-' + k + '"]:checked');
+      body[k] = el ? parseInt(el.value) : 5;
+    });
+    await api('PUT', '/api/encuestas/' + encuestaId + '/llenar-telefono', body);
+    toast('✅ Encuesta completada telefónicamente', 'success');
+    closeAllModals();
+    render();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Enviar link de encuesta al cliente
+// ═══════════════════════════════════════════════
+window.enviarLinkEncuesta = async function(encuestaId) {
+  try {
+    var metodo = prompt('Medio para enviar el link (whatsapp, email, otro):', 'whatsapp');
+    if (!metodo) return;
+    await api('PUT', '/api/encuestas/' + encuestaId + '/enviar-link', { metodo: metodo });
+    toast('✅ Link marcado como enviado por ' + metodo, 'success');
+    render();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+};
+
+// ═══════════════════════════════════════════════
+// MODAL: Cerrar encuesta (para admin, tras 3 intentos)
+// ═══════════════════════════════════════════════
+async function renderModalCerrarEncuesta(encuestaId) {
+  const container = document.getElementById('modal-content');
+  try {
+    const d = await api('GET', '/api/encuestas?id=' + encuestaId);
+    const e = (d.encuestas || [])[0];
+    if (!e) { toast('Encuesta no encontrada', 'error'); return; }
+
+    container.innerHTML = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
+      '<div class="modal-content max-w-md">' +
+        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
+          '<h2 class="text-xl font-bold flex items-center gap-2">🔒 Cerrar Encuesta</h2>' +
+          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
+        '</div>' +
+        '<div class="p-6 space-y-4">' +
+          '<p class="text-sm text-gray-600">Esta encuesta ha pasado por <strong>' + (e.intentos || 0) + ' intentos de contacto</strong> sin éxito. Como administrador puedes cerrarla manualmente.</p>' +
+          '<div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-800">' +
+            'Al cerrar esta encuesta, la OT quedará completada sin evaluación de satisfacción del cliente.' +
+          '</div>' +
+          '<div>' +
+            '<label class="block text-sm font-medium text-gray-700 mb-1">Motivo de cierre</label>' +
+            '<textarea id="cierre-motivo" class="input-field w-full" rows="2" placeholder="Ej: Cliente no responde después de 3 intentos"></textarea>' +
+          '</div>' +
+          '<div class="flex justify-end gap-3">' +
+            '<button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>' +
+            '<button class="btn-primary bg-red-600 hover:bg-red-700" onclick="submitCerrarEncuesta(' + encuestaId + ')">🔒 Cerrar y Completar OT</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function submitCerrarEncuesta(encuestaId) {
+  try {
+    var motivo = document.getElementById('cierre-motivo').value || 'Cerrada por administración';
+    await api('PUT', '/api/encuestas/' + encuestaId + '/cerrar-admin', { motivo: motivo });
+    toast('✅ Encuesta cerrada. OT completada.', 'success');
+    closeAllModals();
+    render();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// REPORTES: Gráficos de encuestas
+// ═══════════════════════════════════════════════
+async function renderReportesEncuestas() {
+  const container = document.getElementById('modal-content');
+  try {
+    var d = await api('GET', '/api/encuestas/reportes');
+    var stats = d;
+
+    function barra(val, max, color) {
+      if (!max) { max = 5; }
+      var pct = Math.min((val / max) * 100, 100);
+      return '<div class="flex items-center gap-2">' +
+        '<div class="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">' +
+          '<div class="h-full ' + (color || 'bg-blue-500') + ' rounded-full transition-all" style="width:' + pct + '%"></div>' +
+        '</div>' +
+        '<span class="text-sm font-medium text-gray-600 w-8 text-right">' + (typeof val === 'number' ? val.toFixed(1) : val) + '</span>' +
+      '</div>';
+    };
+
+    var html = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
+      '<div class="modal-content max-w-2xl">' +
+        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
+          '<h2 class="text-xl font-bold flex items-center gap-2">📊 Reportes de Encuestas</h2>' +
+          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
+        '</div>' +
+        '<div class="p-6 space-y-6">' +
+          '<div class="grid grid-cols-4 gap-4">' +
+            '<div class="bg-blue-50 rounded-xl p-4 text-center"><p class="text-2xl font-bold text-blue-600">' + (stats.totals?.total || 0) + '</p><p class="text-xs text-blue-800">Total</p></div>' +
+            '<div class="bg-green-50 rounded-xl p-4 text-center"><p class="text-2xl font-bold text-green-600">' + (stats.totals?.completadas || 0) + '</p><p class="text-xs text-green-800">Completadas</p></div>' +
+            '<div class="bg-yellow-50 rounded-xl p-4 text-center"><p class="text-2xl font-bold text-yellow-600">' + (stats.totals?.pendientes || 0) + '</p><p class="text-xs text-yellow-800">Pendientes</p></div>' +
+            '<div class="bg-red-50 rounded-xl p-4 text-center"><p class="text-2xl font-bold text-red-600">' + (stats.totals?.expiradas || 0) + '</p><p class="text-xs text-red-800">Expiradas</p></div>' +
+          '</div>' +
+
+          '<h3 class="font-semibold text-gray-700">Promedios por Categoría</h3>' +
+          barra(stats.promedios?.prom_satisfaccion || 0, 5, 'bg-blue-500') + '<h4 class="text-xs text-gray-500">Satisfacción General</h4>' +
+          barra(stats.promedios?.prom_tiempo_entrega || 0, 5, 'bg-green-500') + '<h4 class="text-xs text-gray-500">Tiempo de Entrega</h4>' +
+          barra(stats.promedios?.prom_desempeno || 0, 5, 'bg-purple-500') + '<h4 class="text-xs text-gray-500">Desempeño del Equipo</h4>' +
+          barra(stats.promedios?.prom_presentacion || 0, 5, 'bg-indigo-500') + '<h4 class="text-xs text-gray-500">Presentación</h4>' +
+          barra(stats.promedios?.prom_calidad_productos || 0, 5, 'bg-pink-500') + '<h4 class="text-xs text-gray-500">Calidad Productos</h4>' +
+          barra(stats.promedios?.prom_calidad_entrenamientos || 0, 5, 'bg-teal-500') + '<h4 class="text-xs text-gray-500">Calidad Entrenamientos</h4>' +
+
+          '<div class="border-t pt-4">' +
+            '<h3 class="font-semibold text-gray-700 mb-2">Promedio General: <span class="text-2xl font-bold text-blue-600">' + (stats.promedios?.prom_porcentaje ? Number(stats.promedios.prom_porcentaje).toFixed(1) + '%' : 'N/A') + '</span></h3>' +
+          '</div>' +
+
+          '<div class="border-t pt-4">' +
+            '<h3 class="font-semibold text-gray-700 mb-2">Últimos 12 Meses</h3>' +
+            '<div class="space-y-1">' +
+              (stats.porPeriodo || []).map(function(p) {
+                return '<div class="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-1.5">' +
+                  '<span>' + p.periodo + '</span>' +
+                  '<span class="text-gray-500">' + p.total + ' encuestas</span>' +
+                  '<span class="font-medium">' + (p.prom_porcentaje ? Number(p.prom_porcentaje).toFixed(1) + '%' : 'N/A') + '</span>' +
+                '</div>';
+              }).join('') || '<p class="text-gray-400 text-sm">Sin datos</p>' +
+            '</div>' +
+          '</div>' +
+
+        '</div>' +
+        '<div class="p-4 border-t border-gray-200 text-center">' +
+          '<button class="btn-secondary" onclick="closeAllModals()">Cerrar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    container.innerHTML = html;
+  } catch (e) {
+    toast('Error cargando reportes: ' + e.message, 'error');
   }
 }
 
