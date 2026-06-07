@@ -569,6 +569,16 @@ async function ejecutarMigraciones() {
     run("ALTER TABLE encuestas_satisfaccion ADD COLUMN token_publico TEXT");
     console.log('🔧 Columna token_publico agregada a encuestas_satisfaccion');
   }
+  const hasNumeroEnc = encCols.some(c => c.name === 'numero_encuesta');
+  if (!hasNumeroEnc) {
+    run("ALTER TABLE encuestas_satisfaccion ADD COLUMN numero_encuesta TEXT");
+    console.log('🔧 Columna numero_encuesta agregada a encuestas_satisfaccion');
+  }
+  const hasMotivoSinEnc = encCols.some(c => c.name === 'motivo_sin_encuesta');
+  if (!hasMotivoSinEnc) {
+    run("ALTER TABLE encuestas_satisfaccion ADD COLUMN motivo_sin_encuesta TEXT");
+    console.log('🔧 Columna motivo_sin_encuesta agregada a encuestas_satisfaccion');
+  }
   // respuestas JSON para encuesta pública
   const hasRespuestasData = encCols.some(c => c.name === 'respuestas_data');
   if (!hasRespuestasData) {
@@ -593,6 +603,51 @@ async function ejecutarMigraciones() {
   if (!hasIntentos) {
     run('ALTER TABLE encuestas_satisfaccion ADD COLUMN intentos INTEGER DEFAULT 0');
     console.log('🔧 Columna intentos agregada a encuestas_satisfaccion');
+  }
+
+  // ═══════════════════════════════════════════════
+  // POBLAR encuestas existentes con datos faltantes
+  // (avales legacy migrados que no tienen estado, token, numero_encuesta, etc.)
+  // ═══════════════════════════════════════════════
+  // Detectamos encuestas no pobladas porque fecha_limite IS NULL (las existentes no tenian columna)
+  const encSinToken = queryAll("SELECT e.id, e.orden_trabajo_id, e.aval_legacy_id, ot.numero_ot FROM encuestas_satisfaccion e JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id WHERE e.fecha_limite IS NULL");
+  if (encSinToken.length > 0) {
+    console.log('🔧 Poblando ' + encSinToken.length + ' encuestas existentes con tokens, fechas y estados...');
+    const crypto = require('crypto');
+    transaction(() => {
+      encSinToken.forEach(function(en) {
+        var token = crypto.randomBytes(24).toString('hex');
+        var numEnc = 'ENC-' + (en.numero_ot || ('OT-' + String(en.orden_trabajo_id).padStart(6, '0')));
+        var hoy = new Date();
+        var fd = new Date(hoy);
+        fd.setDate(fd.getDate() + 3);
+        var fechaLim = fd.toISOString().split('T')[0];
+        run('UPDATE encuestas_satisfaccion SET estado = ?, fecha_limite = ?, token_publico = ?, numero_encuesta = ? WHERE id = ?',
+          ['pendiente', fechaLim, token, numEnc, en.id]);
+      });
+    });
+    console.log('✅ Encuestas existentes pobladas con estado, token y fecha');
+  }
+
+  // Crear encuestas para avales legacy sin encuesta asignada
+  // (avales legacy completados que no tienen encuesta)
+  const avalesSinEncuesta = queryAll("SELECT al.id as aval_legacy_id, al.orden_trabajo_id, ot.numero_ot FROM avales_legacy al JOIN ordenes_trabajo ot ON al.orden_trabajo_id = ot.id WHERE al.estado = 'completado' AND al.id NOT IN (SELECT COALESCE(aval_legacy_id, -1) FROM encuestas_satisfaccion WHERE aval_legacy_id IS NOT NULL)");
+  if (avalesSinEncuesta.length > 0) {
+    console.log('🔧 Creando ' + avalesSinEncuesta.length + ' encuestas para avales legacy sin encuesta...');
+    const crypto = require('crypto');
+    transaction(() => {
+      avalesSinEncuesta.forEach(function(av) {
+        var token = crypto.randomBytes(24).toString('hex');
+        var numEnc = 'ENC-' + (av.numero_ot || av.orden_trabajo_id);
+        var hoy = new Date();
+        var fd = new Date(hoy);
+        fd.setDate(fd.getDate() + 3);
+        var fechaLim = fd.toISOString().split('T')[0];
+        run('INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, estado, fecha_limite, token_publico, numero_encuesta) VALUES (?, ?, ?, ?, ?, ?)',
+          [av.orden_trabajo_id, av.aval_legacy_id, 'pendiente', fechaLim, token, numEnc]);
+      });
+    });
+    console.log('✅ Encuestas creadas para avales legacy faltantes');
   }
 
   // ═══════════════════════════════════════════════
