@@ -1217,6 +1217,48 @@ function migrarEncuestasLegacy() {
   } else {
     console.log('📝 Todos los avales legacy confirmados ya tienen encuesta');
   }
+
+  // ═══════════════════════════════════════════════
+  // AVALES NUEVOS — crear encuestas para avales firmados sin confirmar
+  // ═══════════════════════════════════════════════
+  console.log('🔍 Verificando avales nuevos firmados sin encuesta...');
+  const avalesFirmadosSinEncuesta = queryAll(`
+    SELECT a.id, a.orden_trabajo_id
+    FROM avales a
+    WHERE a.estado = 'firmado_cliente'
+      AND NOT EXISTS (
+        SELECT 1 FROM encuestas_satisfaccion e
+        WHERE e.orden_trabajo_id = a.orden_trabajo_id
+          AND (e.aval_id = a.id)
+      )
+  `);
+  if (avalesFirmadosSinEncuesta.length > 0) {
+    console.log('🔧 Creando encuestas para ' + avalesFirmadosSinEncuesta.length + ' avales firmados sin encuesta...');
+    const hoy = new Date().toISOString().split('T')[0];
+    for (const a of avalesFirmadosSinEncuesta) {
+      const tokenEnc = require('crypto').randomBytes(16).toString('hex');
+      function sumarDiasHabilesMig2(fechaStr, dias) {
+        const fecha = new Date(fechaStr + 'T12:00:00-04:00');
+        let contados = 0;
+        while (contados < dias) {
+          fecha.setDate(fecha.getDate() + 1);
+          const diaSem = fecha.getDay();
+          if (diaSem !== 0 && diaSem !== 6) contados++;
+        }
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+      }
+      const fechaLimite = sumarDiasHabilesMig2(hoy, 3);
+      run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico)
+        VALUES (?, ?, 'pendiente', ?, 1, ?)`,
+        [a.orden_trabajo_id, a.id, fechaLimite, tokenEnc]);
+    }
+    console.log('✅ ' + avalesFirmadosSinEncuesta.length + ' encuestas creadas para avales firmados');
+  } else {
+    console.log('📝 Todos los avales firmados ya tienen encuesta');
+  }
 }
 
 module.exports = { initDatabase, verificarYRestaurarBackup, migrarEncuestasLegacy };
