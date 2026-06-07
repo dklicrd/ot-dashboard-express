@@ -3,13 +3,17 @@
 
 window._tiposServicioCache = null;
 
+// Helper para obtener token de auth (localStorage > window.state)
+window._getToken = function () {
+  try { var t = localStorage.getItem('token'); if (t) return t; } catch (e) {}
+  if (window.state && window.state.token) return window.state.token;
+  return null;
+};
+
 window.cargarTiposServicio = async function () {
   try {
     const res = await fetch('/api/public/tipos-servicio');
-    if (!res.ok) {
-      console.warn('cargarTiposServicio: status', res.status);
-      return [];
-    }
+    if (!res.ok) { console.warn('cargarTiposServicio: status', res.status); return []; }
     const d = await res.json();
     window._tiposServicioCache = d.tipos_servicio || [];
     return window._tiposServicioCache;
@@ -25,9 +29,8 @@ window.renderTiposServicioConfig = async function () {
   container.innerHTML = '<div class="text-center text-gray-400 py-8">Cargando tipos de servicio...</div>';
   var data = await window.cargarTiposServicio();
   if (!data || !data.length) {
-    container.innerHTML = '<div class="text-center text-gray-400 py-8">No hay tipos de servicio configurados en la base de datos. ' +
-      'Haz clic en "➕ Nuevo Tipo" para crear el primero.' +
-      '<br><br><small class="text-red-400">(Si esperabas ver datos, revisa la consola F12 para errores)</small></div>';
+    container.innerHTML = '<div class="text-center text-gray-400 py-8">No hay tipos de servicio configurados. ' +
+      'Haz clic en "➕ Nuevo Tipo" para crear el primero.</div>';
     return;
   }
   container.innerHTML = data.map(function (t) {
@@ -44,9 +47,9 @@ window.renderTiposServicioConfig = async function () {
         '<div class="flex items-center gap-2 shrink-0">' +
           '<span class="text-sm text-gray-500">RD$</span>' +
           '<input type="number" min="0" step="0.01" value="' + (Number(c.precio) || 0).toFixed(2) + '"' +
-            ' onchange="window.actualizarPrecioCategoria(' + t.id + ',' + c.id + ',this.value)"' +
-            ' class="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-500">' +
-          '<button onclick="window.eliminarCategoriaTipo(' + t.id + ',' + c.id + ',' + JSON.stringify(c.label) + ')" class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>' +
+            ' onchange="window._actualizarPrecioCategoria(' + t.id + ',' + c.id + ',this)"' +
+            ' class="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-right">' +
+          '<button onclick="window._eliminarCategoriaTipo(' + t.id + ',' + c.id + ',' + JSON.stringify(c.label) + ')" class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -58,8 +61,9 @@ window.renderTiposServicioConfig = async function () {
           '<code class="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-500">' + escHtml(t.nombre) + '</code>' +
         '</div>' +
         '<div class="flex items-center gap-2">' +
-          '<button onclick="window.editarTipoServicio(' + t.id + ',' + JSON.stringify(t.label) + ')" class="text-sm text-blue-600 hover:text-blue-800">✎ Editar</button>' +
-          '<button onclick="window.agregarCategoriaTipo(' + t.id + ')" class="btn-primary text-xs px-2 py-1">+ Categoría</button>' +
+          '<button onclick="window._editarTipoServicio(' + t.id + ',' + JSON.stringify(t.label) + ')" class="text-sm text-blue-600 hover:text-blue-800">✎ Editar</button>' +
+          '<button onclick="window._eliminarTipoServicio(' + t.id + ',' + JSON.stringify(t.label) + ')" class="text-sm text-red-500 hover:text-red-700 ml-2">✕ Eliminar</button>' +
+          '<button onclick="window._agregarCategoriaTipo(' + t.id + ')" class="btn-primary text-xs px-2 py-1">+ Categoria</button>' +
         '</div>' +
       '</div>' +
       '<div class="space-y-2">' + cats + '</div>' +
@@ -67,53 +71,69 @@ window.renderTiposServicioConfig = async function () {
   }).join('');
 };
 
-window.actualizarPrecioCategoria = async function (tipoId, catId, precio) {
+// ============ Helpers internos con fetch auth ============
+
+window._fetchAuth = function (url, opts) {
+  var token = window._getToken();
+  if (!token) { return Promise.reject(new Error('No hay token de autenticacion. Re-logueate.')); }
+  opts = opts || {};
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = 'Bearer ' + token;
+  if (opts.body && !opts.headers['Content-Type']) {
+    opts.headers['Content-Type'] = 'application/json';
+  }
+  return fetch(url, opts).then(function (r) {
+    if (!r.ok) {
+      return r.json().then(function (d) {
+        throw new Error((d && d.error) || 'Error HTTP ' + r.status);
+      }).catch(function (e) {
+        if (e.message && e.message.indexOf('Error') >= 0) throw e;
+        throw new Error('Error HTTP ' + r.status);
+      });
+    }
+    return r.json();
+  });
+};
+
+window._actualizarPrecioCategoria = async function (tipoId, catId, input) {
+  var precio = parseFloat(input.value) || 0;
   try {
-    await fetch('/api/tipos-servicio/' + tipoId + '/categorias/' + catId, {
+    await window._fetchAuth('/api/tipos-servicio/' + tipoId + '/categorias/' + catId, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + (window.state ? window.state.token : '')
-      },
-      body: JSON.stringify({ precio: parseFloat(precio) || 0 })
+      body: JSON.stringify({ precio: precio })
     });
+    toast('Precio actualizado', 'success');
   } catch (e) {
-    console.error('Error actualizando precio:', e);
+    toast('Error: ' + e.message, 'error');
   }
 };
 
-window.eliminarCategoriaTipo = async function (tipoId, catId, label) {
+window._eliminarCategoriaTipo = async function (tipoId, catId, label) {
   if (!confirm('¿Desactivar categoría "' + label + '"?')) return;
   try {
-    await fetch('/api/tipos-servicio/' + tipoId + '/categorias/' + catId, {
-      method: 'DELETE',
-      headers: { Authorization: 'Bearer ' + (window.state ? window.state.token : '') }
-    });
+    await window._fetchAuth('/api/tipos-servicio/' + tipoId + '/categorias/' + catId, { method: 'DELETE' });
     toast('Categoría desactivada', 'success');
     window.renderTiposServicioConfig();
   } catch (e) {
-    console.error('Error eliminando categoría:', e);
+    toast('Error: ' + e.message, 'error');
   }
 };
 
-window.agregarCategoriaTipo = function (tipoId) {
+window._agregarCategoriaTipo = function (tipoId) {
   var key = prompt('Nombre clave (key) de la categoría (ej: cerradura, control_acceso):');
   if (!key) return;
   var label = prompt('Etiqueta visible (ej: Cerradura Electrónica):');
   if (!label) return;
   var precio = parseFloat(prompt('Precio (RD$):', '0')) || 0;
-  fetch('/api/tipos-servicio/' + tipoId + '/categorias', {
+  window._fetchAuth('/api/tipos-servicio/' + tipoId + '/categorias', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + (window.state ? window.state.token : '')
-    },
     body: JSON.stringify({ key: key, label: label, precio: precio })
-  }).then(function (r) {
-    if (!r.ok) throw new Error('Error');
+  }).then(function () {
     toast('Categoría agregada', 'success');
     window.renderTiposServicioConfig();
-  }).catch(function (e) { toast('Error: ' + e.message, 'error'); });
+  }).catch(function (e) {
+    toast('Error: ' + e.message, 'error');
+  });
 };
 
 window.abrirModalNuevoTipo = function () {
@@ -121,45 +141,39 @@ window.abrirModalNuevoTipo = function () {
   if (!nombre) return;
   var label = prompt('Nombre visible (ej: Proyecto Nuevo):');
   if (!label) return;
-  fetch('/api/tipos-servicio', {
+  window._fetchAuth('/api/tipos-servicio', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + (window.state ? window.state.token : '')
-    },
     body: JSON.stringify({ nombre: nombre, label: label })
-  }).then(function (r) {
-    if (!r.ok) throw new Error('Error');
+  }).then(function () {
     toast('Tipo de servicio creado', 'success');
     window.renderTiposServicioConfig();
-  }).catch(function (e) { toast('Error: ' + e.message, 'error'); });
+  }).catch(function (e) {
+    toast('Error: ' + e.message, 'error');
+  });
 };
 
-window.editarTipoServicio = function (id, labelActual) {
+window._editarTipoServicio = function (id, labelActual) {
   var label = prompt('Nuevo nombre visible:', labelActual);
   if (!label) return;
-  fetch('/api/tipos-servicio/' + id, {
+  window._fetchAuth('/api/tipos-servicio/' + id, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + (window.state ? window.state.token : '')
-    },
     body: JSON.stringify({ label: label })
-  }).then(function (r) {
-    if (!r.ok) throw new Error('Error');
+  }).then(function () {
     toast('Tipo actualizado', 'success');
     window.renderTiposServicioConfig();
-  }).catch(function (e) { toast('Error: ' + e.message, 'error'); });
+  }).catch(function (e) {
+    toast('Error: ' + e.message, 'error');
+  });
 };
 
-window.eliminarTipoServicio = function (id, label) {
+window._eliminarTipoServicio = function (id, label) {
   if (!confirm('¿Desactivar tipo de servicio "' + label + '" y todas sus categorías?')) return;
-  fetch('/api/tipos-servicio/' + id, {
-    method: 'DELETE',
-    headers: { Authorization: 'Bearer ' + (window.state ? window.state.token : '') }
-  }).then(function (r) {
-    if (!r.ok) throw new Error('Error');
+  window._fetchAuth('/api/tipos-servicio/' + id, {
+    method: 'DELETE'
+  }).then(function () {
     toast('Tipo desactivado', 'success');
     window.renderTiposServicioConfig();
-  }).catch(function (e) { toast('Error: ' + e.message, 'error'); });
+  }).catch(function (e) {
+    toast('Error: ' + e.message, 'error');
+  });
 };
