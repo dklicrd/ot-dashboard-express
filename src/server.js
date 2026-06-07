@@ -2030,7 +2030,7 @@ function getTiposServicio() {
 }
 
 // POST /api/tipos-servicio — crear nuevo tipo de servicio
-app.post('/api/tipos-servicio', authMiddleware, adminOnly, (req, res) => {
+app.post('/api/tipos-servicio', authMiddleware, (req, res) => {
   try {
     const { nombre, label } = req.body;
     if (!nombre || !label) return res.status(400).json({ error: 'nombre y label son requeridos' });
@@ -2043,7 +2043,7 @@ app.post('/api/tipos-servicio', authMiddleware, adminOnly, (req, res) => {
 });
 
 // PUT /api/tipos-servicio/:id — actualizar tipo de servicio
-app.put('/api/tipos-servicio/:id', authMiddleware, adminOnly, (req, res) => {
+app.put('/api/tipos-servicio/:id', authMiddleware, (req, res) => {
   try {
     const { nombre, label, activo } = req.body;
     const sets = [];
@@ -2062,7 +2062,7 @@ app.put('/api/tipos-servicio/:id', authMiddleware, adminOnly, (req, res) => {
 });
 
 // DELETE /api/tipos-servicio/:id — desactivar tipo de servicio (baja lógica)
-app.delete('/api/tipos-servicio/:id', authMiddleware, adminOnly, (req, res) => {
+app.delete('/api/tipos-servicio/:id', authMiddleware, (req, res) => {
   try {
     run('UPDATE tipos_servicio SET activo = 0 WHERE id = ?', [req.params.id]);
     // Desactivar también sus categorías
@@ -2075,7 +2075,7 @@ app.delete('/api/tipos-servicio/:id', authMiddleware, adminOnly, (req, res) => {
 });
 
 // POST /api/tipos-servicio/:id/categorias — agregar categoría a un tipo
-app.post('/api/tipos-servicio/:id/categorias', authMiddleware, adminOnly, (req, res) => {
+app.post('/api/tipos-servicio/:id/categorias', authMiddleware, (req, res) => {
   try {
     const { key, label, icon, precio } = req.body;
     if (!key || !label) return res.status(400).json({ error: 'key y label son requeridos' });
@@ -2091,7 +2091,7 @@ app.post('/api/tipos-servicio/:id/categorias', authMiddleware, adminOnly, (req, 
 });
 
 // PUT /api/tipos-servicio/:tipoId/categorias/:catId — actualizar categoría
-app.put('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, adminOnly, (req, res) => {
+app.put('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, (req, res) => {
   try {
     const { key, label, icon, precio, activo } = req.body;
     const sets = [];
@@ -2113,7 +2113,7 @@ app.put('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, adminOn
 });
 
 // DELETE /api/tipos-servicio/:tipoId/categorias/:catId — desactivar categoría
-app.delete('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, adminOnly, (req, res) => {
+app.delete('/api/tipos-servicio/:tipoId/categorias/:catId', authMiddleware, (req, res) => {
   try {
     run('UPDATE categorias_servicio SET activo = 0 WHERE id = ?', [req.params.catId]);
     invalidarPreciosCache();
