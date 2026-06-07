@@ -1796,34 +1796,193 @@ app.post('/api/encuestas', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════════════
 // ENDPOINT: Contactar encuesta expirada
 // ═══════════════════════════════════════════════
-app.put('/api/encuestas/:id/contactar', authMiddleware, adminOnly, (req, res) => {
+app.put('/api/encuestas/:id/contactar', authMiddleware, (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { notas_contacto } = req.body;
+    const { tipo, notas } = req.body || {};
 
     const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
     if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
 
-    // Si está pendiente y fecha_limite pasada, cambiar a expirada
+    // Registrar intento de contacto en tabla contactos_encuesta
+    run('INSERT INTO contactos_encuesta (encuesta_id, contacto_por, tipo, notas) VALUES (?, ?, ?, ?)',
+      [id, req.user.userId, tipo || 'telefono', notas || null]);
+
+    // Incrementar intentos
+    const nuevosIntentos = (encuesta.intentos || 0) + 1;
+
+    // Determinar estado según intentos
     const ahora = new Date().toISOString().split('T')[0];
     let nuevoEstado = encuesta.estado;
-    if (encuesta.estado === 'pendiente' && encuesta.fecha_limite && encuesta.fecha_limite < ahora) {
+    if (encuesta.fecha_limite && encuesta.fecha_limite < ahora) {
       nuevoEstado = 'expirada';
+    } else if (nuevosIntentos >= 3 && encuesta.estado === 'pendiente') {
+      // Después de 3 intentos sin éxito, pasa a admin para cierre
+      nuevoEstado = 'pendiente_admin';
     }
 
     run(`UPDATE encuestas_satisfaccion SET
       contactado_por = ?,
       fecha_contacto = datetime('now', '-04:00'),
       notas_contacto = COALESCE(?, notas_contacto),
+      intentos = ?,
       estado = ?
       WHERE id = ?`,
-      [req.user.userId, notas_contacto || null, nuevoEstado, id]);
+      [req.user.userId, notas || null, nuevosIntentos, nuevoEstado, id]);
 
-    res.json({ message: 'Contacto registrado', estado: nuevoEstado });
+    res.json({ message: 'Contacto registrado', intentos: nuevosIntentos, estado: nuevoEstado });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error contactando encuesta:', e);
     res.status(500).json({ error: 'Error al registrar contacto' });
+  }
+});
+
+// GET /api/encuestas/:id/contactos — historial de contactos
+app.get('/api/encuestas/:id/contactos', authMiddleware, (req, res) => {
+  try {
+    const contactos = queryAll(`
+      SELECT c.*, u.nombre as contacto_por_nombre
+      FROM contactos_encuesta c
+      LEFT JOIN usuarios u ON u.id = c.contacto_por
+      WHERE c.encuesta_id = ?
+      ORDER BY c.creado_en DESC
+    `, [Number(req.params.id)]);
+    res.json({ contactos });
+  } catch (e) {
+    console.error('Error cargando contactos:', e);
+    res.status(500).json({ error: 'Error al cargar contactos' });
+  }
+});
+
+// PUT /api/encuestas/:id/enviar-link — marcar que se envió link al cliente
+app.put('/api/encuestas/:id/enviar-link', authMiddleware, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { metodo } = req.body || {};
+
+    run('UPDATE encuestas_satisfaccion SET email_enviado = 1 WHERE id = ?', [id]);
+
+    // También registrar como contacto
+    run('INSERT INTO contactos_encuesta (encuesta_id, contacto_por, tipo, notas) VALUES (?, ?, ?, ?)',
+      [id, req.user.userId, metodo || 'whatsapp', 'Link público enviado al cliente']);
+
+    res.json({ message: 'Link enviado' });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error enviando link:', e);
+    res.status(500).json({ error: 'Error al enviar link' });
+  }
+});
+
+// PUT /api/encuestas/:id/llenar-telefono — llenar encuesta telefónicamente
+app.put('/api/encuestas/:id/llenar-telefono', authMiddleware, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const body = req.body;
+
+    const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
+    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
+
+    // Calcular porcentaje final ponderado
+    const config = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1') || {};
+    const ponderaciones = {
+      ponderacion_tiempo_entrega: config.ponderacion_tiempo_entrega || 25,
+      ponderacion_desempeno: config.ponderacion_desempeno || 20,
+      ponderacion_presentacion: config.ponderacion_presentacion || 15,
+      ponderacion_calidad_productos: config.ponderacion_calidad_productos || 20,
+      ponderacion_calidad_entrenamientos: config.ponderacion_calidad_entrenamientos || 20
+    };
+
+    const sumPond = Object.values(ponderaciones).reduce((a, b) => a + b, 0) || 100;
+    const pct = (
+      (Number(body.satisfaccion_general) || 5) * config.ponderacion_satisfaccion_general ||
+      (Number(body.tiempo_entrega) || 5) * ponderaciones.ponderacion_tiempo_entrega +
+      (Number(body.desempeno_equipo) || 5) * ponderaciones.ponderacion_desempeno +
+      (Number(body.presentacion_equipo) || 5) * ponderaciones.ponderacion_presentacion +
+      (Number(body.calidad_productos) || 5) * ponderaciones.ponderacion_calidad_productos +
+      (Number(body.calidad_entrenamientos) || 5) * ponderaciones.ponderacion_calidad_entrenamientos
+    ) / sumPond;
+
+    run(`UPDATE encuestas_satisfaccion SET
+      satisfaccion_general = ?, tiempo_entrega = ?, desempeno_equipo = ?,
+      presentacion_equipo = ?, calidad_productos = ?, conocimientos_tecnicos = ?,
+      calidad_entrenamientos = ?, recomendaria = ?, observaciones = ?,
+      porcentaje_final = ?, realizada_por = ?, fecha_encuesta = datetime('now', '-04:00'),
+      respuestas_data = ?, estado = 'completada'
+      WHERE id = ?`,
+      [
+        Number(body.satisfaccion_general) || null,
+        Number(body.tiempo_entrega) || null,
+        Number(body.desempeno_equipo) || null,
+        Number(body.presentacion_equipo) || null,
+        Number(body.calidad_productos) || null,
+        Number(body.conocimientos_tecnicos) || null,
+        Number(body.calidad_entrenamientos) || null,
+        Number(body.recomendaria) || null,
+        body.observaciones || null,
+        Math.round(pct * 100) / 100,
+        req.user.userId,
+        body.respuestas_data || null,
+        id
+      ]);
+
+    res.json({ message: 'Encuesta completada telefónicamente', porcentaje_final: Math.round(pct * 100) / 100 });
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('Error llenando encuesta telefónica:', e);
+    res.status(500).json({ error: 'Error al llenar encuesta' });
+  }
+});
+
+// GET /api/encuestas/reportes — stats y promedios
+app.get('/api/encuestas/reportes', authMiddleware, (req, res) => {
+  try {
+    const now = new Date();
+    const year = req.query.year || now.getFullYear();
+    const month = req.query.month || now.getMonth() + 1;
+    const periodo = year + '-' + String(month).padStart(2, '0');
+
+    // Stats generales
+    const total = queryFirst('SELECT COUNT(*) as total FROM encuestas_satisfaccion');
+    const completadas = queryFirst("SELECT COUNT(*) as total FROM encuestas_satisfaccion WHERE estado = 'completada'");
+    const pendientes = queryFirst("SELECT COUNT(*) as total FROM encuestas_satisfaccion WHERE estado IN ('pendiente','pendiente_admin')");
+    const expiradas = queryFirst("SELECT COUNT(*) as total FROM encuestas_satisfaccion WHERE estado = 'expirada'");
+
+    // Promedio general (solo completadas)
+    const promedios = queryFirst(`
+      SELECT
+        AVG(satisfaccion_general) as prom_satisfaccion,
+        AVG(tiempo_entrega) as prom_tiempo_entrega,
+        AVG(desempeno_equipo) as prom_desempeno,
+        AVG(presentacion_equipo) as prom_presentacion,
+        AVG(calidad_productos) as prom_calidad_productos,
+        AVG(calidad_entrenamientos) as prom_calidad_entrenamientos,
+        AVG(porcentaje_final) as prom_porcentaje
+      FROM encuestas_satisfaccion WHERE estado = 'completada'
+    `);
+
+    // Por periodo
+    const porPeriodo = queryAll(`
+      SELECT
+        strftime('%Y-%m', fecha_encuesta) as periodo,
+        COUNT(*) as total,
+        AVG(porcentaje_final) as prom_porcentaje
+      FROM encuestas_satisfaccion
+      WHERE estado = 'completada' AND fecha_encuesta IS NOT NULL
+      GROUP BY periodo
+      ORDER BY periodo DESC
+      LIMIT 12
+    `);
+
+    res.json({
+      totals: { total: total?.total || 0, completadas: completadas?.total || 0, pendientes: pendientes?.total || 0, expiradas: expiradas?.total || 0 },
+      promedios,
+      porPeriodo
+    });
+  } catch (e) {
+    console.error('Error cargando reportes encuestas:', e);
+    res.status(500).json({ error: 'Error al cargar reportes' });
   }
 });
 

@@ -565,6 +565,25 @@ async function initDatabase() {
     console.log('🔧 Columna respuestas_data agregada a encuestas_satisfaccion');
   }
 
+  // Tabla contactos_encuesta — historial de intentos de contacto
+  run(`CREATE TABLE IF NOT EXISTS contactos_encuesta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    encuesta_id INTEGER NOT NULL REFERENCES encuestas_satisfaccion(id),
+    contacto_por INTEGER NOT NULL REFERENCES usuarios(id),
+    tipo TEXT NOT NULL DEFAULT 'telefono' CHECK(tipo IN ('telefono','whatsapp','email','visita','otro')),
+    notas TEXT,
+    respuesta_cliente TEXT,
+    creado_en TEXT DEFAULT (datetime('now', '-04:00'))
+  )`);
+  console.log('🔧 Tabla contactos_encuesta creada/verificada');
+
+  // Columna intentos en encuestas (contador de intentos)
+  const hasIntentos = encCols.some(c => c.name === 'intentos');
+  if (!hasIntentos) {
+    run('ALTER TABLE encuestas_satisfaccion ADD COLUMN intentos INTEGER DEFAULT 0');
+    console.log('🔧 Columna intentos agregada a encuestas_satisfaccion');
+  }
+
   // ═══════════════════════════════════════════════
   // AVALES v2 — migración de nuevos campos y estados
   // ═══════════════════════════════════════════════
