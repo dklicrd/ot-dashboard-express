@@ -1710,13 +1710,8 @@ app.get('/api/encuestas', authMiddleware, (req, res) => {
     SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre,
       c.telefono as cliente_telefono, c.email as cliente_email,
       COALESCE(a.numero_aval, al.numero_aval) as numero_aval,
-<<<<<<< HEAD
-      COALESCE(a.cliente_nombre, al.descripcion_trabajo) as aval_cliente_nombre,
-      COALESCE(a.cliente_telefono, c.telefono) as aval_cliente_telefono
-=======
-      COALESCE(a.cliente_nombre, al.cliente_nombre, '') as aval_cliente_nombre,
+      COALESCE(a.cliente_nombre, '') as aval_cliente_nombre,
       COALESCE(a.cliente_telefono, '') as aval_cliente_telefono
->>>>>>> 0803592 (fix(encuestas): crear encuestas automaticas al confirmar avales legacy + migracion retroactiva)
     FROM encuestas_satisfaccion e
     JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
     JOIN clientes c ON ot.cliente_id = c.id
