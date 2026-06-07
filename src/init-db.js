@@ -653,10 +653,9 @@ async function ejecutarMigraciones() {
   // ═══════════════════════════════════════════════
   // ENCUESTAS — migración: crear encuestas para avales legacy confirmados
   // ═══════════════════════════════════════════════
-  // NOTA: esta migración se ejecuta DESPUÉS de restaurar el backup
-  // para evitar que el backup sobreescriba las encuestas creadas.
-  // Se llama desde server.js start() vía migrarEncuestasLegacy()
-  console.log('📋 Encuestas legacy migración diferida hasta después del backup');
+  // NOTA: se ejecuta DESPUÉS de restaurar backup en server.js start()
+  // para evitar que el backup sobreescriba las encuestas recién creadas.
+  console.log('📋 Encuestas legacy: migración diferida hasta después del backup');
 
   // ═══════════════════════════════════════════════
   // AVALES v2 — migración de nuevos campos y estados
@@ -1169,6 +1168,12 @@ async function verificarYRestaurarBackup() {
     }
 
     // Guardar backup
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+  } catch (e) {
+    console.error('\u26a0\ufe0f Error en backup/restore:', e.message);
+  }
+}
+
 // ═══════════════════════════════════════════════
 // MIGRACIÓN RETROACTIVA: crear encuestas para avales legacy
 // Ejecutar DESPUÉS de restaurar backup (desde server.js start())

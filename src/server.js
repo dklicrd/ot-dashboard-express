@@ -37,10 +37,9 @@ async function start() {
   try {
     await getDb();
     await initDatabase();
-    // Restaurar backup (esto sobreescribe los datos, por eso la migración
-    // de datos debe ir DESPUÉS)
+    // Restaurar backup — debe ir ANTES de la migración de datos
     await verificarYRestaurarBackup();
-    // Migración retroactiva: crear encuestas para avales legacy confirmados
+    // Migrar encuestas legacy después del backup
     migrarEncuestasLegacy();
   } catch (e) {
     console.error('⚠️ Error inicializando BD (el servidor intentará arrancar de todas formas):', e.message);
