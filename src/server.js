@@ -1566,15 +1566,29 @@ app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
   }
 });
 
-// Confirmar aval 100% (sin cambios)
+// Confirmar aval 100% (sin cambios) — también crea encuesta automática
 app.put('/api/avales-legacy/:id/confirmar', authMiddleware, async (req, res) => {
   try {
     const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
 
-    run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
+    transaction(() => {
+      run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
 
-    res.json({ message: 'Aval confirmado al 100%', estado: 'confirmado' });
+      // Crear encuesta automática si no existe
+      const encExistente = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_legacy_id = ?', [aval.orden_trabajo_id, req.params.id]);
+      if (!encExistente) {
+        const hoy = new Date().toISOString().split('T')[0];
+        const fechaLimite = sumarDiasHabiles(hoy, 3);
+        const tokenEnc = generarTokenEncuesta();
+        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, estado, fecha_limite, realizada_por, token_publico)
+          VALUES (?, ?, 'pendiente', ?, ?, ?)`,
+          [aval.orden_trabajo_id, req.params.id, fechaLimite, req.user.userId, tokenEnc]);
+        console.log('📝 Encuesta automática creada para aval legacy #' + req.params.id);
+      }
+    });
+
+    res.json({ message: 'Aval confirmado al 100%. Encuesta creada automáticamente.', estado: 'confirmado' });
     try { exportDatabase(); } catch(e) { /* ignore */ }
   } catch (e) {
     console.error('Error confirming aval:', e);
@@ -1612,7 +1626,19 @@ app.put('/api/avales-legacy/:id/productos', authMiddleware, async (req, res) => 
 
     run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
 
-    res.json({ message: 'Productos actualizados y bono recalculado', bono_tecnico: bono, monto_total: subtotal });
+    // Crear encuesta automática si no existe
+    const encExistente = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_legacy_id = ?', [aval.orden_trabajo_id, req.params.id]);
+    if (!encExistente) {
+      const hoy = new Date().toISOString().split('T')[0];
+      const fechaLimite = sumarDiasHabiles(hoy, 3);
+      const tokenEnc = generarTokenEncuesta();
+      run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, estado, fecha_limite, realizada_por, token_publico)
+        VALUES (?, ?, 'pendiente', ?, ?, ?)`,
+        [aval.orden_trabajo_id, req.params.id, fechaLimite, req.user.userId, tokenEnc]);
+      console.log('📝 Encuesta automática creada para aval legacy #' + req.params.id);
+    }
+
+    res.json({ message: 'Productos actualizados y bono recalculado. Encuesta creada automáticamente.', bono_tecnico: bono, monto_total: subtotal });
     try { exportDatabase(); } catch(e) { /* ignore */ }
   } catch (e) {
     console.error('Error updating productos:', e);
@@ -1679,8 +1705,13 @@ app.get('/api/encuestas', authMiddleware, (req, res) => {
     SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre,
       c.telefono as cliente_telefono, c.email as cliente_email,
       COALESCE(a.numero_aval, al.numero_aval) as numero_aval,
+<<<<<<< HEAD
       COALESCE(a.cliente_nombre, al.descripcion_trabajo) as aval_cliente_nombre,
       COALESCE(a.cliente_telefono, c.telefono) as aval_cliente_telefono
+=======
+      COALESCE(a.cliente_nombre, al.cliente_nombre, '') as aval_cliente_nombre,
+      COALESCE(a.cliente_telefono, '') as aval_cliente_telefono
+>>>>>>> 0803592 (fix(encuestas): crear encuestas automaticas al confirmar avales legacy + migracion retroactiva)
     FROM encuestas_satisfaccion e
     JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
     JOIN clientes c ON ot.cliente_id = c.id

@@ -651,6 +651,48 @@ async function ejecutarMigraciones() {
   }
 
   // ═══════════════════════════════════════════════
+  // ENCUESTAS — migración: crear encuestas para avales legacy confirmados
+  // ═══════════════════════════════════════════════
+  const avalesLegacySinEncuesta = queryAll(`
+    SELECT al.id, al.orden_trabajo_id
+    FROM avales_legacy al
+    WHERE (al.estado = 'confirmado' OR al.estado = 'completado' OR al.estado = 'firmado')
+      AND NOT EXISTS (
+        SELECT 1 FROM encuestas_satisfaccion e
+        WHERE e.orden_trabajo_id = al.orden_trabajo_id
+          AND (e.aval_legacy_id = al.id OR e.aval_id IS NULL)
+      )
+  `);
+  if (avalesLegacySinEncuesta.length > 0) {
+    console.log('🔧 Creando encuestas para ' + avalesLegacySinEncuesta.length + ' avales legacy confirmados sin encuesta...');
+    const hoy = new Date().toISOString().split('T')[0];
+    for (const al of avalesLegacySinEncuesta) {
+      const tokenEnc = require('crypto').randomBytes(16).toString('hex');
+      // calcular fecha límite 3 días hábiles desde hoy
+      function sumarDiasHabilesMig(fechaStr, dias) {
+        const fecha = new Date(fechaStr + 'T12:00:00-04:00');
+        let contados = 0;
+        while (contados < dias) {
+          fecha.setDate(fecha.getDate() + 1);
+          const diaSem = fecha.getDay();
+          if (diaSem !== 0 && diaSem !== 6) contados++;
+        }
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+      }
+      const fechaLimite = sumarDiasHabilesMig(hoy, 3);
+      run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, estado, fecha_limite, realizada_por, token_publico)
+        VALUES (?, ?, 'pendiente', ?, 1, ?)`,
+        [al.orden_trabajo_id, al.id, fechaLimite, tokenEnc]);
+    }
+    console.log('✅ Encuestas creadas para ' + avalesLegacySinEncuesta.length + ' avales legacy');
+  } else {
+    console.log('📝 Todos los avales legacy confirmados ya tienen encuesta');
+  }
+
+  // ═══════════════════════════════════════════════
   // AVALES v2 — migración de nuevos campos y estados
   // ═══════════════════════════════════════════════
   const avalCols = queryAll("PRAGMA table_info('avales')");
