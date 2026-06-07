@@ -1678,11 +1678,14 @@ app.get('/api/encuestas', authMiddleware, (req, res) => {
   let sql = `
     SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre,
       c.telefono as cliente_telefono, c.email as cliente_email,
-      a.numero_aval, a.cliente_nombre as aval_cliente_nombre, a.cliente_telefono as aval_cliente_telefono
+      COALESCE(a.numero_aval, al.numero_aval) as numero_aval,
+      COALESCE(a.cliente_nombre, al.descripcion_trabajo) as aval_cliente_nombre,
+      COALESCE(a.cliente_telefono, c.telefono) as aval_cliente_telefono
     FROM encuestas_satisfaccion e
     JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
     JOIN clientes c ON ot.cliente_id = c.id
     LEFT JOIN avales a ON e.aval_id = a.id
+    LEFT JOIN avales_legacy al ON e.aval_legacy_id = al.id
     WHERE 1=1
   `;
   const params = [];
