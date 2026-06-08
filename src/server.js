@@ -1973,7 +1973,7 @@ app.put('/api/encuestas/:id/llenar-telefono', authMiddleware, (req, res) => {
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error llenando encuesta telefónica:', e);
-    res.status(500).json({ error: 'Error al llenar encuesta' });
+    res.status(500).json({ error: 'Error al llenar encuesta: ' + e.message });
   }
 });
 
