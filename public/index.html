@@ -870,8 +870,17 @@ async function renderEncuestas() {
 // ═══════════════════════════════════════════════
 // MODAL: Contactar Encuesta (con tipo y registro de intentos)
 // ═══════════════════════════════════════════════
+function _getModalContainer() {
+  let c = document.getElementById('modal-content');
+  if (!c) {
+    c = document.createElement('div');
+    c.id = 'modal-content';
+    document.getElementById('app')?.appendChild(c);
+  }
+  return c;
+}
 async function renderModalContactarEncuesta(encuestaId) {
-  const container = document.getElementById('modal-content');
+  const container = _getModalContainer();
   try {
     const d = await api('GET', '/api/encuestas?id=' + encuestaId);
     const e = (d.encuestas || [])[0];
@@ -942,7 +951,7 @@ async function submitContactarEncuesta(encuestaId) {
 // MODAL: Historial de contactos
 // ═══════════════════════════════════════════════
 async function renderModalHistorialContactos(encuestaId) {
-  const container = document.getElementById('modal-content');
+  const container = _getModalContainer();
   try {
     var d = await api('GET', '/api/encuestas/' + encuestaId + '/contactos');
     var contactos = d.contactos || [];
@@ -980,7 +989,7 @@ async function renderModalHistorialContactos(encuestaId) {
 // MODAL: Llenar Encuesta Telefónica
 // ═══════════════════════════════════════════════
 async function renderModalLlenarEncuestaTelefono(encuestaId) {
-  const container = document.getElementById('modal-content');
+  const container = _getModalContainer();
   try {
     const d = await api('GET', '/api/encuestas?id=' + encuestaId);
     const e = (d.encuestas || [])[0];
@@ -1069,7 +1078,7 @@ window.enviarLinkEncuesta = async function(encuestaId) {
 // MODAL: Cerrar encuesta (para admin, tras 3 intentos)
 // ═══════════════════════════════════════════════
 async function renderModalCerrarEncuesta(encuestaId) {
-  const container = document.getElementById('modal-content');
+  const container = _getModalContainer();
   try {
     const d = await api('GET', '/api/encuestas?id=' + encuestaId);
     const e = (d.encuestas || [])[0];
@@ -1118,7 +1127,7 @@ async function submitCerrarEncuesta(encuestaId) {
 // REPORTES: Gráficos de encuestas
 // ═══════════════════════════════════════════════
 async function renderReportesEncuestas() {
-  const container = document.getElementById('modal-content');
+  const container = _getModalContainer();
   try {
     var d = await api('GET', '/api/encuestas/reportes');
     var stats = d;
@@ -2848,6 +2857,8 @@ window.closeModal = function (id) {
 
 window.closeAllModals = function () {
   Object.keys(modals).forEach(function(k) { delete modals[k]; });
+  var mc = document.getElementById('modal-content');
+  if (mc) mc.innerHTML = '';
   if (document.getElementById('contactar-enc-overlay')) {
     document.getElementById('contactar-enc-overlay').remove();
   }
