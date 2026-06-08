@@ -80,6 +80,9 @@
   .slide-up { animation: slideUp 0.3s ease-out; }
   .star-rating button { transition: all 0.15s ease; }
   .star-rating button:hover { transform: scale(1.15); }
+  .star-label { transition: transform 0.1s ease; }
+  .star-label:hover { transform: scale(1.2); }
+  .star-icon { transition: color 0.15s ease, transform 0.1s ease; }
   .scrollbar-thin::-webkit-scrollbar { width: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -871,13 +874,7 @@ async function renderEncuestas() {
 // MODAL: Contactar Encuesta (con tipo y registro de intentos)
 // ═══════════════════════════════════════════════
 function _getModalContainer() {
-  let c = document.getElementById('modal-content');
-  if (!c) {
-    c = document.createElement('div');
-    c.id = 'modal-content';
-    document.getElementById('app')?.appendChild(c);
-  }
-  return c;
+  return document.body;
 }
 async function renderModalContactarEncuesta(encuestaId) {
   const container = _getModalContainer();
@@ -995,28 +992,47 @@ async function renderModalLlenarEncuestaTelefono(encuestaId) {
     const e = (d.encuestas || [])[0];
     if (!e) { toast('Encuesta no encontrada', 'error'); return; }
 
+    // Cargar ponderaciones desde configuracion
+    var ponderaciones = {};
+    try {
+      var cfgResp = await api('GET', '/api/config');
+      if (cfgResp && cfgResp.config) {
+        ponderaciones = cfgResp.config;
+      }
+    } catch(e) { /* usar defaults */ }
+
     var preguntas = [
-      { key: 'satisfaccion_general', label: 'Satisfacción General', desc: 'Evaluación global del servicio recibido' },
-      { key: 'tiempo_entrega', label: 'Tiempo de Entrega', desc: 'Cumplimiento del tiempo acordado' },
-      { key: 'desempeno_equipo', label: 'Desempeño del Equipo', desc: 'Profesionalismo del equipo técnico' },
-      { key: 'presentacion_equipo', label: 'Presentación del Equipo', desc: 'Presentación personal y uso de uniforme' },
-      { key: 'calidad_productos', label: 'Calidad de los Productos', desc: 'Evaluación de los materiales instalados' },
-      { key: 'calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Explicación del uso del sistema' },
-      { key: 'recomendaria', label: '¿Recomendaría el servicio?', desc: 'Puntuación del 1 (nunca) al 5 (definitivamente)' }
+      { key: 'satisfaccion_general', label: 'Satisfacción General', desc: 'Evaluación global del servicio recibido', pond: ponderaciones.ponderacion_satisfaccion_general },
+      { key: 'tiempo_entrega', label: 'Tiempo de Entrega', desc: 'Cumplimiento del tiempo acordado', pond: ponderaciones.ponderacion_tiempo_entrega },
+      { key: 'desempeno_equipo', label: 'Desempeño del Equipo', desc: 'Profesionalismo del equipo técnico', pond: ponderaciones.ponderacion_desempeno },
+      { key: 'presentacion_equipo', label: 'Presentación del Equipo', desc: 'Presentación personal y uso de uniforme', pond: ponderaciones.ponderacion_presentacion },
+      { key: 'calidad_productos', label: 'Calidad de los Productos', desc: 'Evaluación de los materiales instalados', pond: ponderaciones.ponderacion_calidad_productos },
+      { key: 'calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Explicación del uso del sistema', pond: ponderaciones.ponderacion_calidad_entrenamientos },
+      { key: 'recomendaria', label: '¿Recomendaría el servicio?', desc: 'Puntuación del 1 (nunca) al 5 (definitivamente)', pond: null }
     ];
 
+    function renderStars(pKey, idx) {
+      var opts = [1,2,3,4,5];
+      return opts.map(function(v) {
+        var checked = v === 5 ? ' checked' : '';
+        return '<label class="star-label cursor-pointer text-2xl transition-colors" onclick="_starClick(\'' + pKey + '\', ' + v + ')" id="star-' + pKey + '-' + v + '">' +
+          '<span class="star-icon' + (v === 5 ? ' text-yellow-400' : ' text-gray-300') + ' hover:text-yellow-400" data-key="' + pKey + '" data-val="' + v + '">★</span>' +
+          '</label>';
+      }).join('');
+    }
+
     var preguntasHtml = preguntas.map(function(p) {
-      return '<div class="p-3 bg-gray-50 rounded-lg border border-gray-200">' +
-        '<p class="text-sm font-medium text-gray-700 mb-1">' + p.label + '</p>' +
-        '<p class="text-xs text-gray-400 mb-2">' + p.desc + '</p>' +
-        '<div class="flex gap-1' + (p.key === 'recomendaria' ? '' : '') + '">' +
-          [1,2,3,4,5].map(function(v) {
-            return '<label class="flex items-center gap-1 cursor-pointer">' +
-              '<input type="radio" name="enc-' + p.key + '" value="' + v + '">' +
-              '<span class="text-sm">' + v + '</span>' +
-            '</label>';
-          }).join('<span class="text-gray-200">|</span>') +
+      var pondStr = p.pond ? '<span class="text-xs text-blue-600 font-medium ml-2">(' + p.pond + '%)</span>' : '';
+      return '<div class="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">' +
+        '<div class="flex items-center justify-between mb-1">' +
+          '<p class="text-sm font-semibold text-gray-800">' + p.label + pondStr + '</p>' +
         '</div>' +
+        '<p class="text-xs text-gray-400 mb-2">' + p.desc + '</p>' +
+        '<div class="flex gap-1 items-center">' +
+          renderStars('enc-' + p.key, 0) +
+          '<span class="ml-2 text-xs text-gray-400" id="val-' + p.key + '">5</span>' +
+        '</div>' +
+        '<input type="hidden" name="enc-' + p.key + '" value="5">' +
       '</div>';
     }).join('');
 
@@ -1029,7 +1045,7 @@ async function renderModalLlenarEncuestaTelefono(encuestaId) {
         '<div class="p-4 bg-blue-50 rounded-xl mx-6 mt-4 text-sm">' +
           '<p><strong>OT:</strong> ' + escHtml(e.numero_ot) + '</p>' +
           '<p><strong>Cliente:</strong> ' + escHtml(e.cliente_nombre) + '</p>' +
-          '<p class="text-xs text-gray-500 mt-1">Lee cada pregunta al cliente y selecciona su respuesta (1=peor, 5=mejor)</p>' +
+          '<p class="text-xs text-gray-500 mt-1">Toca las estrellas para calificar (1=peor, 5=mejor). Los porcentajes muestran la ponderación de cada criterio.</p>' +
         '</div>' +
         '<div class="p-6 space-y-3 max-h-96 overflow-y-auto">' + preguntasHtml + '</div>' +
         '<div class="p-4 border-t border-gray-200 flex justify-end gap-3">' +
@@ -1038,16 +1054,41 @@ async function renderModalLlenarEncuestaTelefono(encuestaId) {
         '</div>' +
       '</div>' +
     '</div>';
+
+    // Inicializar la variable global de datos del star
+    window._starData = window._starData || {};
+
   } catch (e) {
     toast('Error: ' + e.message, 'error');
   }
 }
 
+// Click handler para estrellas
+window._starClick = function(key, val) {
+  // Resetear todas las estrellas de esta key
+  for (var i = 1; i <= 5; i++) {
+    var el = document.getElementById('star-' + key + '-' + i);
+    if (el) {
+      var span = el.querySelector('.star-icon');
+      if (span) {
+        span.className = 'star-icon' + (i <= val ? ' text-yellow-400' : ' text-gray-300');
+      }
+    }
+  }
+  // Actualizar hidden input
+  var inp = document.querySelector('input[name="' + key + '"]');
+  if (inp) inp.value = val;
+  // Actualizar label numérico
+  var labelKey = key.replace('enc-', '');
+  var valEl = document.getElementById('val-' + labelKey);
+  if (valEl) valEl.textContent = val;
+};
+
 async function submitEncuestaTelefono(encuestaId) {
   try {
     var body = {};
     ['satisfaccion_general','tiempo_entrega','desempeno_equipo','presentacion_equipo','calidad_productos','calidad_entrenamientos','recomendaria'].forEach(function(k) {
-      var el = document.querySelector('input[name="enc-' + k + '"]:checked');
+      var el = document.querySelector('input[name="enc-' + k + '"]');
       body[k] = el ? parseInt(el.value) : 5;
     });
     await api('PUT', '/api/encuestas/' + encuestaId + '/llenar-telefono', body);
@@ -2856,12 +2897,9 @@ window.closeModal = function (id) {
 };
 
 window.closeAllModals = function () {
+  window.closeAllModals = function () {
   Object.keys(modals).forEach(function(k) { delete modals[k]; });
-  var mc = document.getElementById('modal-content');
-  if (mc) mc.innerHTML = '';
-  if (document.getElementById('contactar-enc-overlay')) {
-    document.getElementById('contactar-enc-overlay').remove();
-  }
+  document.querySelectorAll('.modal-overlay').forEach(function(el) { el.remove(); });
   render();
 };
 
