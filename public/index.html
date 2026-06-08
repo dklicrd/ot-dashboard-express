@@ -2903,7 +2903,6 @@ window.closeModal = function (id) {
 };
 
 window.closeAllModals = function () {
-  window.closeAllModals = function () {
   Object.keys(modals).forEach(function(k) { delete modals[k]; });
   var mc = document.getElementById('modal-overlay-enc');
   if (mc) mc.innerHTML = '';
