@@ -1961,7 +1961,7 @@ app.put('/api/encuestas/:id/llenar-telefono', authMiddleware, (req, res) => {
         Number(body.calidad_productos) || null,
         Number(body.conocimientos_tecnicos) || null,
         Number(body.calidad_entrenamientos) || null,
-        Number(body.recomendaria) || null,
+        (Number(body.recomendaria) >= 3 ? 1 : 0),
         body.observaciones || null,
         Math.round(pct * 100) / 100,
         req.user.userId,
