@@ -1045,6 +1045,16 @@ window._submitPanelTelefono = async function(encuestaId) {
 };
 
 // ═══════════════════════════════════════════════
+function _getModalContainer() {
+  let c = document.getElementById("modal-overlay-enc");
+  if (!c) {
+    c = document.createElement("div");
+    c.id = "modal-overlay-enc";
+    document.body.appendChild(c);
+  }
+  return c;
+}
+
 // MODAL: Historial de contactos
 // ═══════════════════════════════════════════════// MODAL: Historial de contactos
 // ═══════════════════════════════════════════════
