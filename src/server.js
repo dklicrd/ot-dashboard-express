@@ -32,6 +32,7 @@ console.log('🚀 OT Dashboard ' + DEPLOY_VERSION);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+  process.env.RESET_DB = "true";
 // Inicializar BD
 async function start() {
   try {
