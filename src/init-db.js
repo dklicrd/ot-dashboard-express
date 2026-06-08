@@ -1260,29 +1260,10 @@ function migrarEncuestasLegacy() {
     console.log('📝 Todos los avales firmados ya tienen encuesta');
   }
 }
-  // 🧪 Seed: encuesta pendiente para probar panel inline
-  try {
-    const otIds = queryAll("SELECT id FROM ordenes_trabajo LIMIT 5");
-    if (otIds.length > 0) {
-      const otId = otIds[0].id;
-      const exists = queryFirst("SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND estado = \pendiente", [otId]);
-      if (!exists) {
-        const tokenEnc = require("crypto").randomBytes(16).toString("hex");
-        const fechaLimite = new Date();
-        fechaLimite.setDate(fechaLimite.getDate() + 7);
-        const fl = fechaLimite.toISOString().split("T")[0];
-        run("INSERT INTO encuestas_satisfaccion (orden_trabajo_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta) VALUES (?, \pendiente, ?, 1, ?, ?)",
-          [otId, fl, tokenEnc, "ENC-PENDIENTE-SEED"]);
-        console.log("✅ Encuesta pendiente seed creada para OT " + otId);
-      }
-    }
-  } catch(e) { console.error("Error seed encuesta pendiente:", e.message); }
-
-
 
   // 🧪 Seed: encuesta pendiente forzada para OT-6
-  const ot6Exists = queryFirst("SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = 6");
-  if (!ot6Exists) {
+  const ot6ok = queryFirst("SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = 6");
+  if (!ot6ok) {
     const tk = require("crypto").randomBytes(16).toString("hex");
     const fl = new Date(); fl.setDate(fl.getDate() + 7);
     const flStr = fl.toISOString().split("T")[0];
