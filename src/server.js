@@ -792,7 +792,8 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       enviarNotificacionOT(id).then(result => {
         console.log('Email OT notificacion:', result?.success ? 'enviado' : 'fallo');
       }).catch(e => console.error('Error enviando email OT:', e.message));
-      res.json({ message: 'Estado actualizado', email: 'enviando' });
+      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+      return res.json({ message: 'Estado actualizado', email: 'enviando' });
     } else if (nuevoEstado === 'cancelada') {
       // Si la OT tiene avales activos, marcarlos como rechazados
       if (ot.estado === 'aval_entregado') {
@@ -815,14 +816,13 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       enviarNotificacionOT(id).then(result => {
         console.log('Email OT completada:', result?.success ? 'enviado' : 'fallo');
       }).catch(e => console.error('Error enviando email OT completada:', e.message));
-      res.json({ message: 'OT completada directamente', completada_directo: true });
+      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+      return res.json({ message: 'OT completada directamente', completada_directo: true });
     } else {
       run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
-      res.json({ message: 'Estado actualizado' });
+      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+      return res.json({ message: 'Estado actualizado' });
     }
-
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-    res.json({ success: true, nuevoEstado });
   } catch (e) {
     console.error('Error actualizando estado OT:', e);
     res.status(500).json({ error: 'Error al actualizar estado' });
