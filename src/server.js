@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { getDb, queryAll, queryFirst, run, transaction } = require('./db');
+const { getDb, queryAll, queryFirst, run, transaction, lastInsertId } = require('./db');
 const multer = require('multer');
 const upload = multer({
   dest: path.join(__dirname, '..', 'public', 'uploads', 'presupuestos'),
@@ -954,8 +954,9 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     const trabajoCompletado = body.trabajo_completado !== undefined ? (body.trabajo_completado ? 1 : 0) : 1;
     const detalleTrabajoReal = body.detalle_trabajo_real || null;
 
+    let avalId = null;
     transaction(() => {
-      const avalId = queryFirst(`
+      const avalRow = queryFirst(`
         INSERT INTO avales (orden_trabajo_id, tecnico_id, numero_aval, token_publico, cliente_nombre, cliente_contacto, cliente_cedula,
           cliente_telefono, cliente_email, observaciones, productos_tecnico, estado, trabajo_completado, detalle_trabajo_real)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
@@ -966,11 +967,16 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
         body.observaciones || null, productosTecnico, trabajoCompletado, detalleTrabajoReal
       ]);
 
+      // Fallback: si RETURNING no devuelve resultado, usar last_insert_rowid()
+      const nuevoId = avalRow?.id || lastInsertId();
+      if (!nuevoId) throw new Error('No se pudo obtener el ID del aval creado');
+      avalId = { id: nuevoId };
+
       // Insert individual product records
       if (body.productos && Array.isArray(body.productos)) {
         for (const p of body.productos) {
           run('INSERT INTO aval_productos (aval_id, producto_id, cantidad_reportada, comentario) VALUES (?, ?, ?, ?)',
-            [avalId.id, p.producto_id, p.cantidad || 0, p.comentario || null]);
+            [nuevoId, p.producto_id, p.cantidad || 0, p.comentario || null]);
         }
       }
 
@@ -979,7 +985,8 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
         [body.orden_trabajo_id]);
     });
 
-    res.status(201).json({ message: 'Aval creado correctamente', aval_id: avalId.id, numero_aval: numeroAval, token_publico: tokenPublico });
+    console.log('[AVAL] creado ID:', avalId?.id, 'numero:', numeroAval);
+    res.status(201).json({ message: 'Aval creado correctamente', aval_id: avalId?.id, numero_aval: numeroAval, token_publico: tokenPublico });
 
     // Cosas post-response: backup y notificaciones (no deben romper el flujo)
     setImmediate(() => {
@@ -990,7 +997,9 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     });
   } catch (e) {
     console.error('Error creating aval de entrega:', e.stack || e.message || e);
-    if (!res.headersSent) res.status(500).json({ error: 'Error al registrar aval' });
+    if (!res.headersSent) {
+      try { res.status(500).json({ error: 'Error al registrar aval' }); } catch(e2) { console.error('Error sending response:', e2.message); }
+    }
   }
 });
 
