@@ -1292,7 +1292,34 @@ function _checkClienteForm() {
   const cedula = document.getElementById('ent-cliente-cedula')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
   const email = document.getElementById('ent-cliente-email')?.value?.trim();
+
+  // Feedback visual en tiempo real
+  _aplicarFeedbackEmail(email);
+  _aplicarFeedbackCedula(cedula);
+  _aplicarFeedbackTelefono(telefono);
+
   btn.disabled = !(nombre && contacto && cedula && telefono && email);
+}
+
+function _aplicarFeedbackEmail(email) {
+  const inp = document.getElementById('ent-cliente-email');
+  if (!inp) return;
+  if (!email) { inp.style.borderColor = ''; return; }
+  inp.style.borderColor = _validarEmail(email) ? '#22c55e' : '#ef4444';
+}
+
+function _aplicarFeedbackCedula(ced) {
+  const inp = document.getElementById('ent-cliente-cedula');
+  if (!inp) return;
+  if (!ced) { inp.style.borderColor = ''; return; }
+  inp.style.borderColor = _validarCedulaRD(ced) ? '#22c55e' : '#ef4444';
+}
+
+function _aplicarFeedbackTelefono(tel) {
+  const inp = document.getElementById('ent-cliente-telefono');
+  if (!inp) return;
+  if (!tel) { inp.style.borderColor = ''; return; }
+  inp.style.borderColor = _validarTelefonoRD(tel) ? '#22c55e' : '#ef4444';
 }
 
 function _checkPuedeEntregar() {
@@ -1301,14 +1328,53 @@ function _checkPuedeEntregar() {
   btn.disabled = !(_datosClienteConfirmados && _cantidadesConfirmadas);
 }
 
+function _validarEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function _validarCedulaRD(ced) {
+  // Cédula RD: 11 dígitos, opcionalmente con guiones XXX-XXXXXXX-X
+  const limpia = ced.replace(/[^0-9]/g, '');
+  return limpia.length === 11;
+}
+
+function _validarTelefonoRD(tel) {
+  // Teléfono RD: 10 dígitos, opcionalmente con guiones/espacios
+  const limpia = tel.replace(/[^0-9]/g, '');
+  return limpia.length >= 7 && limpia.length <= 15;
+}
+
 function _confirmarCliente() {
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const cedula = document.getElementById('ent-cliente-cedula')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
   const email = document.getElementById('ent-cliente-email')?.value?.trim();
+
   if (!nombre || !contacto || !cedula || !telefono || !email) {
     toast('Completa todos los campos del cliente: Nombre, Contacto, Cédula, Teléfono y Email', 'error');
+    return;
+  }
+
+  // Validaciones de formato
+  if (nombre.length < 2) {
+    toast('El nombre debe tener al menos 2 caracteres', 'error');
+    return;
+  }
+  if (contacto.length < 2) {
+    toast('El contacto debe tener al menos 2 caracteres', 'error');
+    return;
+  }
+  if (!_validarCedulaRD(cedula)) {
+    toast('La cédula debe tener 11 dígitos (ej: 001-1234567-8)', 'error');
+    return;
+  }
+  if (!_validarTelefonoRD(telefono)) {
+    toast('El teléfono no es válido (debe tener al menos 7 dígitos)', 'error');
+    return;
+  }
+  if (!_validarEmail(email)) {
+    toast('El email no tiene un formato válido (ej: usuario@dominio.com)', 'error');
     return;
   }
 
@@ -1381,15 +1447,18 @@ function renderEntregaAvalForm() {
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Cédula <span class="text-red-500">*</span></label>
-            <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0" oninput="_tocarCliente()">
+            <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0" pattern="[0-9-]+" maxlength="13" oninput="_tocarCliente()">
+            <p class="text-xs text-gray-400 mt-0.5" id="ent-cliente-cedula-hint">11 dígitos numéricos</p>
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-red-500">*</span></label>
             <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_tocarCliente()">
+            <p class="text-xs text-gray-400 mt-0.5" id="ent-cliente-telefono-hint">Ej: 8095550100</p>
           </div>
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
             <input type="email" id="ent-cliente-email" class="input-field" placeholder="cliente@email.com" oninput="_tocarCliente()">
+            <p class="text-xs text-gray-400 mt-0.5" id="ent-cliente-email-hint">formato: usuario@dominio.com</p>
           </div>
         </div>
         <div class="text-center pt-2">
