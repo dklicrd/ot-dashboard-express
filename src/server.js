@@ -1727,6 +1727,7 @@ function calcPorcentaje(r) {
 }
 
 app.get('/api/encuestas', authMiddleware, (req, res) => {
+  const encId = req.query.id;
   const otId = req.query.orden_trabajo_id;
   const estadoFiltro = req.query.estado;
   let sql = `
@@ -1743,6 +1744,7 @@ app.get('/api/encuestas', authMiddleware, (req, res) => {
     WHERE 1=1
   `;
   const params = [];
+  if (encId) { sql += ' AND e.id = ?'; params.push(Number(encId)); }
   if (otId) { sql += ' AND e.orden_trabajo_id = ?'; params.push(Number(otId)); }
   if (estadoFiltro) { sql += ' AND e.estado = ?'; params.push(estadoFiltro); }
   sql += ' ORDER BY e.creado_en DESC';
