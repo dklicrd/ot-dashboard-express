@@ -1261,14 +1261,6 @@ function migrarEncuestasLegacy() {
   }
 }
 
-  // 🧪 Seed: encuesta pendiente forzada para OT-6
-  const ot6ok = queryFirst("SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = 6");
-  if (!ot6ok) {
-    const tk = require("crypto").randomBytes(16).toString("hex");
-    const fl = new Date(); fl.setDate(fl.getDate() + 7);
-    const flStr = fl.toISOString().split("T")[0];
-    run("INSERT INTO encuestas_satisfaccion (orden_trabajo_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta) VALUES (6, 'pendiente', ?, 1, ?, 'ENC-PENDIENTE-SEED')", [flStr, tk]);
-    console.log("✅ Encuesta pendiente seed OT-6");
-  }
+  // Seed pendiente movido a server.js (debe ir DESPUÉS de migrarEncuestasLegacy)
 
 module.exports = { initDatabase, verificarYRestaurarBackup, migrarEncuestasLegacy };

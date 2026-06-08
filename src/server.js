@@ -42,6 +42,20 @@ async function start() {
     await verificarYRestaurarBackup();
     // Migrar encuestas legacy después del backup
     migrarEncuestasLegacy();
+    // 🧪 Seed: encuesta pendiente forzada para OT-6 (para probar panel inline)
+    try {
+      const sDb = getDb();
+      const sRow = sDb.exec("SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = 6");
+      if (!sRow || sRow.length === 0 || sRow[0].values.length === 0) {
+        const crypto = require("crypto");
+        const tk = crypto.randomBytes(16).toString("hex");
+        const fl = new Date(); fl.setDate(fl.getDate() + 7);
+        const flStr = fl.toISOString().split("T")[0];
+        sDb.run("INSERT INTO encuestas_satisfaccion (orden_trabajo_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta) VALUES (6, 'pendiente', '" + flStr + "', 1, '" + tk + "', 'ENC-PENDIENTE-SEED')");
+        console.log("✅ Encuesta pendiente seed OT-6");
+        saveDb();
+      }
+    } catch(se) { console.error("Seed OT-6 error:", se.message); }
   } catch (e) {
     console.error('⚠️ Error inicializando BD (el servidor intentará arrancar de todas formas):', e.message);
     console.error(e.stack);
