@@ -1938,10 +1938,10 @@ app.put('/api/encuestas/:id/llenar-telefono', authMiddleware, (req, res) => {
 
     const sumPond = Object.values(ponderaciones).reduce((a, b) => a + b, 0) || 100;
     const pct = (
-      (Number(body.satisfaccion_general) || 5) * config.ponderacion_satisfaccion_general ||
-      (Number(body.tiempo_entrega) || 5) * ponderaciones.ponderacion_tiempo_entrega +
-      (Number(body.desempeno_equipo) || 5) * ponderaciones.ponderacion_desempeno +
-      (Number(body.presentacion_equipo) || 5) * ponderaciones.ponderacion_presentacion +
+      (Number(body.satisfaccion_general) || 5) * (config.ponderacion_satisfaccion_general || 0) +
+      (Number(body.tiempo_entrega) || 5) * config.ponderacion_tiempo_entrega +
+      (Number(body.desempeno_equipo) || 5) * config.ponderacion_desempeno +
+      (Number(body.presentacion_equipo) || 5) * config.ponderacion_presentacion +
       (Number(body.calidad_productos) || 5) * ponderaciones.ponderacion_calidad_productos +
       (Number(body.calidad_entrenamientos) || 5) * ponderaciones.ponderacion_calidad_entrenamientos
     ) / sumPond;
