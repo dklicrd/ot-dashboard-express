@@ -797,15 +797,15 @@ async function renderEncuestas() {
       } else if (e.estado === 'expirada') {
         var contactado = e.contactado_por ? '✅' : '❌';
         estadoBadge = '<span class="badge badge-error flex items-center gap-1">❌ Expirada</span>';
-        accionesBtn = '<button class="text-sm px-3 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100" onclick="renderModalContactarEncuesta(' + e.id + ')">📞 Contactar</button>';
+        accionesBtn = '<button class="text-sm px-3 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100" onclick="toggleEncuestaPanel(' + e.id + ', \'contactar\')">📞 Contactar</button>';
       } else if (e.estado === 'pendiente_admin') {
         estadoBadge = '<span class="badge badge-warning flex items-center gap-1">🔴 Pendiente Admin</span>';
         accionesBtn = '<button class="text-sm px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100" onclick="renderModalCerrarEncuesta(' + e.id + ')">🔒 Cerrar OT</button>';
       } else {
         estadoBadge = '<span class="badge badge-warning flex items-center gap-1">⏳ Pendiente</span>';
         accionesBtn = '<div class="flex flex-wrap gap-1">' +
-          '<button class="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100" onclick="renderModalContactarEncuesta(' + e.id + ')">📞 Contactar</button>' +
-          '<button class="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100" onclick="renderModalLlenarEncuestaTelefono(' + e.id + ')">📱 Telefónica</button>' +
+          '<button class="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100" onclick="toggleEncuestaPanel(' + e.id + ', \'contactar\')">📞 Contactar</button>' +
+          '<button class="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100" onclick="toggleEncuestaPanel(' + e.id + ', \'telefonica\')">📱 Telefónica</button>' +
           '<button class="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100" onclick="enviarLinkEncuesta(' + e.id + ')">🔗 Enviar Link</button>' +
         '</div>';
       }
@@ -819,13 +819,17 @@ async function renderEncuestas() {
         diasBadge = '<span class="text-xs text-red-600 font-semibold">⚠️ Vence hoy</span>';
       }
 
-      return '<tr class="hover:bg-gray-50">' +
+      var encId = e.id;
+      return '<tr class="hover:bg-gray-50 enc-row" data-enc-id="' + encId + '">' +
         '<td class="py-3 px-3 font-medium">' + escHtml(e.numero_ot) + '</td>' +
         '<td class="py-3 px-3">' + escHtml(e.cliente_nombre) + '</td>' +
         '<td class="py-3 px-3">' + estadoBadge + '</td>' +
         '<td class="py-3 px-3 text-sm">' + diasBadge + '</td>' +
         '<td class="py-3 px-3">' + accionesBtn + '</td>' +
         '<td class="py-3 px-3">' + historialBtn + '</td>' +
+        '</tr>' +
+        '<tr class="enc-expand-row" data-enc-id="' + encId + '" style="display:none">' +
+          '<td colspan="6" class="p-0"><div class="enc-panel-content" data-enc-id="' + encId + '"></div></td>' +
         '</tr>';
     }).join('');
 
@@ -873,85 +877,176 @@ async function renderEncuestas() {
 // ═══════════════════════════════════════════════
 // MODAL: Contactar Encuesta (con tipo y registro de intentos)
 // ═══════════════════════════════════════════════
-function _getModalContainer() {
-  let c = document.getElementById('modal-overlay-enc');
-  if (!c) {
-    c = document.createElement('div');
-    c.id = 'modal-overlay-enc';
-    document.body.appendChild(c);
+// ═══════════════════════════════════════════════
+// INLINE PANEL: Toggle expandable row for Contactar / Telefónica
+// ═══════════════════════════════════════════════
+window._encPanelOpen = null;
+
+window.toggleEncuestaPanel = async function(encuestaId, tipo) {
+  if (_encPanelOpen === encuestaId) {
+    _closeEncPanel();
+    return;
   }
-  return c;
-}
-async function renderModalContactarEncuesta(encuestaId) {
-  const container = _getModalContainer();
+  _closeEncPanel();
+  _encPanelOpen = encuestaId;
+
+  var expandRow = document.querySelector('tr.enc-expand-row[data-enc-id="' + encuestaId + '"]');
+  if (!expandRow) return;
+  var contentDiv = expandRow.querySelector('.enc-panel-content');
+  if (!contentDiv) return;
+
+  contentDiv.innerHTML = '<div class="p-6 text-center text-gray-400"><span class="loading-spinner border-blue-600 border-4 w-6 h-6 inline-block"></span> Cargando...</div>';
+  expandRow.style.display = 'table-row';
+
   try {
     const d = await api('GET', '/api/encuestas?id=' + encuestaId);
     const e = (d.encuestas || [])[0];
-    if (!e) { toast('Encuesta no encontrada', 'error'); return; }
-
-    var diasVencido = Math.abs(e.dias_restantes || 0);
-    var intentos = e.intentos || 0;
-    var limiteAlcanzado = intentos >= 3;
-
-    container.innerHTML = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
-      '<div class="modal-content max-w-lg">' +
-        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
-          '<h2 class="text-xl font-bold flex items-center gap-2">📞 Contactar Cliente</h2>' +
-          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
-        '</div>' +
-        '<div class="p-6 space-y-4">' +
-          '<div class="bg-orange-50 rounded-xl p-4 text-sm space-y-2">' +
-            '<p><strong>OT:</strong> ' + escHtml(e.numero_ot) + '</p>' +
-            '<p><strong>Cliente:</strong> ' + escHtml(e.cliente_nombre) + '</p>' +
-            '<p><strong>Fecha Límite:</strong> ' + (e.fecha_limite || 'N/A') + '</p>' +
-            '<p><strong>Intentos:</strong> <span class="font-semibold ' + (limiteAlcanzado ? 'text-red-600' : '') + '">' + intentos + '/3</span></p>' +
-            (e.cliente_email ? '<p><strong>Email:</strong> ' + escHtml(e.cliente_email) + '</p>' : '') +
-            '<p><strong>Teléfono:</strong> ' + escHtml(e.aval_cliente_telefono || e.cliente_telefono || 'No registrado') + '</p>' +
-            '<p><strong>Link Encuesta:</strong> <code class="text-xs bg-gray-100 px-2 py-1 rounded select-all">' + window.location.origin + '/encuesta-publico.html?token=' + e.token_publico + '</code></p>' +
-            '<button class="text-xs text-blue-600 hover:text-blue-800" onclick="navigator.clipboard.writeText(\'' + window.location.origin + '/encuesta-publico.html?token=' + e.token_publico + '\');toast(\'✅ Link copiado\',\'success\')">📋 Copiar link</button>' +
-          '</div>' +
-          '<div>' +
-            '<label class="block text-sm font-medium text-gray-700 mb-1">Medio de contacto</label>' +
-            '<select id="contactar-tipo" class="input-field w-full">' +
-              '<option value="telefono">📞 Teléfono</option>' +
-              '<option value="whatsapp">💬 WhatsApp</option>' +
-              '<option value="email">📧 Email</option>' +
-              '<option value="visita">🏠 Visita</option>' +
-              '<option value="otro">🔄 Otro</option>' +
-            '</select>' +
-          '</div>' +
-          '<div>' +
-            '<label class="block text-sm font-medium text-gray-700 mb-1">Notas del contacto</label>' +
-            '<textarea id="contactar-notas" class="input-field w-full" rows="3" placeholder="¿Cómo respondió el cliente? ¿Qué acordaron?"></textarea>' +
-          '</div>' +
-          (limiteAlcanzado ? '<div class="bg-red-50 rounded-lg p-3 text-sm text-red-700">⚠️ Ya se han realizado ' + intentos + ' intentos sin éxito. Este contacto pasará a revisión de administración.</div>' : '') +
-          '<div class="flex justify-end gap-3">' +
-            '<button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>' +
-            '<button class="btn-primary" onclick="submitContactarEncuesta(' + encuestaId + ')">📞 Registrar Contacto</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
+    if (!e) { toast('Encuesta no encontrada', 'error'); _closeEncPanel(); return; }
+    if (tipo === 'contactar') {
+      contentDiv.innerHTML = _buildContactarPanel(e, encuestaId);
+    } else if (tipo === 'telefonica') {
+      contentDiv.innerHTML = await _buildTelefonicaPanel(e, encuestaId);
+    }
+  } catch (err) {
+    contentDiv.innerHTML = '<div class="p-6 text-center text-red-500">Error: ' + err.message + '</div>';
+    toast('Error: ' + err.message, 'error');
   }
+};
+
+window._closeEncPanel = function() {
+  if (_encPanelOpen) {
+    var row = document.querySelector('tr.enc-expand-row[data-enc-id="' + _encPanelOpen + '"]');
+    if (row) {
+      row.style.display = 'none';
+      var cd = row.querySelector('.enc-panel-content');
+      if (cd) cd.innerHTML = '';
+    }
+  }
+  _encPanelOpen = null;
+};
+
+function _buildContactarPanel(e, encuestaId) {
+  var intentos = e.intentos || 0;
+  var limite = intentos >= 3;
+  return '<div class="p-4 bg-orange-50 border-b border-l border-r border-orange-200 rounded-b-lg">' +
+    '<div class="flex items-center justify-between mb-3">' +
+      '<h3 class="text-lg font-bold flex items-center gap-2">📞 Contactar Cliente</h3>' +
+      '<button class="text-gray-400 hover:text-gray-600 text-xl leading-none" onclick="_closeEncPanel()">&times;</button>' +
+    '</div>' +
+    '<div class="bg-white rounded-xl p-4 text-sm space-y-2 mb-3 border border-orange-100">' +
+      '<p><strong>OT:</strong> ' + escHtml(e.numero_ot) + '</p>' +
+      '<p><strong>Cliente:</strong> ' + escHtml(e.cliente_nombre) + '</p>' +
+      '<p><strong>Intentos:</strong> <span class="font-semibold ' + (limite ? 'text-red-600' : '') + '">' + intentos + '/3</span></p>' +
+      '<p><strong>Teléfono:</strong> ' + escHtml(e.aval_cliente_telefono || e.cliente_telefono || 'No registrado') + '</p>' +
+      '<p><strong>Link:</strong> <code class="text-xs bg-gray-100 px-2 py-1 rounded select-all">' + window.location.origin + '/encuesta-publico.html?token=' + e.token_publico + '</code></p>' +
+      '<button class="text-xs text-blue-600 hover:text-blue-800" onclick="navigator.clipboard.writeText(\'' + window.location.origin + '/encuesta-publico.html?token=' + e.token_publico + '\');toast(\'✅ Copiado\',\'success\')">📋 Copiar link</button>' +
+    '</div>' +
+    '<div class="mb-3">' +
+      '<label class="block text-sm font-medium text-gray-700 mb-1">Medio de contacto</label>' +
+      '<select id="panel-contactar-tipo" class="input-field w-full">' +
+        '<option value="telefono">📞 Teléfono</option>' +
+        '<option value="whatsapp">💬 WhatsApp</option>' +
+        '<option value="email">📧 Email</option>' +
+        '<option value="visita">🏠 Visita</option>' +
+        '<option value="otro">🔄 Otro</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="mb-3">' +
+      '<label class="block text-sm font-medium text-gray-700 mb-1">Notas del contacto</label>' +
+      '<textarea id="panel-contactar-notas" class="input-field w-full" rows="2" placeholder="¿Cómo respondió el cliente?"></textarea>' +
+    '</div>' +
+    (limite ? '<div class="bg-red-50 rounded-lg p-3 text-sm text-red-700 mb-3">⚠️ Ya se han realizado ' + intentos + ' intentos.</div>' : '') +
+    '<div class="flex justify-end gap-3">' +
+      '<button class="btn-secondary" onclick="_closeEncPanel()">Cancelar</button>' +
+      '<button class="btn-primary" onclick="_submitPanelContactar(' + encuestaId + ')">📞 Registrar Contacto</button>' +
+    '</div>' +
+  '</div>';
 }
 
-async function submitContactarEncuesta(encuestaId) {
+window._submitPanelContactar = async function(encuestaId) {
   try {
-    var notas = document.getElementById('contactar-notas').value;
-    var tipo = document.getElementById('contactar-tipo') ? document.getElementById('contactar-tipo').value : 'telefono';
+    var notas = document.getElementById('panel-contactar-notas')?.value || '';
+    var tipo = document.getElementById('panel-contactar-tipo')?.value || 'telefono';
     await api('PUT', '/api/encuestas/' + encuestaId + '/contactar', { tipo: tipo, notas: notas });
-    toast('✅ Contacto registrado exitosamente', 'success');
-    closeAllModals();
+    toast('✅ Contacto registrado', 'success');
+    _closeEncPanel();
     render();
   } catch (e) {
     toast('Error: ' + e.message, 'error');
   }
+};
+
+async function _buildTelefonicaPanel(e, encuestaId) {
+  var pond = {};
+  try { var r = await api('GET', '/api/config'); if(r && r.config) pond = r.config; } catch(ex) {}
+  var preguntas = [
+    { key:'satisfaccion_general', label:'Satisfacción General', desc:'Evaluación global del servicio', pond:pond.ponderacion_satisfaccion_general },
+    { key:'tiempo_entrega', label:'Tiempo de Entrega', desc:'Cumplimiento del tiempo acordado', pond:pond.ponderacion_tiempo_entrega },
+    { key:'desempeno_equipo', label:'Desempeño del Equipo', desc:'Profesionalismo del equipo técnico', pond:pond.ponderacion_desempeno },
+    { key:'conocimientos_tecnicos', label:'Conocimientos Técnicos', desc:'Dominio técnico del instalador', pond:pond.ponderacion_conocimientos_tecnicos },
+    { key:'presentacion_equipo', label:'Presentación del Equipo', desc:'Presentación personal y uniforme', pond:pond.ponderacion_presentacion },
+    { key:'calidad_productos', label:'Calidad de Productos', desc:'Materiales instalados', pond:pond.ponderacion_calidad_productos },
+    { key:'calidad_entrenamientos', label:'Calidad de Entrenamientos', desc:'Explicación del sistema', pond:pond.ponderacion_calidad_entrenamientos },
+    { key:'recomendaria', label:'¿Recomendaría el servicio?', desc:'1 (nunca) al 5 (definitivamente)', pond:null }
+  ];
+  var pqHtml = preguntas.map(function(p) {
+    var pondStr = p.pond ? '<span class="text-xs text-blue-600 font-medium ml-2">('+p.pond+'%)</span>' : '';
+    var stars = [1,2,3,4,5].map(function(v) {
+      return '<label class="star-label cursor-pointer text-2xl transition-colors" onclick="_panelStarClick(\'penc-'+p.key+'\','+v+')" id="pstar-penc-'+p.key+'-'+v+'">' +
+        '<span class="star-icon'+(v==5?' text-yellow-400':' text-gray-300')+' hover:text-yellow-400">★</span></label>';
+    }).join('');
+    return '<div class="p-3 bg-white rounded-xl border border-gray-200 shadow-sm">'+
+      '<div class="flex items-center justify-between mb-1"><p class="text-sm font-semibold text-gray-800">'+p.label+pondStr+'</p></div>'+
+      '<p class="text-xs text-gray-400 mb-2">'+p.desc+'</p>'+
+      '<div class="flex gap-1 items-center">'+stars+'<span class="ml-2 text-xs text-gray-400" id="pval-penc-'+p.key+'">5</span></div>'+
+      '<input type="hidden" name="penc-'+p.key+'" value="5"></div>';
+  }).join('');
+  return '<div class="p-4 bg-green-50 border-b border-l border-r border-green-200 rounded-b-lg">'+
+    '<div class="flex items-center justify-between mb-3">'+
+      '<h3 class="text-lg font-bold flex items-center gap-2">📱 Encuesta Telefónica</h3>'+
+      '<button class="text-gray-400 hover:text-gray-600 text-xl leading-none" onclick="_closeEncPanel()">&times;</button></div>'+
+    '<div class="bg-white rounded-xl p-4 text-sm mb-3 border border-green-100">'+
+      '<p><strong>OT:</strong> '+escHtml(e.numero_ot)+'</p>'+
+      '<p><strong>Cliente:</strong> '+escHtml(e.cliente_nombre)+'</p>'+
+      '<p class="text-xs text-gray-500 mt-1">Toca las estrellas (1=peor, 5=mejor). Los % muestran ponderación.</p></div>'+
+    '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto mb-3">'+pqHtml+'</div>'+
+    '<div class="flex justify-end gap-3">'+
+      '<button class="btn-secondary" onclick="_closeEncPanel()">Cancelar</button>'+
+      '<button class="btn-primary" onclick="_submitPanelTelefono('+encuestaId+')">✅ Enviar Encuesta</button></div></div>';
 }
+
+window._panelStarClick = function(key, val) {
+  for(var i=1;i<=5;i++) {
+    var el=document.getElementById('pstar-'+key+'-'+i);
+    if(el) {
+      var sp=el.querySelector('.star-icon');
+      if(sp) sp.className='star-icon'+(i<=val?' text-yellow-400':' text-gray-300');
+    }
+  }
+  var inp=document.querySelector('input[name="'+key+'"]');
+  if(inp) inp.value=val;
+  var lk=key.replace('penc-','');
+  var ve=document.getElementById('pval-penc-'+lk);
+  if(ve) ve.textContent=val;
+};
+
+window._submitPanelTelefono = async function(encuestaId) {
+  try {
+    var body={};
+    ['satisfaccion_general','tiempo_entrega','desempeno_equipo','conocimientos_tecnicos','presentacion_equipo','calidad_productos','calidad_entrenamientos','recomendaria'].forEach(function(k) {
+      var el=document.querySelector('input[name="penc-'+k+'"]');
+      body[k]=el?parseInt(el.value):5;
+    });
+    await api('PUT','/api/encuestas/'+encuestaId+'/llenar-telefono', body);
+    toast('✅ Encuesta completada telefónicamente','success');
+    _closeEncPanel();
+    render();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+};
 
 // ═══════════════════════════════════════════════
 // MODAL: Historial de contactos
+// ═══════════════════════════════════════════════// MODAL: Historial de contactos
 // ═══════════════════════════════════════════════
 async function renderModalHistorialContactos(encuestaId) {
   const container = _getModalContainer();
@@ -990,122 +1085,6 @@ async function renderModalHistorialContactos(encuestaId) {
 
 // ═══════════════════════════════════════════════
 // MODAL: Llenar Encuesta Telefónica
-// ═══════════════════════════════════════════════
-async function renderModalLlenarEncuestaTelefono(encuestaId) {
-  const container = _getModalContainer();
-  try {
-    const d = await api('GET', '/api/encuestas?id=' + encuestaId);
-    const e = (d.encuestas || [])[0];
-    if (!e) { toast('Encuesta no encontrada', 'error'); return; }
-
-    // Cargar ponderaciones desde configuracion
-    var ponderaciones = {};
-    try {
-      var cfgResp = await api('GET', '/api/config');
-      if (cfgResp && cfgResp.config) {
-        ponderaciones = cfgResp.config;
-      }
-    } catch(e) { /* usar defaults */ }
-
-    var preguntas = [
-      { key: 'satisfaccion_general', label: 'Satisfacción General', desc: 'Evaluación global del servicio recibido', pond: ponderaciones.ponderacion_satisfaccion_general },
-      { key: 'tiempo_entrega', label: 'Tiempo de Entrega', desc: 'Cumplimiento del tiempo acordado', pond: ponderaciones.ponderacion_tiempo_entrega },
-      { key: 'desempeno_equipo', label: 'Desempeño del Equipo', desc: 'Profesionalismo del equipo técnico', pond: ponderaciones.ponderacion_desempeno },
-      { key: 'presentacion_equipo', label: 'Presentación del Equipo', desc: 'Presentación personal y uso de uniforme', pond: ponderaciones.ponderacion_presentacion },
-      { key: 'calidad_productos', label: 'Calidad de los Productos', desc: 'Evaluación de los materiales instalados', pond: ponderaciones.ponderacion_calidad_productos },
-      { key: 'calidad_entrenamientos', label: 'Calidad de Entrenamientos', desc: 'Explicación del uso del sistema', pond: ponderaciones.ponderacion_calidad_entrenamientos },
-      { key: 'recomendaria', label: '¿Recomendaría el servicio?', desc: 'Puntuación del 1 (nunca) al 5 (definitivamente)', pond: null }
-    ];
-
-    function renderStars(pKey, idx) {
-      var opts = [1,2,3,4,5];
-      return opts.map(function(v) {
-        var checked = v === 5 ? ' checked' : '';
-        return '<label class="star-label cursor-pointer text-2xl transition-colors" onclick="_starClick(\'' + pKey + '\', ' + v + ')" id="star-' + pKey + '-' + v + '">' +
-          '<span class="star-icon' + (v === 5 ? ' text-yellow-400' : ' text-gray-300') + ' hover:text-yellow-400" data-key="' + pKey + '" data-val="' + v + '">★</span>' +
-          '</label>';
-      }).join('');
-    }
-
-    var preguntasHtml = preguntas.map(function(p) {
-      var pondStr = p.pond ? '<span class="text-xs text-blue-600 font-medium ml-2">(' + p.pond + '%)</span>' : '';
-      return '<div class="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">' +
-        '<div class="flex items-center justify-between mb-1">' +
-          '<p class="text-sm font-semibold text-gray-800">' + p.label + pondStr + '</p>' +
-        '</div>' +
-        '<p class="text-xs text-gray-400 mb-2">' + p.desc + '</p>' +
-        '<div class="flex gap-1 items-center">' +
-          renderStars('enc-' + p.key, 0) +
-          '<span class="ml-2 text-xs text-gray-400" id="val-' + p.key + '">5</span>' +
-        '</div>' +
-        '<input type="hidden" name="enc-' + p.key + '" value="5">' +
-      '</div>';
-    }).join('');
-
-    container.innerHTML = '<div class="modal-overlay fade-in" onclick="if(event.target===this)closeAllModals()">' +
-      '<div class="modal-content max-w-lg">' +
-        '<div class="p-6 border-b border-gray-200 flex items-center justify-between">' +
-          '<h2 class="text-xl font-bold flex items-center gap-2">📱 Encuesta Telefónica</h2>' +
-          '<button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>' +
-        '</div>' +
-        '<div class="p-4 bg-blue-50 rounded-xl mx-6 mt-4 text-sm">' +
-          '<p><strong>OT:</strong> ' + escHtml(e.numero_ot) + '</p>' +
-          '<p><strong>Cliente:</strong> ' + escHtml(e.cliente_nombre) + '</p>' +
-          '<p class="text-xs text-gray-500 mt-1">Toca las estrellas para calificar (1=peor, 5=mejor). Los porcentajes muestran la ponderación de cada criterio.</p>' +
-        '</div>' +
-        '<div class="p-6 space-y-3 max-h-96 overflow-y-auto">' + preguntasHtml + '</div>' +
-        '<div class="p-4 border-t border-gray-200 flex justify-end gap-3">' +
-          '<button class="btn-secondary" onclick="closeAllModals()">Cancelar</button>' +
-          '<button class="btn-primary" onclick="submitEncuestaTelefono(' + encuestaId + ')">✅ Enviar Encuesta</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-    // Inicializar la variable global de datos del star
-    window._starData = window._starData || {};
-
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
-  }
-}
-
-// Click handler para estrellas
-window._starClick = function(key, val) {
-  // Resetear todas las estrellas de esta key
-  for (var i = 1; i <= 5; i++) {
-    var el = document.getElementById('star-' + key + '-' + i);
-    if (el) {
-      var span = el.querySelector('.star-icon');
-      if (span) {
-        span.className = 'star-icon' + (i <= val ? ' text-yellow-400' : ' text-gray-300');
-      }
-    }
-  }
-  // Actualizar hidden input
-  var inp = document.querySelector('input[name="' + key + '"]');
-  if (inp) inp.value = val;
-  // Actualizar label numérico
-  var labelKey = key.replace('enc-', '');
-  var valEl = document.getElementById('val-' + labelKey);
-  if (valEl) valEl.textContent = val;
-};
-
-async function submitEncuestaTelefono(encuestaId) {
-  try {
-    var body = {};
-    ['satisfaccion_general','tiempo_entrega','desempeno_equipo','presentacion_equipo','calidad_productos','calidad_entrenamientos','recomendaria'].forEach(function(k) {
-      var el = document.querySelector('input[name="enc-' + k + '"]');
-      body[k] = el ? parseInt(el.value) : 5;
-    });
-    await api('PUT', '/api/encuestas/' + encuestaId + '/llenar-telefono', body);
-    toast('✅ Encuesta completada telefónicamente', 'success');
-    closeAllModals();
-    render();
-  } catch (e) {
-    toast('Error: ' + e.message, 'error');
-  }
-}
-
 // ═══════════════════════════════════════════════
 // Enviar link de encuesta al cliente
 // ═══════════════════════════════════════════════
@@ -1283,7 +1262,7 @@ async function initEncuestasAlertas() {
         </div>
         <div class="flex gap-2 shrink-0">
           <button class="text-xs px-3 py-1.5 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-100 transition-colors" onclick="setState({view:'ordenes'})">Ver OT</button>
-          ${tipo === 'danger' ? `<button class="text-xs px-3 py-1.5 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-100 transition-colors" onclick="renderModalContactarEncuesta(${e.id})">📞 Contactar</button>` : ''}
+          ${tipo === 'danger' ? `<button class="text-xs px-3 py-1.5 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-100 transition-colors" onclick="toggleEncuestaPanel(${e.id}, 'contactar')">📞 Contactar</button>` : ''}
         </div>
       </div>`;
     });
@@ -2903,6 +2882,7 @@ window.closeModal = function (id) {
 };
 
 window.closeAllModals = function () {
+  _closeEncPanel();
   Object.keys(modals).forEach(function(k) { delete modals[k]; });
   var mc = document.getElementById('modal-overlay-enc');
   if (mc) mc.innerHTML = '';
