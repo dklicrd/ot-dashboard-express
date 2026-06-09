@@ -972,17 +972,21 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     const trabajoCompletado = body.trabajo_completado !== undefined ? (body.trabajo_completado ? 1 : 0) : 1;
     const detalleTrabajoReal = body.detalle_trabajo_real || null;
 
+    let avalId = null;
     transaction(() => {
-      const avalId = queryFirst(`
+      run(`
         INSERT INTO avales (orden_trabajo_id, tecnico_id, numero_aval, token_publico, cliente_nombre, cliente_contacto, cliente_cedula,
           cliente_telefono, cliente_email, observaciones, productos_tecnico, estado, trabajo_completado, detalle_trabajo_real)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
-        RETURNING id
       `, [
         body.orden_trabajo_id, tecnicoId, numeroAval, tokenPublico, body.cliente_nombre, body.cliente_contacto || null,
         body.cliente_cedula || null, body.cliente_telefono || null, body.cliente_email || null,
         body.observaciones || null, productosTecnico, trabajoCompletado, detalleTrabajoReal
       ]);
+
+      // Obtener el ID del aval recién insertado
+      avalId = queryFirst('SELECT id FROM avales WHERE numero_aval = ? ORDER BY id DESC LIMIT 1', [numeroAval]);
+      if (!avalId) throw new Error('No se pudo obtener el ID del aval recién creado');
 
       // Insert individual product records
       if (body.productos && Array.isArray(body.productos)) {
