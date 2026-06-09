@@ -789,7 +789,7 @@ async function renderEncuestas() {
         '<td class="py-3 px-3 text-sm">' + (e.fecha_limite || '-') + '</td>' +
         '<td class="py-3 px-3">' + diasBadge + '</td>' +
         '<td class="py-3 px-3">' + accionesBtn + '</td>' +
-        '<td class="py-3 px-3">' + historialBtn + '</td>' +
+        '<td class="py-3 px-3">' + (typeof historialBtn !== 'undefined' ? historialBtn : '') + '</td>' +
         '</tr>' +
         '<tr class="enc-expand-row" data-enc-id="' + encId + '" style="display:none">' +
           '<td colspan="6" class="p-0"><div class="enc-panel-content" data-enc-id="' + encId + '"></div></td>' +
