@@ -1008,7 +1008,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     });
   } catch (e) {
     console.error('Error creating aval de entrega:', e.stack || e.message || e);
-    if (!res.headersSent) res.status(500).json({ error: 'Error al registrar aval' });
+    if (!res.headersSent) res.status(500).json({ error: 'Error al registrar aval', detalle: e.message || String(e) });
   }
 });
 
