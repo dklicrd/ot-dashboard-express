@@ -15,7 +15,7 @@ const upload = multer({
     }
   }
 });
-const { initDatabase, verificarYRestaurarBackup } = require('./init-db');
+const { initDatabase, verificarYRestaurarBackup, migrarEncuestasLegacy } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
@@ -32,7 +32,7 @@ console.log('🚀 OT Dashboard ' + DEPLOY_VERSION);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-  process.env.RESET_DB = "true";
+
 // Inicializar BD
 async function start() {
   try {

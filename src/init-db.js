@@ -142,6 +142,18 @@ function crearTablasBase() {
 async function initDatabase() {
   console.log('📦 Inicializando base de datos...');
 
+  // 🔒 PROTECCIÓN BD PERSISTENTE: si hay usuarios, salir sin tocar nada
+  try {
+    const userCount = queryAll("SELECT COUNT(*) as cnt FROM usuarios")?.[0]?.values?.[0]?.[0] || 
+                       queryFirst('SELECT COUNT(*) as cnt FROM usuarios')?.cnt || 0;
+    if (userCount > 0) {
+      console.log('💾 BD persistente con ' + userCount + ' usuarios — saltando inicialización completa');
+      return;
+    }
+  } catch(e) {
+    console.log('BD vacía (no existe tabla usuarios aún) — continuando con inicialización');
+  }
+
   // Si la variable RESET_DB está activa, borrar todo y empezar de nuevo
   if (process.env.RESET_DB === 'true') {
     console.log('⚠️ RESET_DB activo — eliminando todas las tablas...');
