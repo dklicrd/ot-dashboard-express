@@ -945,8 +945,8 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'No eres el técnico asignado a esta OT' });
     }
 
-    // OT must be en_curso
-    if (ot.estado !== 'en_curso') {
+    // OT must be en_curso o completada (o cualquier estado activo)
+    if (ot.estado !== 'en_curso' && ot.estado !== 'completada' && ot.estado !== 'pendiente' && ot.estado !== 'aprobada') {
       return res.status(400).json({ error: 'La OT debe estar en curso para entregar aval', estado_actual: ot.estado, ot_id: ot.id, ot_numero: ot.numero_ot });
     }
 
