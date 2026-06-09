@@ -1164,6 +1164,25 @@ app.put('/api/avales/:id/subir-firma', authMiddleware, adminOnly, avalUpload.sin
     run(`UPDATE avales SET firma_cliente_data=?, estado='firmado_cliente', fecha_firma_cliente=datetime('now', '-04:00') WHERE id=?`,
       [JSON.stringify({ tipo: 'foto', url: firmaUrl }), id]);
 
+    // Crear encuesta pendiente automática
+    try {
+      const avalCompleto = queryFirst('SELECT * FROM avales WHERE id = ?', [id]);
+      const ot = queryFirst('SELECT * FROM ordenes_trabajo WHERE id = ?', [avalCompleto?.orden_trabajo_id]);
+      if (ot) {
+        const encExistente = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ?', [ot.id]);
+        if (!encExistente) {
+          const hoy = new Date().toISOString().split('T')[0];
+          const fechaLimite = (() => { let d = new Date(), i = 0; while(i<3) { d.setDate(d.getDate()+1); if(d.getDay()!==0&&d.getDay()!==6) i++; } return d.toISOString().split('T')[0]; })();
+          const tokenEnc = require('crypto').randomBytes(16).toString('hex');
+          const numEnc = 'ENC-OT-' + (ot.numero_ot || ot.id);
+          try { run("ALTER TABLE encuestas_satisfaccion ADD COLUMN numero_encuesta TEXT"); } catch(e) {}
+          run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta) VALUES (?, ?, 'pendiente', ?, ?, ?, ?)`,
+            [ot.id, id, fechaLimite, 1, tokenEnc, numEnc]);
+          console.log('✅ Encuesta creada automáticamente al subir firma (aval ' + id + ')');
+        }
+      }
+    } catch(e) { console.error('Error creando encuesta al subir firma:', e.message); }
+
     res.json({ message: 'Firma subida correctamente', firma_url: firmaUrl });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
@@ -3307,6 +3326,24 @@ app.post('/api/avales/public/:token/firmar', (req, res) => {
 
     res.json({ message: 'Aval firmado por el cliente' });
     try { exportDatabase(); } catch(e) {}
+
+    // Crear encuesta pendiente automática
+    try {
+      const ot = queryFirst('SELECT * FROM ordenes_trabajo WHERE id = (SELECT orden_trabajo_id FROM avales WHERE id = ?)', [aval.id]);
+      if (ot) {
+        const encExistente = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ?', [ot.id]);
+        if (!encExistente) {
+          const hoy = new Date().toISOString().split('T')[0];
+          const fechaLimite = (() => { let d = new Date(), i = 0; while(i<3) { d.setDate(d.getDate()+1); if(d.getDay()!==0&&d.getDay()!==6) i++; } return d.toISOString().split('T')[0]; })();
+          const tokenEnc = require('crypto').randomBytes(16).toString('hex');
+          const numEnc = 'ENC-OT-' + (ot.numero_ot || ot.id);
+          try { run("ALTER TABLE encuestas_satisfaccion ADD COLUMN numero_encuesta TEXT"); } catch(e) {}
+          run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta) VALUES (?, ?, 'pendiente', ?, ?, ?, ?)`,
+            [ot.id, aval.id, fechaLimite, 1, tokenEnc, numEnc]);
+          console.log('✅ Encuesta creada automáticamente al firmar aval (público) id=' + aval.id);
+        }
+      }
+    } catch(e) { console.error('Error creando encuesta al firmar aval:', e.message); }
 
     // Item 4: Notificar a admins que el cliente firmó
     try {
