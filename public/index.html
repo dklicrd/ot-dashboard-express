@@ -80,9 +80,6 @@
   .slide-up { animation: slideUp 0.3s ease-out; }
   .star-rating button { transition: all 0.15s ease; }
   .star-rating button:hover { transform: scale(1.15); }
-  .star-label { transition: transform 0.1s ease; }
-  .star-label:hover { transform: scale(1.2); }
-  .star-icon { transition: color 0.15s ease, transform 0.1s ease; }
   .scrollbar-thin::-webkit-scrollbar { width: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -295,10 +292,7 @@ window.ejecutarConfirmarAval = async function (avalId) {
       skip_survey_motivo: skipSurveyMotivo
     });
     closeModal();
-    var msg = skipSurvey
-      ? '✅ Aval confirmado (sin encuesta). OT completada.'
-      : '✅ Aval confirmado. OT completada. 📋 Encuesta creada — vence ' + (r.fechaLimite || 'en 3 días hábiles');
-    toast(msg, 'success');
+    toast(r.message || (skipSurvey ? 'Aval confirmado sin encuesta.' : 'Aval confirmado. OT completada.'));
     render();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
 };
@@ -754,48 +748,16 @@ async function uploadFirmado(id) {
 }
 
 // ============ ENCUESTAS ============
-let _encuestasFiltro = 'todas';
-
 async function renderEncuestas() {
   try {
     const d = await api('GET', '/api/encuestas');
-    const todas = d.encuestas || [];
+    const encuestas = d.encuestas || [];
 
-    // Filtrar
-    let encuestas = todas;
-    if (_encuestasFiltro === 'pendientes') {
-      encuestas = todas.filter(function(e) { return e.estado === 'pendiente' || e.estado === 'pendiente_admin'; });
-    } else if (_encuestasFiltro === 'completadas') {
-      encuestas = todas.filter(function(e) { return e.estado === 'completada'; });
-    } else if (_encuestasFiltro === 'expiradas') {
-      encuestas = todas.filter(function(e) { return e.estado === 'expirada'; });
-    } else if (_encuestasFiltro === 'admin') {
-      encuestas = todas.filter(function(e) { return e.estado === 'pendiente_admin'; });
-    }
-
-    // Totales para badges
-    var totales = { todas: todas.length, pendientes: 0, completadas: 0, expiradas: 0, admin: 0 };
-    todas.forEach(function(e) {
-      if (e.estado === 'pendiente' || e.estado === 'pendiente_admin') totales.pendientes++;
-      if (e.estado === 'completada') totales.completadas++;
-      if (e.estado === 'expirada') totales.expiradas++;
-      if (e.estado === 'pendiente_admin') totales.admin++;
-    });
-
-    function filtroBtn(val, label, badge) {
-      var active = _encuestasFiltro === val ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-      var badgeHtml = badge ? '<span class="ml-1 text-xs ' + (badge > 0 ? (active.indexOf('bg-blue') >= 0 ? 'text-blue-200' : 'text-blue-600') : 'text-gray-400') + '">(' + badge + ')</span>' : '';
-      return '<button class="px-3 py-1.5 rounded-lg text-sm font-medium ' + active + '" onclick="_encuestasFiltro=\\"' + val + '\\";render()">' + label + badgeHtml + '</button>';
-    }
-
-    var rowsHtml = encuestas.map(function(e) {
-      var estadoBadge, accionesBtn, historialBtn;
-
+    const rows = encuestas.map(e => {
+      let estadoBadge = '';
       if (e.estado === 'completada') {
         estadoBadge = '<span class="badge badge-success flex items-center gap-1">✅ ' + (e.porcentaje_final || 0) + '%</span>';
-        accionesBtn = '<span class="text-xs text-green-600">' + (e.fecha_encuesta ? new Date(e.fecha_encuesta).toLocaleDateString() : 'Completada') + '</span>';
       } else if (e.estado === 'expirada') {
-        var contactado = e.contactado_por ? '✅' : '❌';
         estadoBadge = '<span class="badge badge-error flex items-center gap-1">❌ Expirada</span>';
         accionesBtn = '<button class="text-sm px-3 py-1 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100" onclick="toggleEncuestaPanel(' + e.id + ', \'contactar\')">📞 Contactar</button>';
       } else if (e.estado === 'pendiente_admin') {
@@ -810,13 +772,13 @@ async function renderEncuestas() {
         '</div>';
       }
 
-      historialBtn = '<button class="text-xs text-gray-400 hover:text-gray-600" onclick="renderModalHistorialContactos(' + e.id + ')">📋 ' + (e.intentos || 0) + ' intentos</button>';
-
-      var diasBadge = '';
+      let diasBadge = '';
       if (e.dias_restantes > 0 && e.estado === 'pendiente') {
         diasBadge = '<span class="text-xs text-blue-600">' + e.dias_restantes + ' días</span>';
       } else if (e.dias_restantes <= 0 && e.estado === 'pendiente') {
         diasBadge = '<span class="text-xs text-red-600 font-semibold">⚠️ Vence hoy</span>';
+      } else if (e.estado === 'expirada') {
+        diasBadge = '<span class="text-xs text-red-600">Expirada</span>';
       }
 
       var encId = e.id;
@@ -824,7 +786,8 @@ async function renderEncuestas() {
         '<td class="py-3 px-3 font-medium">' + escHtml(e.numero_ot) + '</td>' +
         '<td class="py-3 px-3">' + escHtml(e.cliente_nombre) + '</td>' +
         '<td class="py-3 px-3">' + estadoBadge + '</td>' +
-        '<td class="py-3 px-3 text-sm">' + diasBadge + '</td>' +
+        '<td class="py-3 px-3 text-sm">' + (e.fecha_limite || '-') + '</td>' +
+        '<td class="py-3 px-3">' + diasBadge + '</td>' +
         '<td class="py-3 px-3">' + accionesBtn + '</td>' +
         '<td class="py-3 px-3">' + historialBtn + '</td>' +
         '</tr>' +
@@ -833,41 +796,35 @@ async function renderEncuestas() {
         '</tr>';
     }).join('');
 
-    return '<div class="fade-in">' +
-      '<div class="flex flex-wrap items-center justify-between gap-4 mb-6">' +
-        '<h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">⭐ Encuestas de Satisfacción</h2>' +
-        '<div class="flex gap-2">' +
-          '<button class="btn-primary text-sm px-3 py-1.5 flex items-center gap-1" onclick="renderModalNuevaEncuesta()"><span>+</span> Nueva</button>' +
-          '<button class="btn-secondary text-sm px-3 py-1.5" onclick="renderReportesEncuestas()">📊 Reportes</button>' +
-        '</div>' +
-      '</div>' +
+    return `
+      <div class="fade-in">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">⭐ Encuestas de Satisfacción</h2>
+          <button class="btn-primary flex items-center gap-2" onclick="renderModalNuevaEncuesta()">
+            <span>+</span> Nueva Encuesta
+          </button>
+        </div>
 
-      '<div class="flex flex-wrap gap-2 mb-4">' +
-        filtroBtn('todas', 'Todas', totales.todas) +
-        filtroBtn('pendientes', 'Pendientes', totales.pendientes) +
-        filtroBtn('completadas', 'Completadas', totales.completadas) +
-        filtroBtn('expiradas', 'Expiradas', totales.expiradas) +
-        (totales.admin > 0 ? filtroBtn('admin', 'Admin', totales.admin) : '') +
-      '</div>' +
-
-      '<div class="card overflow-hidden">' +
-        '<div class="overflow-x-auto">' +
-          '<table class="min-w-full text-sm">' +
-            '<thead>' +
-              '<tr class="bg-gray-50 border-b border-gray-200">' +
-                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">OT</th>' +
-                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Cliente</th>' +
-                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Estado</th>' +
-                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>' +
-                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>' +
-                '<th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Historial</th>' +
-              '</tr>' +
-            '</thead>' +
-            '<tbody>' + (rowsHtml || '<tr><td colspan="6" class="text-center py-8 text-gray-400">No hay encuestas</td></tr>') + '</tbody>' +
-          '</table>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+        <div class="card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">OT</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">ID Encuesta</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Cliente</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Estado</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Fecha Límite</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>
+                </tr>
+              </thead>
+              <tbody>${rows || '<tr><td colspan="7" class="text-center py-8 text-gray-400">No hay encuestas registradas</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
   } catch (e) {
     console.error('Error loading encuestas:', e);
     return '<div class="text-center py-8 text-red-500">Error al cargar encuestas: ' + e.message + '</div>';
@@ -875,7 +832,7 @@ async function renderEncuestas() {
 }
 
 // ═══════════════════════════════════════════════
-// MODAL: Contactar Encuesta (con tipo y registro de intentos)
+// MODAL: Contactar Encuesta
 // ═══════════════════════════════════════════════
 // ═══════════════════════════════════════════════
 // INLINE PANEL: Toggle expandable row for Contactar / Telefónica
@@ -1335,34 +1292,7 @@ function _checkClienteForm() {
   const cedula = document.getElementById('ent-cliente-cedula')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
   const email = document.getElementById('ent-cliente-email')?.value?.trim();
-
-  // Feedback visual en tiempo real
-  _aplicarFeedbackEmail(email);
-  _aplicarFeedbackCedula(cedula);
-  _aplicarFeedbackTelefono(telefono);
-
   btn.disabled = !(nombre && contacto && cedula && telefono && email);
-}
-
-function _aplicarFeedbackEmail(email) {
-  const inp = document.getElementById('ent-cliente-email');
-  if (!inp) return;
-  if (!email) { inp.style.borderColor = ''; return; }
-  inp.style.borderColor = _validarEmail(email) ? '#22c55e' : '#ef4444';
-}
-
-function _aplicarFeedbackCedula(ced) {
-  const inp = document.getElementById('ent-cliente-cedula');
-  if (!inp) return;
-  if (!ced) { inp.style.borderColor = ''; return; }
-  inp.style.borderColor = _validarCedulaRD(ced) ? '#22c55e' : '#ef4444';
-}
-
-function _aplicarFeedbackTelefono(tel) {
-  const inp = document.getElementById('ent-cliente-telefono');
-  if (!inp) return;
-  if (!tel) { inp.style.borderColor = ''; return; }
-  inp.style.borderColor = _validarTelefonoRD(tel) ? '#22c55e' : '#ef4444';
 }
 
 function _checkPuedeEntregar() {
@@ -1371,53 +1301,14 @@ function _checkPuedeEntregar() {
   btn.disabled = !(_datosClienteConfirmados && _cantidadesConfirmadas);
 }
 
-function _validarEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function _validarCedulaRD(ced) {
-  // Cédula RD: 11 dígitos, opcionalmente con guiones XXX-XXXXXXX-X
-  const limpia = ced.replace(/[^0-9]/g, '');
-  return limpia.length === 11;
-}
-
-function _validarTelefonoRD(tel) {
-  // Teléfono RD: 10 dígitos, opcionalmente con guiones/espacios
-  const limpia = tel.replace(/[^0-9]/g, '');
-  return limpia.length >= 7 && limpia.length <= 15;
-}
-
 function _confirmarCliente() {
   const nombre = document.getElementById('ent-cliente-nombre')?.value?.trim();
   const contacto = document.getElementById('ent-cliente-contacto')?.value?.trim();
   const cedula = document.getElementById('ent-cliente-cedula')?.value?.trim();
   const telefono = document.getElementById('ent-cliente-telefono')?.value?.trim();
   const email = document.getElementById('ent-cliente-email')?.value?.trim();
-
   if (!nombre || !contacto || !cedula || !telefono || !email) {
     toast('Completa todos los campos del cliente: Nombre, Contacto, Cédula, Teléfono y Email', 'error');
-    return;
-  }
-
-  // Validaciones de formato
-  if (nombre.length < 2) {
-    toast('El nombre debe tener al menos 2 caracteres', 'error');
-    return;
-  }
-  if (contacto.length < 2) {
-    toast('El contacto debe tener al menos 2 caracteres', 'error');
-    return;
-  }
-  if (!_validarCedulaRD(cedula)) {
-    toast('La cédula debe tener 11 dígitos (ej: 001-1234567-8)', 'error');
-    return;
-  }
-  if (!_validarTelefonoRD(telefono)) {
-    toast('El teléfono no es válido (debe tener al menos 7 dígitos)', 'error');
-    return;
-  }
-  if (!_validarEmail(email)) {
-    toast('El email no tiene un formato válido (ej: usuario@dominio.com)', 'error');
     return;
   }
 
@@ -1490,18 +1381,15 @@ function renderEntregaAvalForm() {
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Cédula <span class="text-red-500">*</span></label>
-            <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0" pattern="[0-9-]+" maxlength="13" oninput="_tocarCliente()">
-            <p class="text-xs text-gray-400 mt-0.5" id="ent-cliente-cedula-hint">11 dígitos numéricos</p>
+            <input type="text" id="ent-cliente-cedula" class="input-field" placeholder="000-0000000-0" oninput="_tocarCliente()">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Teléfono <span class="text-red-500">*</span></label>
             <input type="text" id="ent-cliente-telefono" class="input-field" placeholder="809-555-0100" value="${_otParaAval.cliente_telefono || ''}" oninput="_tocarCliente()">
-            <p class="text-xs text-gray-400 mt-0.5" id="ent-cliente-telefono-hint">Ej: 8095550100</p>
           </div>
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
             <input type="email" id="ent-cliente-email" class="input-field" placeholder="cliente@email.com" oninput="_tocarCliente()">
-            <p class="text-xs text-gray-400 mt-0.5" id="ent-cliente-email-hint">formato: usuario@dominio.com</p>
           </div>
         </div>
         <div class="text-center pt-2">
@@ -2894,11 +2782,9 @@ window.closeModal = function (id) {
 window.closeAllModals = function () {
   _closeEncPanel();
   Object.keys(modals).forEach(function(k) { delete modals[k]; });
-  var mc = document.getElementById('modal-overlay-enc');
-  if (mc) mc.innerHTML = '';
-  document.querySelectorAll('.modal-overlay').forEach(function(el) {
-    if (el.id !== 'modal-overlay-enc') el.remove();
-  });
+  if (document.getElementById('contactar-enc-overlay')) {
+    document.getElementById('contactar-enc-overlay').remove();
+  }
   render();
 };
 

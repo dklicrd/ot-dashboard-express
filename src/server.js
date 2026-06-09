@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const { getDb, queryAll, queryFirst, run, transaction, lastInsertId } = require('./db');
+const { getDb, queryAll, queryFirst, run, transaction } = require('./db');
 const multer = require('multer');
 const upload = multer({
   dest: path.join(__dirname, '..', 'public', 'uploads', 'presupuestos'),
@@ -15,7 +15,7 @@ const upload = multer({
     }
   }
 });
-const { initDatabase, verificarYRestaurarBackup, migrarEncuestasLegacy } = require('./init-db');
+const { initDatabase, verificarYRestaurarBackup } = require('./init-db');
 const { authMiddleware, adminOnly, superAdminOnly, generarToken, verificarToken } = require('./auth');
 const { exportDatabase } = require('./backup-restore');
 const { generarAvalPDF } = require('./pdf');
@@ -611,7 +611,7 @@ app.post('/api/ordenes', authMiddleware, (req, res) => {
       }
     }
 
-    // Si la OT se crea con tecnico asignado y estado pendiente, generar tokens (sin enviar email por ahora)
+    // Si la OT se crea con tecnico asignado y estado pendiente, generar tokens y enviar email de confirmacion
     if (otRow && body.tecnico_id && (body.estado || 'pendiente') === 'pendiente') {
       var tokenConfirmar = uuidv4();
       var tokenCambio = uuidv4();
@@ -621,8 +621,11 @@ app.post('/api/ordenes', authMiddleware, (req, res) => {
         [tokenConfirmar, otRow.id, body.tecnico_id, expiraEn]);
       run("INSERT INTO confirmacion_tokens (token, tipo, orden_trabajo_id, tecnico_id, expira_en) VALUES (?, 'solicitar_cambio', ?, ?, ?)",
         [tokenCambio, otRow.id, body.tecnico_id, expiraEn]);
-      // Enviar email en segundo plano (con catch para no romper la creacion)
-      enviarEmailConfirmacionOT(otRow.id, tokenConfirmar, tokenCambio).catch(function(e) {
+
+      // Enviar email en segundo plano
+      enviarEmailConfirmacionOT(otRow.id, tokenConfirmar, tokenCambio).then(function(r) {
+        console.log('Email confirmacion OT', num, ':', r.success ? 'enviado' : 'fallo (' + (r.error || '') + ')');
+      }).catch(function(e) {
         console.error('Error enviando email confirmacion OT', num, ':', e.message);
       });
     }
@@ -631,7 +634,7 @@ app.post('/api/ordenes', authMiddleware, (req, res) => {
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error creating OT:', e);
-    res.status(500).json({ error: 'Error al crear OT: ' + e.message });
+    res.status(500).json({ error: 'Error al crear OT' });
   }
 });
 
@@ -807,8 +810,7 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       enviarNotificacionOT(id).then(result => {
         console.log('Email OT notificacion:', result?.success ? 'enviado' : 'fallo');
       }).catch(e => console.error('Error enviando email OT:', e.message));
-      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-      return res.json({ message: 'Estado actualizado', email: 'enviando' });
+      res.json({ message: 'Estado actualizado', email: 'enviando' });
     } else if (nuevoEstado === 'cancelada') {
       // Si la OT tiene avales activos, marcarlos como rechazados
       if (ot.estado === 'aval_entregado') {
@@ -831,13 +833,14 @@ app.put('/api/ordenes/:id/estado', authMiddleware, (req, res) => {
       enviarNotificacionOT(id).then(result => {
         console.log('Email OT completada:', result?.success ? 'enviado' : 'fallo');
       }).catch(e => console.error('Error enviando email OT completada:', e.message));
-      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-      return res.json({ message: 'OT completada directamente', completada_directo: true });
+      res.json({ message: 'OT completada directamente', completada_directo: true });
     } else {
       run("UPDATE ordenes_trabajo SET estado=?, actualizado_en=datetime('now', '-04:00') WHERE id=?", [nuevoEstado, id]);
-      try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-      return res.json({ message: 'Estado actualizado' });
+      res.json({ message: 'Estado actualizado' });
     }
+
+    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
+    res.json({ success: true, nuevoEstado });
   } catch (e) {
     console.error('Error actualizando estado OT:', e);
     res.status(500).json({ error: 'Error al actualizar estado' });
@@ -969,9 +972,8 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     const trabajoCompletado = body.trabajo_completado !== undefined ? (body.trabajo_completado ? 1 : 0) : 1;
     const detalleTrabajoReal = body.detalle_trabajo_real || null;
 
-    let avalId = null;
     transaction(() => {
-      const avalRow = queryFirst(`
+      const avalId = queryFirst(`
         INSERT INTO avales (orden_trabajo_id, tecnico_id, numero_aval, token_publico, cliente_nombre, cliente_contacto, cliente_cedula,
           cliente_telefono, cliente_email, observaciones, productos_tecnico, estado, trabajo_completado, detalle_trabajo_real)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
@@ -982,16 +984,11 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
         body.observaciones || null, productosTecnico, trabajoCompletado, detalleTrabajoReal
       ]);
 
-      // Fallback: si RETURNING no devuelve resultado, usar last_insert_rowid()
-      const nuevoId = avalRow?.id || lastInsertId();
-      if (!nuevoId) throw new Error('No se pudo obtener el ID del aval creado');
-      avalId = { id: nuevoId };
-
       // Insert individual product records
       if (body.productos && Array.isArray(body.productos)) {
         for (const p of body.productos) {
           run('INSERT INTO aval_productos (aval_id, producto_id, cantidad_reportada, comentario) VALUES (?, ?, ?, ?)',
-            [nuevoId, p.producto_id, p.cantidad || 0, p.comentario || null]);
+            [avalId.id, p.producto_id, p.cantidad || 0, p.comentario || null]);
         }
       }
 
@@ -1000,8 +997,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
         [body.orden_trabajo_id]);
     });
 
-    console.log('[AVAL] creado ID:', avalId?.id, 'numero:', numeroAval);
-    res.status(201).json({ message: 'Aval creado correctamente', aval_id: avalId?.id, numero_aval: numeroAval, token_publico: tokenPublico });
+    res.status(201).json({ message: 'Aval creado correctamente', aval_id: avalId.id, numero_aval: numeroAval, token_publico: tokenPublico });
 
     // Cosas post-response: backup y notificaciones (no deben romper el flujo)
     setImmediate(() => {
@@ -1012,9 +1008,7 @@ app.post('/api/avales', authMiddleware, async (req, res) => {
     });
   } catch (e) {
     console.error('Error creating aval de entrega:', e.stack || e.message || e);
-    if (!res.headersSent) {
-      try { res.status(500).json({ error: 'Error al registrar aval' }); } catch(e2) { console.error('Error sending response:', e2.message); }
-    }
+    if (!res.headersSent) res.status(500).json({ error: 'Error al registrar aval' });
   }
 });
 
@@ -1594,29 +1588,15 @@ app.get('/api/avales-legacy/:id', authMiddleware, (req, res) => {
   }
 });
 
-// Confirmar aval 100% (sin cambios) — también crea encuesta automática
+// Confirmar aval 100% (sin cambios)
 app.put('/api/avales-legacy/:id/confirmar', authMiddleware, async (req, res) => {
   try {
     const aval = queryFirst('SELECT * FROM avales_legacy WHERE id = ?', [req.params.id]);
     if (!aval) return res.status(404).json({ error: 'Aval no encontrado' });
 
-    transaction(() => {
-      run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
+    run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
 
-      // Crear encuesta automática si no existe
-      const encExistente = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_legacy_id = ?', [aval.orden_trabajo_id, req.params.id]);
-      if (!encExistente) {
-        const hoy = new Date().toISOString().split('T')[0];
-        const fechaLimite = sumarDiasHabiles(hoy, 3);
-        const tokenEnc = generarTokenEncuesta();
-        run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, estado, fecha_limite, realizada_por, token_publico)
-          VALUES (?, ?, 'pendiente', ?, ?, ?)`,
-          [aval.orden_trabajo_id, req.params.id, fechaLimite, req.user.userId, tokenEnc]);
-        console.log('📝 Encuesta automática creada para aval legacy #' + req.params.id);
-      }
-    });
-
-    res.json({ message: 'Aval confirmado al 100%. Encuesta creada automáticamente.', estado: 'confirmado' });
+    res.json({ message: 'Aval confirmado al 100%', estado: 'confirmado' });
     try { exportDatabase(); } catch(e) { /* ignore */ }
   } catch (e) {
     console.error('Error confirming aval:', e);
@@ -1654,19 +1634,7 @@ app.put('/api/avales-legacy/:id/productos', authMiddleware, async (req, res) => 
 
     run("UPDATE avales_legacy SET estado='confirmado', confirmado_en=datetime('now', '-04:00') WHERE id=?", [req.params.id]);
 
-    // Crear encuesta automática si no existe
-    const encExistente = queryFirst('SELECT id FROM encuestas_satisfaccion WHERE orden_trabajo_id = ? AND aval_legacy_id = ?', [aval.orden_trabajo_id, req.params.id]);
-    if (!encExistente) {
-      const hoy = new Date().toISOString().split('T')[0];
-      const fechaLimite = sumarDiasHabiles(hoy, 3);
-      const tokenEnc = generarTokenEncuesta();
-      run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_legacy_id, estado, fecha_limite, realizada_por, token_publico)
-        VALUES (?, ?, 'pendiente', ?, ?, ?)`,
-        [aval.orden_trabajo_id, req.params.id, fechaLimite, req.user.userId, tokenEnc]);
-      console.log('📝 Encuesta automática creada para aval legacy #' + req.params.id);
-    }
-
-    res.json({ message: 'Productos actualizados y bono recalculado. Encuesta creada automáticamente.', bono_tecnico: bono, monto_total: subtotal });
+    res.json({ message: 'Productos actualizados y bono recalculado', bono_tecnico: bono, monto_total: subtotal });
     try { exportDatabase(); } catch(e) { /* ignore */ }
   } catch (e) {
     console.error('Error updating productos:', e);
@@ -1733,14 +1701,11 @@ app.get('/api/encuestas', authMiddleware, (req, res) => {
   let sql = `
     SELECT e.*, ot.numero_ot, c.nombre as cliente_nombre,
       c.telefono as cliente_telefono, c.email as cliente_email,
-      COALESCE(a.numero_aval, al.numero_aval) as numero_aval,
-      COALESCE(a.cliente_nombre, '') as aval_cliente_nombre,
-      COALESCE(a.cliente_telefono, '') as aval_cliente_telefono
+      a.numero_aval, a.cliente_nombre as aval_cliente_nombre, a.cliente_telefono as aval_cliente_telefono
     FROM encuestas_satisfaccion e
     JOIN ordenes_trabajo ot ON e.orden_trabajo_id = ot.id
     JOIN clientes c ON ot.cliente_id = c.id
     LEFT JOIN avales a ON e.aval_id = a.id
-    LEFT JOIN avales_legacy al ON e.aval_legacy_id = al.id
     WHERE 1=1
   `;
   const params = [];
@@ -1855,217 +1820,34 @@ app.post('/api/encuestas', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════════════
 // ENDPOINT: Contactar encuesta expirada
 // ═══════════════════════════════════════════════
-app.put('/api/encuestas/:id/contactar', authMiddleware, (req, res) => {
+app.put('/api/encuestas/:id/contactar', authMiddleware, adminOnly, (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { tipo, notas } = req.body || {};
+    const { notas_contacto } = req.body;
 
     const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
     if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
 
-    // Registrar intento de contacto en tabla contactos_encuesta
-    run('INSERT INTO contactos_encuesta (encuesta_id, contacto_por, tipo, notas) VALUES (?, ?, ?, ?)',
-      [id, req.user.userId, tipo || 'telefono', notas || null]);
-
-    // Incrementar intentos
-    const nuevosIntentos = (encuesta.intentos || 0) + 1;
-
-    // Determinar estado según intentos
+    // Si está pendiente y fecha_limite pasada, cambiar a expirada
     const ahora = new Date().toISOString().split('T')[0];
     let nuevoEstado = encuesta.estado;
-    if (encuesta.fecha_limite && encuesta.fecha_limite < ahora) {
+    if (encuesta.estado === 'pendiente' && encuesta.fecha_limite && encuesta.fecha_limite < ahora) {
       nuevoEstado = 'expirada';
-    } else if (nuevosIntentos >= 3 && encuesta.estado === 'pendiente') {
-      // Después de 3 intentos sin éxito, pasa a admin para cierre
-      nuevoEstado = 'pendiente_admin';
     }
 
     run(`UPDATE encuestas_satisfaccion SET
       contactado_por = ?,
       fecha_contacto = datetime('now', '-04:00'),
       notas_contacto = COALESCE(?, notas_contacto),
-      intentos = ?,
       estado = ?
       WHERE id = ?`,
-      [req.user.userId, notas || null, nuevosIntentos, nuevoEstado, id]);
+      [req.user.userId, notas_contacto || null, nuevoEstado, id]);
 
-    res.json({ message: 'Contacto registrado', intentos: nuevosIntentos, estado: nuevoEstado });
+    res.json({ message: 'Contacto registrado', estado: nuevoEstado });
     try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
   } catch (e) {
     console.error('Error contactando encuesta:', e);
     res.status(500).json({ error: 'Error al registrar contacto' });
-  }
-});
-
-// GET /api/encuestas/:id/contactos — historial de contactos
-app.get('/api/encuestas/:id/contactos', authMiddleware, (req, res) => {
-  try {
-    const contactos = queryAll(`
-      SELECT c.*, u.nombre as contacto_por_nombre
-      FROM contactos_encuesta c
-      LEFT JOIN usuarios u ON u.id = c.contacto_por
-      WHERE c.encuesta_id = ?
-      ORDER BY c.creado_en DESC
-    `, [Number(req.params.id)]);
-    res.json({ contactos });
-  } catch (e) {
-    console.error('Error cargando contactos:', e);
-    res.status(500).json({ error: 'Error al cargar contactos' });
-  }
-});
-
-// PUT /api/encuestas/:id/enviar-link — marcar que se envió link al cliente
-app.put('/api/encuestas/:id/enviar-link', authMiddleware, (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { metodo } = req.body || {};
-
-    run('UPDATE encuestas_satisfaccion SET email_enviado = 1 WHERE id = ?', [id]);
-
-    // También registrar como contacto
-    run('INSERT INTO contactos_encuesta (encuesta_id, contacto_por, tipo, notas) VALUES (?, ?, ?, ?)',
-      [id, req.user.userId, metodo || 'whatsapp', 'Link público enviado al cliente']);
-
-    res.json({ message: 'Link enviado' });
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-  } catch (e) {
-    console.error('Error enviando link:', e);
-    res.status(500).json({ error: 'Error al enviar link' });
-  }
-});
-
-// PUT /api/encuestas/:id/llenar-telefono — llenar encuesta telefónicamente
-app.put('/api/encuestas/:id/llenar-telefono', authMiddleware, (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const body = req.body;
-
-    const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
-    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
-
-    // Calcular porcentaje final ponderado
-    const config = queryFirst('SELECT * FROM configuracion_incentivos WHERE id = 1') || {};
-    const ponderaciones = {
-      ponderacion_tiempo_entrega: config.ponderacion_tiempo_entrega || 25,
-      ponderacion_desempeno: config.ponderacion_desempeno || 20,
-      ponderacion_presentacion: config.ponderacion_presentacion || 15,
-      ponderacion_calidad_productos: config.ponderacion_calidad_productos || 20,
-      ponderacion_calidad_entrenamientos: config.ponderacion_calidad_entrenamientos || 20
-    };
-
-    const sumPond = Object.values(ponderaciones).reduce((a, b) => a + b, 0) || 100;
-    const pct = (
-      (Number(body.satisfaccion_general) || 5) * (config.ponderacion_satisfaccion_general || 0) +
-      (Number(body.tiempo_entrega) || 5) * config.ponderacion_tiempo_entrega +
-      (Number(body.desempeno_equipo) || 5) * config.ponderacion_desempeno +
-      (Number(body.presentacion_equipo) || 5) * config.ponderacion_presentacion +
-      (Number(body.calidad_productos) || 5) * ponderaciones.ponderacion_calidad_productos +
-      (Number(body.calidad_entrenamientos) || 5) * ponderaciones.ponderacion_calidad_entrenamientos
-    ) / sumPond;
-
-    run(`UPDATE encuestas_satisfaccion SET
-      satisfaccion_general = ?, tiempo_entrega = ?, desempeno_equipo = ?,
-      presentacion_equipo = ?, calidad_productos = ?, conocimientos_tecnicos = ?,
-      calidad_entrenamientos = ?, recomendaria = ?, observaciones = ?,
-      porcentaje_final = ?, realizada_por = ?, fecha_encuesta = datetime('now', '-04:00'),
-      respuestas_data = ?, estado = 'completada'
-      WHERE id = ?`,
-      [
-        Number(body.satisfaccion_general) || null,
-        Number(body.tiempo_entrega) || null,
-        Number(body.desempeno_equipo) || null,
-        Number(body.presentacion_equipo) || null,
-        Number(body.calidad_productos) || null,
-        Number(body.conocimientos_tecnicos) || null,
-        Number(body.calidad_entrenamientos) || null,
-        (Number(body.recomendaria) >= 3 ? 1 : 0),
-        body.observaciones || null,
-        Math.round(pct * 100) / 100,
-        req.user.userId,
-        body.respuestas_data || null,
-        id
-      ]);
-
-    res.json({ message: 'Encuesta completada telefónicamente', porcentaje_final: Math.round(pct * 100) / 100 });
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-  } catch (e) {
-    console.error('Error llenando encuesta telefónica:', e);
-    res.status(500).json({ error: 'Error al llenar encuesta: ' + e.message });
-  }
-});
-
-// PUT /api/encuestas/:id/cerrar-admin — cerrar encuesta por admin (tras 3 intentos)
-app.put('/api/encuestas/:id/cerrar-admin', authMiddleware, adminOnly, (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const motivo = req.body.motivo || 'Cerrada por administración';
-
-    const encuesta = queryFirst('SELECT * FROM encuestas_satisfaccion WHERE id = ?', [id]);
-    if (!encuesta) return res.status(404).json({ error: 'Encuesta no encontrada' });
-
-    run(`UPDATE encuestas_satisfaccion SET
-      estado = 'expirada',
-      notas_contacto = COALESCE(?, notas_contacto),
-      motivo_sin_encuesta = ?
-      WHERE id = ?`,
-      ['Cerrada por admin: ' + motivo, motivo, id]);
-
-    res.json({ message: 'Encuesta cerrada por administración' });
-    try { exportDatabase(); } catch(e) { console.error('Backup error:', e.message); }
-  } catch (e) {
-    console.error('Error cerrando encuesta:', e);
-    res.status(500).json({ error: 'Error al cerrar encuesta' });
-  }
-});
-
-// GET /api/encuestas/reportes — stats y promedios
-app.get('/api/encuestas/reportes', authMiddleware, (req, res) => {
-  try {
-    const now = new Date();
-    const year = req.query.year || now.getFullYear();
-    const month = req.query.month || now.getMonth() + 1;
-    const periodo = year + '-' + String(month).padStart(2, '0');
-
-    // Stats generales
-    const total = queryFirst('SELECT COUNT(*) as total FROM encuestas_satisfaccion');
-    const completadas = queryFirst("SELECT COUNT(*) as total FROM encuestas_satisfaccion WHERE estado = 'completada'");
-    const pendientes = queryFirst("SELECT COUNT(*) as total FROM encuestas_satisfaccion WHERE estado IN ('pendiente','pendiente_admin')");
-    const expiradas = queryFirst("SELECT COUNT(*) as total FROM encuestas_satisfaccion WHERE estado = 'expirada'");
-
-    // Promedio general (solo completadas)
-    const promedios = queryFirst(`
-      SELECT
-        AVG(satisfaccion_general) as prom_satisfaccion,
-        AVG(tiempo_entrega) as prom_tiempo_entrega,
-        AVG(desempeno_equipo) as prom_desempeno,
-        AVG(presentacion_equipo) as prom_presentacion,
-        AVG(calidad_productos) as prom_calidad_productos,
-        AVG(calidad_entrenamientos) as prom_calidad_entrenamientos,
-        AVG(porcentaje_final) as prom_porcentaje
-      FROM encuestas_satisfaccion WHERE estado = 'completada'
-    `);
-
-    // Por periodo
-    const porPeriodo = queryAll(`
-      SELECT
-        strftime('%Y-%m', fecha_encuesta) as periodo,
-        COUNT(*) as total,
-        AVG(porcentaje_final) as prom_porcentaje
-      FROM encuestas_satisfaccion
-      WHERE estado = 'completada' AND fecha_encuesta IS NOT NULL
-      GROUP BY periodo
-      ORDER BY periodo DESC
-      LIMIT 12
-    `);
-
-    res.json({
-      totals: { total: total?.total || 0, completadas: completadas?.total || 0, pendientes: pendientes?.total || 0, expiradas: expiradas?.total || 0 },
-      promedios,
-      porPeriodo
-    });
-  } catch (e) {
-    console.error('Error cargando reportes encuestas:', e);
-    res.status(500).json({ error: 'Error al cargar reportes' });
   }
 });
 
