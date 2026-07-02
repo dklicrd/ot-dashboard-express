@@ -61,6 +61,60 @@ async function start() {
     console.error(e.stack);
   }
 
+  // DEBUG: endpoint para verificar estado interno
+  app.get('/api/debug', async (req, res) => {
+    try {
+      const bcrypt = require('bcryptjs');
+      const { queryAll } = require('./db');
+
+      const email = 'admin@sistema.com';
+
+      let user = null;
+      try {
+        const rows = queryAll('SELECT id, nombre, email, password, rol, activo FROM usuarios WHERE email = ? AND activo = 1', [email]);
+        if (rows && rows.length > 0) {
+          user = rows[0];
+        }
+      } catch(e) {}
+
+      if (!user) {
+        return res.json({ ok: false, error: 'Admin not found' });
+      }
+
+      res.json({
+        ok: true,
+        user_id: user.id,
+        user_email: user.email,
+        user_rol: user.rol,
+        user_activo: user.activo
+      });
+    } catch(e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Endpoint temporal: exportar BD completa como JSON
+  app.get('/api/export-bd', (req, res) => {
+    try {
+      const { queryAll } = require('./db');
+      const tablas = ['usuarios', 'clientes', 'ots', 'hps_transacciones', 'hps_detalles', 'hps_plantillas',
+                       'encuestas', 'incidencias_nuevas', 'correos_proveedores', 'productos', 'configuracion',
+                       'notas_ots', 'formulario_mensual_categorias', 'formulario_mensual_preguntas',
+                       'formulario_mensual_respuestas'];
+      const result = {};
+      for (const t of tablas) {
+        try {
+          const rows = queryAll(`SELECT * FROM \"${t}\"`);
+          result[t] = rows || [];
+        } catch(e) { result[t] = []; }
+      }
+      res.json({ ok: true, exportado: new Date().toISOString(), tablas: result });
+    } catch(e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+  });
+
   try {
     app.listen(PORT, () => {
       console.log(`🌐 Servidor corriendo en http://localhost:${PORT}`);
@@ -237,12 +291,12 @@ app.post('/api/auth', async (req, res) => {
 
     let valid = false;
     if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$')) {
-      valid = await bcrypt.compare(password, user.password);
+      valid = bcrypt.compareSync(password, user.password);
     } else {
       valid = password === user.password;
       // Upgrade legacy password
       if (valid) {
-        const hashed = await bcrypt.hash(password, 10);
+        const hashed = bcrypt.hashSync(password, 10);
         run('UPDATE usuarios SET password = ? WHERE id = ?', [hashed, user.id]);
       }
     }
