@@ -113,7 +113,6 @@ async function start() {
       res.json({ ok: false, error: e.message });
     }
   });
-  });
 
   try {
     app.listen(PORT, () => {
