@@ -1109,10 +1109,11 @@ app.put('/api/avales/:id/confirmar', authMiddleware, adminOnly, (req, res) => {
 
       // Crear encuesta automática SOLO si no es skip_survey
       if (!skipSurvey) {
+        const ot = queryFirst('SELECT * FROM ordenes_trabajo WHERE id = ?', [aval.orden_trabajo_id]);
         const hoy = new Date().toISOString().split('T')[0];
         const fechaLimite = sumarDiasHabiles(hoy, 3);
         const tokenEnc = generarTokenEncuesta();
-        const numeroEncuesta = 'ENC-OT-' + ot.numero_ot;
+        const numeroEncuesta = 'ENC-OT-' + (ot?.numero_ot || aval.orden_trabajo_id);
         // Asegurar columna numero_encuesta
         try { run("ALTER TABLE encuestas_satisfaccion ADD COLUMN numero_encuesta TEXT"); } catch(e) {}
         run(`INSERT INTO encuestas_satisfaccion (orden_trabajo_id, aval_id, estado, fecha_limite, realizada_por, token_publico, numero_encuesta)
