@@ -782,17 +782,19 @@ async function renderEncuestas() {
       }
 
       var encId = e.id;
+      var historialBtn = '<button class="text-xs px-2 py-1 rounded bg-gray-50 text-gray-600 hover:bg-gray-100" onclick="renderModalHistorialContactos(' + encId + ')">📋 Contactos</button>';
       return '<tr class="hover:bg-gray-50 enc-row" data-enc-id="' + encId + '">' +
         '<td class="py-3 px-3 font-medium">' + escHtml(e.numero_ot) + '</td>' +
+        '<td class="py-3 px-3">' + escHtml(e.numero_encuesta || e.id) + '</td>' +
         '<td class="py-3 px-3">' + escHtml(e.cliente_nombre) + '</td>' +
         '<td class="py-3 px-3">' + estadoBadge + '</td>' +
         '<td class="py-3 px-3 text-sm">' + (e.fecha_limite || '-') + '</td>' +
         '<td class="py-3 px-3">' + diasBadge + '</td>' +
         '<td class="py-3 px-3">' + accionesBtn + '</td>' +
-        '<td class="py-3 px-3">' + (typeof historialBtn !== 'undefined' ? historialBtn : '') + '</td>' +
+        '<td class="py-3 px-3">' + historialBtn + '</td>' +
         '</tr>' +
         '<tr class="enc-expand-row" data-enc-id="' + encId + '" style="display:none">' +
-          '<td colspan="6" class="p-0"><div class="enc-panel-content" data-enc-id="' + encId + '"></div></td>' +
+          '<td colspan="8" class="p-0"><div class="enc-panel-content" data-enc-id="' + encId + '"></div></td>' +
         '</tr>';
     }).join('');
 
@@ -817,9 +819,10 @@ async function renderEncuestas() {
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Fecha Límite</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Días Rest.</th>
                   <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Acción</th>
+                  <th class="text-left py-3 px-3 font-semibold text-gray-600 text-xs uppercase">Contactos</th>
                 </tr>
               </thead>
-              <tbody>${rows || '<tr><td colspan="7" class="text-center py-8 text-gray-400">No hay encuestas registradas</td></tr>'}</tbody>
+              <tbody>${rows || '<tr><td colspan="8" class="text-center py-8 text-gray-400">No hay encuestas registradas</td></tr>'}</tbody>
             </table>
           </div>
         </div>
